@@ -33,7 +33,7 @@ from setuptools import setup
 # CONSTANTS
 # =============================================================================
 
-REQUIREMENTS = ["numpy", "scipy", "attrs", "matplotlib"]
+REQUIREMENTS = ["numpy", "scipy", "astropy", "specutils", "matplotlib"]
 
 PATH = pathlib.Path(os.path.abspath(os.path.dirname(__file__)))
 
@@ -69,7 +69,7 @@ def do_setup():
         url="https://github.com/gaia/NirDust",####corregir path
         license="MIT",
 
-        keywords=["nirdust", "nearest", "neighbors", "search", "grid"], #### ver palabras claves
+        keywords=["nirdust", "emission", "spectra", "nuclear", "temperatures"],
 
         classifiers=[
             "Development Status :: 4 - Beta",
