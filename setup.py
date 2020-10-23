@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 # This file is part of the
-#   NirDust Project (https://github.com/gaia/NirDust) #####corregir path
+#   NirDust Project (https://github.com/Gaiana/nirdust)
 # Copyright (c) 2020, Gaiana Gaspar, Jose Alacoria
 # License: MIT
-#   Full Text: https://github.com/gaia/NirDust/blob/master/LICENSE ####corregir paht
+#   Full Text: https://github.com/Gaiana/nirdust/LICENSE ####corregir paht
 
 
 # =============================================================================
@@ -57,30 +57,28 @@ DESCRIPTION = "Grid Search in Python"
 def do_setup():
     setup(
         name="nirdust",
-        version=VERSION,
-        description=DESCRIPTION,
-        long_description=LONG_DESCRIPTION,
+        version= "0.0.1",
+        description="Measure the temperature of the dust heated by an Active Galactic Nuclei (AGN) accretion disk.",
+        long_description=open("README.md").read(),
         long_description_content_type='text/markdown',
 
         author=[
             "Gaiana Gaspar",
-            "Jose Alacoria",
-        author_email="gaiagaspar@gmail.com", ####corregir mail
-        url="https://github.com/gaia/NirDust",####corregir path
+            "Jose Alacoria"],
+        author_email="gaiagaspar@gmail.com",       
+        url="https://github.com/Gaiana/nirdust",
+        py_modules=["nirdust", "ez_setup"],
         license="MIT",
 
         keywords=["nirdust", "emission", "spectra", "nuclear", "temperatures"],
 
         classifiers=[
-            "Development Status :: 4 - Beta",
             "Intended Audience :: Education",
             "Intended Audience :: Science/Research",
             "License :: OSI Approved :: MIT License",
             "Operating System :: OS Independent",
             "Programming Language :: Python",
-            "Programming Language :: Python :: 3.8",
-            "Programming Language :: Python :: Implementation :: CPython",
-            "Topic :: Scientific/Engineering"],
+            "Programming Language :: Python :: 3.8"],
 
         packages=["nirdust"],
         py_modules=["ez_setup"],
