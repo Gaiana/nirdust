@@ -5,7 +5,7 @@
 #   NirDust Project (https://github.com/Gaiana/nirdust)
 # Copyright (c) 2020, Gaiana Gaspar, Jose Alacoria
 # License: MIT
-#   Full Text: https://github.com/Gaiana/nirdust/LICENSE ####corregir paht
+#   Full Text: https://github.com/Gaiana/nirdust/LICENSE
 
 
 # =============================================================================
