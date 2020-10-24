@@ -33,7 +33,7 @@ from setuptools import setup
 # CONSTANTS
 # =============================================================================
 
-REQUIREMENTS = ["numpy", "scipy", "astropy", "specutils", "matplotlib"]
+REQUIREMENTS = ["numpy", "scipy", "astropy", "specutils"]
 
 PATH = pathlib.Path(os.path.abspath(os.path.dirname(__file__)))
 
