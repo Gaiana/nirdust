@@ -11,12 +11,19 @@
 
 import numpy as np
 from astropy.io import fits
-import matplotlib.pyplot as plt
 import specutils as su
 import os
 import pathlib
-from pathlib import Path
+import glob
+
 from astropy import units as u
+
+
+# ==============================================================================
+# CONSTANTS
+# ==============================================================================
+
+PATH = pathlib.Path(os.path.abspath(os.path.dirname(__file__)))
 
 
 # ==============================================================================
@@ -27,10 +34,9 @@ from astropy import units as u
 class NuclearSpectrum(su.Spectrum1D):
     def __init__(
         self,
-        spectrum_file,
-        extension,
+        flux,
+        header,
         radius=None,
-        flux=None,
         spectral_axis=None,
         data=None,
         flux_unit=None,
@@ -44,18 +50,22 @@ class NuclearSpectrum(su.Spectrum1D):
         uncertainty=None,
         mask=None,
         meta=None,
+        dispersion_key="CD1_1",
+        first_wavelength="CRVAL1",
+        dispersion_type="CTYPE1",
     ):
-        self.spectrum = fits.open(spectrum_file)
-        self.fluxx = self.spectrum[extension].data
-        self.header = fits.getheader(spectrum_file)
+        self.header = header
+        self.spectrum_length = len(flux)
         self.radius = radius
 
+        if self.header[dispersion_type] != "LINEAR":
+            raise ValueError("dispersion must be LINEAR")
+
         super().__init__(
-            flux=self.spectrum[extension].data * u.adu,
+            flux=flux * u.adu,
             spectral_axis=(
-                self.header["CRVAL1"]
-                + self.header["CD1_1"]
-                * np.arange(0, len(self.spectrum[extension].data))
+                self.header[first_wavelength]
+                + self.header[dispersion_key] * np.arange(0, self.spectrum_length)
             )
             * u.AA,
             wcs=wcs,
@@ -69,65 +79,32 @@ class NuclearSpectrum(su.Spectrum1D):
             meta=meta,
         )
 
-        self.plot = plt.plot(self.spectral_axis, self.flux)
-        self.close = self.spectrum.close(spectrum_file)
 
-
-class Off_NuclearSpectrum(NuclearSpectrum):
-    ...
+# class Off_NuclearSpectrum(NuclearSpectrum):
+#    ...
 
 
 # ==============================================================================
 # LOAD SPECTRA
 # ==============================================================================
 
-PATH = os.path.abspath(os.path.dirname(__file__))
 
+def read_single_spectrum(file_name, extension, **kwargs):  # IO
 
-def from_folder(nuclear_spectra_folder):
+    with fits.open(file_name) as spectrum:
 
-    files_nuclei = pathlib.Path(PATH) / "nuclear_spectra"
+        fluxx = spectrum[extension].data
+        header = fits.getheader(file_name)
 
-    nuclear_list = []
+    single_spectrum = NuclearSpectrum(flux=fluxx, header=header, **kwargs)
 
-    for name in os.listdir(files_nuclei):
-        single_spectrum = NuclearSpectrum(files_nuclei / name, 0)
-        nuclear_list.append(single_spectrum)
-    return nuclear_list
-
-
-def from_list():
-
-    files_nuclei = pathlib.Path(PATH) / "nuclear_spectra"
-
-    c_list = Path(files_nuclei / "customized_list.txt")
-
-    with c_list.open() as f:
-        lines = f.readlines()
-
-    nuclear_list = []
-    for line in lines:
-        fila = line.rstrip()
-        single_spectrum = NuclearSpectrum(files_nuclei / fila, 0)
-        nuclear_list.append(single_spectrum)
-    return nuclear_list
-
-
-def from_filename(file_name):
-
-    files_nuclei = pathlib.Path(PATH) / "nuclear_spectra"
-
-    single_spectrum = NuclearSpectrum(files_nuclei / file_name, 0)
     return single_spectrum
 
 
-def load_off_nuclear_spectrum(file_name):
+def read_sample(names, extension, **kwargs):
+    spectra = []
+    for path in glob.glob(names):
+        spectrum = read_single_spectrum(path, extension)
+        spectra.append(spectrum)
 
-    off_nuclear_spectrum = pathlib.Path(PATH) / "off_nuclear_spectrum"
-
-    single_spectrum = Off_NuclearSpectrum(off_nuclear_spectrum / file_name, 0)
-    return single_spectrum
-
-# ==============================================================================
-#
-# ==============================================================================
+    return spectra
