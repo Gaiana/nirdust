@@ -8,16 +8,16 @@
 # ==============================================================================
 # IMPORTS
 # ==============================================================================
-
-import numpy as np
-from astropy.io import fits
-import specutils as su
+import glob
 import os
 import pathlib
-import glob
 
 from astropy import units as u
+from astropy.io import fits
 
+import numpy as np
+
+import specutils as su
 
 # ==============================================================================
 # CONSTANTS
