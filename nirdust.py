@@ -65,7 +65,8 @@ class NuclearSpectrum(su.Spectrum1D):
             flux=flux * u.adu,
             spectral_axis=(
                 self.header[first_wavelength]
-                + self.header[dispersion_key] * np.arange(0, self.spectrum_length)
+                + self.header[dispersion_key]
+                * np.arange(0, self.spectrum_length)
             )
             * u.AA,
             wcs=wcs,
