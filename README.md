@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/Gaiana/nirdust.svg?branch=main)](https://travis-ci.com/Gaiana/nirdust)
+
 # Nirdust: Near Infrared Dust Finder
 
 Nirdust is a python package that uses K-band (2.2 micrometers) spectra to 
