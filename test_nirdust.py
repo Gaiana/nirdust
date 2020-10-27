@@ -5,10 +5,9 @@
 import os
 import pathlib
 
-import pytest
-
 import nirdust as nd
 
+import pytest
 
 # ==============================================================================
 # CONSTANTS
