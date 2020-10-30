@@ -23,7 +23,7 @@ TEST_PATH = pathlib.Path(PATH) / "test_data"
 
 
 @pytest.fixture(scope="session")
-def cont03():
+def NGC4945_continuum():
     file_name = TEST_PATH / "cont03.fits"
     spect = nd.read_spectrum(file_name, 0)
     return spect
@@ -34,18 +34,18 @@ def cont03():
 # ==============================================================================
 
 
-def test_match(cont03):
-    spectrum = cont03
+def test_match(NGC4945_continuum):
+    spectrum = NGC4945_continuum
     assert spectrum.spectral_axis.shape == spectrum.flux.shape
 
 
-def test_header(cont03):
-    spectrum = cont03
+def test_header(NGC4945_continuum):
+    spectrum = NGC4945_continuum
     assert isinstance(spectrum.header["EXPTIME"], (float, int))
     assert spectrum.header["EXPTIME"] >= 0.0
 
 
-def test_wav_axis(cont03):
-    spectrum = cont03
+def test_wav_axis(NGC4945_continuum):
+    spectrum = NGC4945_continuum
     assert spectrum.header["CRVAL1"] >= 0.0
     assert spectrum.header["CTYPE1"] == "LINEAR"
