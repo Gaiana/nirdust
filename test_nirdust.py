@@ -25,15 +25,8 @@ TEST_PATH = pathlib.Path(PATH) / "test_data"
 @pytest.fixture(scope="session")
 def cont03():
     file_name = TEST_PATH / "cont03.fits"
-    spect = nd.read_single_spectrum(file_name, 0)
+    spect = nd.read_spectrum(file_name, 0)
     return spect
-
-
-@pytest.fixture(scope="session")
-def sample1():
-    files = str(TEST_PATH / "cont*.fits")
-    lista = nd.read_sample(files, 0)
-    return lista
 
 
 # ==============================================================================
@@ -56,8 +49,3 @@ def test_wav_axis(cont03):
     spectrum = cont03
     assert spectrum.header["CRVAL1"] >= 0.0
     assert spectrum.header["CTYPE1"] == "LINEAR"
-
-
-def test_sample_size(sample1):
-    spec_list = sample1
-    assert len(spec_list) == 6
