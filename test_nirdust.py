@@ -53,6 +53,11 @@ def test_wav_axis(NGC4945_continuum):
     assert spectrum.header["CTYPE1"] == "LINEAR"
 
 
+def test_linearity():
+    with pytest.raises(ValueError):
+        nd.read_spectrum(TEST_PATH / "galaxia01_sin_calibrar.fits", 0, 0)
+
+
 def test_redshift_correction(NGC4945_continuum):
     spectrum = NGC4945_continuum
     assert (
