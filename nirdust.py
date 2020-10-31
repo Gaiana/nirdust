@@ -35,6 +35,7 @@ class NirdustSpectrum(su.Spectrum1D):
         self,
         flux,
         header,
+        z=0,
         dispersion_key="CD1_1",
         first_wavelength="CRVAL1",
         dispersion_type="CTYPE1",
@@ -42,11 +43,17 @@ class NirdustSpectrum(su.Spectrum1D):
     ):
 
         self.header = header
+        self.z = z
         self.spectrum_length = len(flux)
         spectral_axis = (
-            self.header[first_wavelength]
-            + self.header[dispersion_key] * np.arange(0, self.spectrum_length)
-        ) * u.AA
+            (
+                self.header[first_wavelength]
+                + self.header[dispersion_key]
+                * np.arange(0, self.spectrum_length)
+            )
+            / (1 + self.z)
+            * u.AA
+        )
 
         if self.header[dispersion_type] != "LINEAR":
             raise ValueError("dispersion must be LINEAR")
@@ -61,13 +68,13 @@ class NirdustSpectrum(su.Spectrum1D):
 # ==============================================================================
 
 
-def read_spectrum(file_name, extension, **kwargs):
+def read_spectrum(file_name, extension, z, **kwargs):
 
     with fits.open(file_name) as spectrum:
 
         fluxx = spectrum[extension].data
         header = fits.getheader(file_name)
 
-    single_spectrum = NirdustSpectrum(flux=fluxx, header=header, **kwargs)
+    single_spectrum = NirdustSpectrum(flux=fluxx, header=header, z=z, **kwargs)
 
     return single_spectrum
