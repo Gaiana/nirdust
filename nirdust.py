@@ -39,6 +39,7 @@ class NirdustSpectrum(su.Spectrum1D):
         dispersion_key="CD1_1",
         first_wavelength="CRVAL1",
         dispersion_type="CTYPE1",
+        axis_to_frec=None,
         **kwargs,
     ):
 
@@ -62,6 +63,8 @@ class NirdustSpectrum(su.Spectrum1D):
             flux=flux * u.adu, spectral_axis=spectral_axis, **kwargs
         )
 
+        self.axis_to_frec = self.spectral_axis.to(u.Hz)
+
 
 # ==============================================================================
 # LOAD SPECTRA
@@ -78,3 +81,13 @@ def read_spectrum(file_name, extension, z, **kwargs):
     single_spectrum = NirdustSpectrum(flux=fluxx, header=header, z=z, **kwargs)
 
     return single_spectrum
+
+
+# ==============================================================================
+# PREPARE SPECTRA FOR FITTING
+# ==============================================================================
+
+
+def nirdust_prepare(nuclear_spectrum):
+
+    ...
