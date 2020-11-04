@@ -9,6 +9,8 @@ from astropy import units as u
 
 import nirdust as nd
 
+import numpy as np
+
 import pytest
 
 # ==============================================================================
@@ -55,7 +57,8 @@ def test_wav_axis(NGC4945_continuum):
 
 def test_linearity():
     with pytest.raises(ValueError):
-        nd.read_spectrum(TEST_PATH / "galaxia01_sin_calibrar.fits", 0, 0)
+        path = TEST_PATH / "galaxia01_sin_calibrar.fits"
+        nd.read_spectrum(path, 0, 0)
 
 
 def test_redshift_correction(NGC4945_continuum):
@@ -63,4 +66,25 @@ def test_redshift_correction(NGC4945_continuum):
     assert (
         spectrum.spectral_axis[0]
         == (spectrum.header["CRVAL1"] / (1 + 0.01)) * u.AA
+    )
+
+
+def test_axis_to_freq(NGC4945_continuum):
+    spectrum = NGC4945_continuum
+    freq = spectrum.axis_to_freq
+    np.testing.assert_almost_equal(
+        freq.value.mean(), 138426209228521.23, decimal=1
+    )
+
+
+def test_getattr(NGC4945_continuum):
+    spectrum = NGC4945_continuum
+    np.testing.assert_array_equal(spectrum.spec1d.flux, spectrum.flux)
+
+
+def test_slice(NGC4945_continuum):
+    spectrum = NGC4945_continuum
+    result = spectrum[20:40]
+    np.testing.assert_array_equal(
+        result.spec1d.flux, spectrum.spec1d[20:40].flux
     )
