@@ -86,8 +86,8 @@ def spectrum(
     **kwargs,
 ):
 
-    if header[dispersion_type] != "LINEAR":
-        raise ValueError("dispersion must be LINEAR")
+    if header[dispersion_key] <= 0:
+        raise ValueError("dispersion must be positive")
 
     spectrum_length = len(flux)
     spectral_axis = (
@@ -130,3 +130,5 @@ def read_spectrum(file_name, extension, z, **kwargs):
 # ==============================================================================
 # PREPARE SPECTRA FOR FITTING
 # ==============================================================================
+
+
