@@ -16,6 +16,7 @@ import attr
 import numpy as np
 
 import specutils as su
+import specutils.manipulation as sm
 
 # ==============================================================================
 # CONSTANTS
@@ -37,18 +38,35 @@ class NirdustSpectrum:
     first_wavelength = attr.ib()
     dispersion_type = attr.ib()
     spec1d = attr.ib(repr=False)
-    axis_to_freq = attr.ib(repr=False)
+    frequency_axis = attr.ib(repr=False)
 
     def __getattr__(self, a):
         return getattr(self.spec1d, a)
 
     def __getitem__(self, slice):
         spec1d = self.spec1d.__getitem__(slice)
-        axis_to_freq = spec1d.spectral_axis.to(u.Hz)
+        frequency_axis = spec1d.spectral_axis.to(u.Hz)
         kwargs = attr.asdict(self)
         kwargs.update(
             spec1d=spec1d,
-            axis_to_freq=axis_to_freq,
+            frequency_axis=frequency_axis,
+        )
+        return NirdustSpectrum(**kwargs)
+
+    def cut_edges(self, mini, maxi):
+        region = su.SpectralRegion(mini * u.AA, maxi * u.AA)
+        cutted_spec1d = sm.extract_region(self.spec1d, region)
+        kwargs = attr.asdict(self)
+        kwargs.update(
+            spec1d=cutted_spec1d,
+        )
+        return NirdustSpectrum(**kwargs)
+
+    def convert_to_frequency(self):
+        new_axis = self.spec1d.spectral_axis.to(u.GHz)
+        kwargs = attr.asdict(self)
+        kwargs.update(
+            frequency_axis=new_axis,
         )
         return NirdustSpectrum(**kwargs)
 
@@ -58,7 +76,7 @@ class NirdustSpectrum:
 # ==============================================================================
 
 
-def make_spectrum(
+def spectrum(
     flux,
     header,
     z=0,
@@ -83,7 +101,7 @@ def make_spectrum(
     spec1d = su.Spectrum1D(
         flux=flux * u.adu, spectral_axis=spectral_axis, **kwargs
     )
-    axis_to_freq = spec1d.spectral_axis.to(u.Hz)
+    frequency_axis = spec1d.spectral_axis.to(u.Hz)
 
     return NirdustSpectrum(
         header=header,
@@ -93,18 +111,18 @@ def make_spectrum(
         first_wavelength=first_wavelength,
         dispersion_type=dispersion_type,
         spec1d=spec1d,
-        axis_to_freq=axis_to_freq,
+        frequency_axis=frequency_axis,
     )
 
 
 def read_spectrum(file_name, extension, z, **kwargs):
 
-    with fits.open(file_name) as spectrum:
+    with fits.open(file_name) as fits_spectrum:
 
-        fluxx = spectrum[extension].data
+        fluxx = fits_spectrum[extension].data
         header = fits.getheader(file_name)
 
-    single_spectrum = make_spectrum(flux=fluxx, header=header, z=z, **kwargs)
+    single_spectrum = spectrum(flux=fluxx, header=header, z=z, **kwargs)
 
     return single_spectrum
 
@@ -112,8 +130,3 @@ def read_spectrum(file_name, extension, z, **kwargs):
 # ==============================================================================
 # PREPARE SPECTRA FOR FITTING
 # ==============================================================================
-
-
-def nirdust_prepare(nuclear_spectrum):
-
-    ...
