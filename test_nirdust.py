@@ -13,6 +13,8 @@ import numpy as np
 
 import pytest
 
+import specutils as su
+
 # ==============================================================================
 # CONSTANTS
 # ==============================================================================
@@ -69,11 +71,11 @@ def test_redshift_correction(NGC4945_continuum):
     )
 
 
-def test_axis_to_freq(NGC4945_continuum):
+def test_convert_to_frequency(NGC4945_continuum):
     spectrum = NGC4945_continuum
-    freq = spectrum.axis_to_freq
+    freq = spectrum.convert_to_frequency().frequency_axis
     np.testing.assert_almost_equal(
-        freq.value.mean(), 138426209228521.23, decimal=1
+        freq.value.mean(), 138426.2092285212, decimal=7
     )
 
 
@@ -88,3 +90,11 @@ def test_slice(NGC4945_continuum):
     np.testing.assert_array_equal(
         result.spec1d.flux, spectrum.spec1d[20:40].flux
     )
+
+
+def test_cut_edges(NGC4945_continuum):
+    spectrum = NGC4945_continuum
+    region = su.SpectralRegion(20000 * u.AA, 23000 * u.AA)
+    expected = su.manipulation.extract_region(spectrum.spec1d, region)
+    result = spectrum.cut_edges(20000, 23000)
+    np.testing.assert_array_equal(result.spec1d.flux, expected.flux)
