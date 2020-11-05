@@ -57,9 +57,9 @@ def test_wav_axis(NGC4945_continuum):
     assert spectrum.header["CTYPE1"] == "LINEAR"
 
 
-def test_linearity():
+def test_calibration():
     with pytest.raises(ValueError):
-        path = TEST_PATH / "galaxia01_sin_calibrar.fits"
+        path = TEST_PATH / "galaxia_sin_calibrar.fits"
         nd.read_spectrum(path, 0, 0)
 
 
