@@ -70,6 +70,13 @@ class NirdustSpectrum:
         )
         return NirdustSpectrum(**kwargs)
 
+    def normalization(self):
+        normalized_flux = self.spec1d.flux / np.mean(self.spec1d.flux)
+        new_spec1d = su.Spectrum1D(normalized_flux, self.spec1d.spectral_axis)
+        kwargs = attr.asdict(self)
+        kwargs.update(spec1d=new_spec1d)
+        return NirdustSpectrum(**kwargs)
+
 
 # ==============================================================================
 # LOAD SPECTRA
@@ -131,4 +138,9 @@ def read_spectrum(file_name, extension, z, **kwargs):
 # PREPARE SPECTRA FOR FITTING
 # ==============================================================================
 
+# voy a asumir primero que todo se hace privado
 
+# ~ def Nirdustprepare(spectrum,mini,maxi):
+# ~ step1 = spectrum.cut_edges(mini,maxi)
+# ~ step2 = step1.convert_to_frequency()
+# ~ step3 = np.mean(step2)
