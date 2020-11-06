@@ -98,3 +98,10 @@ def test_cut_edges(NGC4945_continuum):
     expected = su.manipulation.extract_region(spectrum.spec1d, region)
     result = spectrum.cut_edges(20000, 23000)
     np.testing.assert_array_equal(result.spec1d.flux, expected.flux)
+
+
+def test_nomrmalization(NGC4945_continuum):
+    spectrum = NGC4945_continuum
+    normalized_spectrum = spectrum.normalization()
+    mean = np.mean(normalized_spectrum.spec1d.flux)
+    assert mean == 1.0
