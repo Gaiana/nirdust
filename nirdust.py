@@ -62,7 +62,7 @@ class NirdustSpectrum:
         )
         return NirdustSpectrum(**kwargs)
 
-    def convert_to_frequency(self):
+    def _convert_to_frequency(self):
         new_axis = self.spec1d.spectral_axis.to(u.GHz)
         kwargs = attr.asdict(self)
         kwargs.update(
@@ -70,7 +70,7 @@ class NirdustSpectrum:
         )
         return NirdustSpectrum(**kwargs)
 
-    def normalization(self):
+    def _normalization(self):
         normalized_flux = self.spec1d.flux / np.mean(self.spec1d.flux)
         new_spec1d = su.Spectrum1D(normalized_flux, self.spec1d.spectral_axis)
         kwargs = attr.asdict(self)
@@ -138,9 +138,39 @@ def read_spectrum(file_name, extension, z, **kwargs):
 # PREPARE SPECTRA FOR FITTING
 # ==============================================================================
 
-# voy a asumir primero que todo se hace privado
 
-# ~ def Nirdustprepare(spectrum,mini,maxi):
-# ~ step1 = spectrum.cut_edges(mini,maxi)
-# ~ step2 = step1.convert_to_frequency()
-# ~ step3 = np.mean(step2)
+def Nirdustprepare(nuclear_spectrum, external_spectrum, mini, maxi):
+
+    step1_nuc = nuclear_spectrum.cut_edges(mini, maxi)
+    step1_ext = external_spectrum.cut_edges(mini, maxi)
+
+    step2_nuc = step1_nuc._convert_to_frequency()
+    step2_ext = step1_ext._convert_to_frequency()
+
+    step3_nuc = step2_nuc._normalization()
+    step3_ext = step2_ext._normalization()
+
+    dif = len(step3_nuc.spec1d.spectral_axis) - len(
+        step3_ext.spec1d.spectral_axis
+    )
+
+    if dif == 0:
+
+        flux_resta = (step3_nuc.spec1d.flux - step3_ext.spec1d.flux) + 1
+
+    elif dif < 0:
+
+        new_step3_ext = step3_ext[-dif:]
+        flux_resta = (step3_nuc.spec1d.flux - new_step3_ext.spec1d.flux) + 1
+
+    else:
+
+        new_step3_nuc = step3_nuc[dif:]
+        flux_resta = (new_step3_nuc.spec1d.flux - step3_ext.spec1d.flux) + 1
+
+    prepared_spectrum = su.Spectrum1D(flux_resta, step2_nuc.frequency_axis)
+
+    kwargs = attr.asdict(step3_nuc)
+    kwargs.update(spec1d=prepared_spectrum)
+
+    return NirdustSpectrum(**kwargs)
