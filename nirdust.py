@@ -33,9 +33,9 @@ class NirdustSpectrum:
     """
     Creat the class type NirdustSectrum.
 
-    Prepares the spectrum with specific methods, stores it in each instance of 
+    Prepares the spectrum with specific methods, stores it in each instance of
     execution and then adjusts it.
-    
+
     """
 
     header = attr.ib(repr=False)
@@ -48,18 +48,17 @@ class NirdustSpectrum:
     frequency_axis = attr.ib(repr=False)
 
     def __getattr__(self, a):
-        """Return objets after apply the "a" funcion"""
-        
+        """Return objets after apply the "a" funcion."""
         return getattr(self.spec1d, a)
 
     def __getitem__(self, slice):
-        """Defines the method that cuts the spectrum.
+        """Define the method that cuts the spectrum.
 
         Parameters
         ----------
         slice: object
             The object contain a NirdustSpectrum
-      
+
         Return
         ------
         out: objets NirsdustSpectrum
@@ -75,7 +74,7 @@ class NirdustSpectrum:
         return NirdustSpectrum(**kwargs)
 
     def cut_edges(self, mini, maxi):
-        """This funcion cuts the spectrum in wavelength range.
+        """Cut the spectrum in wavelength range.
 
         Parameters
         ----------
@@ -96,14 +95,14 @@ class NirdustSpectrum:
         return NirdustSpectrum(**kwargs)
 
     def _convert_to_frequency(self):
-        """Converts the spectral axis to frequency in units of GHz.
+        """Convert the spectral axis to frequency in units of GHz.
 
         Return
         ------
         out: objets NirsdustSpectrum
             New instance of the nirdustSpectrun classe containing spectrum in
             frequencies.
-        """ 
+        """
         new_axis = self.spec1d.spectral_axis.to(u.GHz)
         kwargs = attr.asdict(self)
         kwargs.update(
@@ -112,15 +111,14 @@ class NirdustSpectrum:
         return NirdustSpectrum(**kwargs)
 
     def _normalization(self):
-        """This function normalizes the spectrum to the mean value.
+        """Normalize the spectrum to the mean value.
 
-         
         Return
         ------
         out: objets NirsdustSpectrum
             New instance of the nirdustSpectrun classe whose flow is normalized
             to the average value.
-        """  
+        """
         normalized_flux = self.spec1d.flux / np.mean(self.spec1d.flux)
         new_spec1d = su.Spectrum1D(normalized_flux, self.spec1d.spectral_axis)
         kwargs = attr.asdict(self)
@@ -142,8 +140,7 @@ def spectrum(
     dispersion_type="CTYPE1",
     **kwargs,
 ):
-    """This funtion takes the parameters of the spectrum and passes them on to 
-    nerdustspectrum class.
+    """Instantiate NirdustSpectrum from fits parameters.
 
     Parameters
     ----------
@@ -153,7 +150,6 @@ def spectrum(
     dispersion_key: keywords that gives dispersion in Å/pix
     first_wavelength: keywords that gives wavelength of first pixel
     dispersion_type: keywords that gives order the dispersion function
-     
 
     Return
     ------
@@ -197,13 +193,13 @@ def read_spectrum(file_name, extension, z, **kwargs):
     file_name: Path to where the fits file is stored
     extension: File extension fits
     z: Redshift
-      
+
     Return
     ------
     out: objets NirsdustSpectrum
-        Return a new instance of the class nirdustspectrum with the stored spectrum.
+        Return a new instance of the class nirdustspectrum with the stored
+        spectrum.
     """
-
     with fits.open(file_name) as fits_spectrum:
 
         fluxx = fits_spectrum[extension].data
@@ -220,7 +216,35 @@ def read_spectrum(file_name, extension, z, **kwargs):
 
 
 def Nirdustprepare(nuclear_spectrum, external_spectrum, mini, maxi):
+    """Perform operations upon nuclear and external spactra.
+    
+    The operations applied prepare the nuclear spectrum for black-body fitting:
 
+    1) wavelength cutting both spectra between the entered limits.
+    2) normalization to the mean value of the flux axis for both spectra
+    3) substraction of the external spectrum flux from the nuclear spectrum
+    flux.
+    4) conversion to frequency of the dispersion axis.
+
+    Parameters
+    ----------
+    nuclear_spectrum: instance of NirdusSpectrum containing the nuclear
+    spectrum.
+
+    external_spectrum: instance of NirdusSpectrum containing the external
+    spectrum.
+
+    mini: lower limit of wavelenght to cut spectra
+
+    maxi: upper limit of wavelenght to cut spectra
+
+
+    Return
+    ------
+    out: objet NirsdustSpectrum
+        Return a new instance of the class NirdustSpectrum containing the
+        nuclear spectrum ready for black-body fitting.
+    """
     step1_nuc = nuclear_spectrum.cut_edges(mini, maxi)
     step1_ext = external_spectrum.cut_edges(mini, maxi)
 
