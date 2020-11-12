@@ -144,33 +144,36 @@ def Nirdustprepare(nuclear_spectrum, external_spectrum, mini, maxi):
     step1_nuc = nuclear_spectrum.cut_edges(mini, maxi)
     step1_ext = external_spectrum.cut_edges(mini, maxi)
 
-    step2_nuc = step1_nuc._convert_to_frequency()
-    step2_ext = step1_ext._convert_to_frequency()
+    step2_nuc = step1_nuc._normalization()
+    step2_ext = step1_ext._normalization()
 
-    step3_nuc = step2_nuc._normalization()
-    step3_ext = step2_ext._normalization()
-
-    dif = len(step3_nuc.spec1d.spectral_axis) - len(
-        step3_ext.spec1d.spectral_axis
+    dif = len(step2_nuc.spec1d.spectral_axis) - len(
+        step2_ext.spec1d.spectral_axis
     )
 
     if dif == 0:
 
-        flux_resta = (step3_nuc.spec1d.flux - step3_ext.spec1d.flux) + 1
+        flux_resta = (step2_nuc.spec1d.flux - step2_ext.spec1d.flux) + 1
 
     elif dif < 0:
 
-        new_step3_ext = step3_ext[-dif:]
-        flux_resta = (step3_nuc.spec1d.flux - new_step3_ext.spec1d.flux) + 1
+        new_step2_ext = step2_ext[-dif:]
+        flux_resta = (step2_nuc.spec1d.flux - new_step2_ext.spec1d.flux) + 1
 
-    else:
+    elif dif > 0:
 
-        new_step3_nuc = step3_nuc[dif:]
-        flux_resta = (new_step3_nuc.spec1d.flux - step3_ext.spec1d.flux) + 1
+        new_step2_nuc = step2_nuc[dif:]
+        flux_resta = (new_step2_nuc.spec1d.flux - step2_ext.spec1d.flux) + 1
 
-    prepared_spectrum = su.Spectrum1D(flux_resta, step2_nuc.frequency_axis)
+    substracted_1d_spectrum = su.Spectrum1D(
+        flux_resta, step2_nuc.spectral_axis
+    )
+    kwargs = attr.asdict(step2_nuc)
+    kwargs.update(spec1d=substracted_1d_spectrum)
 
-    kwargs = attr.asdict(step3_nuc)
-    kwargs.update(spec1d=prepared_spectrum)
+    return NirdustSpectrum(**kwargs)._convert_to_frequency()
 
-    return NirdustSpectrum(**kwargs)
+
+# ==============================================================================
+# FIT SPECTRUM
+# ==============================================================================
