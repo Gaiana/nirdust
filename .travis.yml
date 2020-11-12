@@ -30,7 +30,7 @@ matrix:
           dist: xenial
           sudo: true
           
-         - python: 3.8
+        - python: 3.8
           env: TOXENV=docstyle
           dist: xenial
           sudo: true
