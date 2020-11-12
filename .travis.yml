@@ -30,5 +30,10 @@ matrix:
           dist: xenial
           sudo: true
           
+         - python: 3.8
+          env: TOXENV=docstyle
+          dist: xenial
+          sudo: true
+          
 after_success:
   - coveralls
