@@ -24,7 +24,9 @@ Nirdust will provide the distribution of dust temperatures for the sample.
 The expected temperatures for AGN heated dust are in the range 800-2000 K.
 
 Footnote: the hot dust component may or may not be present in your type 2 
-nuclei, do not get disappointed if Nirdust finds nothing. 
+nuclei, do not get disappointed if Nirdust finds nothing.
+
+Authors: Gaia Gaspar, José Alacoria.
 
 
 
