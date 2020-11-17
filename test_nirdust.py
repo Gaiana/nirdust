@@ -121,33 +121,37 @@ def test_nomrmalize(NGC4945_continuum):
     assert mean == 1.0
 
 
-def test_nirdustprepare(NGC4945_continuum, NGC4945_external_continuum_400pc):
-    spectrum = NGC4945_continuum
-    external_spectrum = NGC4945_external_continuum_400pc
-    prepared = nd.Nirdustprepare(spectrum, external_spectrum, 19600, 22900)
-    cutted_spectrum = spectrum.cut_edges(19600, 22900)
-    expected_len = len(cutted_spectrum.flux)
+def test_sp_correction(NGC4945_continuum, NGC4945_external_continuum_400pc):
+    spectrum = NGC4945_continuum.cut_edges(19600, 22900)
+    external_spectrum = NGC4945_external_continuum_400pc.cut_edges(
+        19600, 22900
+    )
+    prepared = nd.sp_correction(spectrum, external_spectrum)
+    expected_len = len(spectrum.flux)
     assert len(prepared.flux) == expected_len
 
 
-def test_nirdustprepare_second_if(
+def test_sp_correction_second_if(
     NGC4945_continuum, NGC4945_external_continuum_200pc
 ):
-    spectrum = nd.read_spectrum(TEST_PATH / "cont01.fits", 0, 0.00188)
-    external_spectrum = NGC4945_external_continuum_200pc
-    prepared = nd.Nirdustprepare(spectrum, external_spectrum, 19600, 22900)
-    cutted_spectrum = spectrum.cut_edges(19600, 22900)
-    expected_len = len(cutted_spectrum.flux)
+    spectrum = nd.read_spectrum(
+        TEST_PATH / "cont01.fits", 0, 0.00188
+    ).cut_edges(19600, 22900)
+    external_spectrum = NGC4945_external_continuum_200pc.cut_edges(
+        19600, 22900
+    )
+    prepared = nd.sp_correction(spectrum, external_spectrum)
+    expected_len = len(spectrum.flux)
     assert len(prepared.flux) == expected_len
 
 
-def test_nirdustprepare_third_if(
+def test_sp_correction_third_if(
     NGC4945_continuum, NGC4945_external_continuum_200pc
 ):
-    spectrum = NGC4945_external_continuum_200pc
-    external_spectrum = nd.read_spectrum(TEST_PATH / "cont01.fits", 0, 0.00188)
-    prepared = nd.Nirdustprepare(spectrum, external_spectrum, 19600, 22900)
-    dif = len(spectrum.spectral_axis) - len(external_spectrum.spectral_axis)
-    cutted_spectrum = spectrum.cut_edges(19600, 22900)
-    expected_len = len(cutted_spectrum.flux) - dif
+    spectrum = NGC4945_external_continuum_200pc.cut_edges(19600, 22900)
+    external_spectrum = nd.read_spectrum(
+        TEST_PATH / "cont01.fits", 0, 0.00188
+    ).cut_edges(19600, 22900)
+    prepared = nd.sp_correction(spectrum, external_spectrum)
+    expected_len = len(spectrum.spectral_axis)
     assert len(prepared.spectral_axis) == expected_len
