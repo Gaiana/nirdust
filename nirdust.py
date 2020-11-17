@@ -215,10 +215,10 @@ def read_spectrum(file_name, extension, z, **kwargs):
 # ==============================================================================
 
 
-def Nirdustprepare(nuclear_spectrum, external_spectrum, mini, maxi):
-    """Perform operations upon nuclear and external spactra.
+def nirdustprepare(nuclear_spectrum, external_spectrum, mini, maxi):
+    """Prepare the nuclear spectrum for black-body fitting.
 
-    The operations applied prepare the nuclear spectrum for black-body fitting:
+    The operations applied to prepare the nuclear spectrum are:
 
     1) wavelength cutting both spectra between the entered limits.
     2) normalization to the mean value of the flux axis for both spectra
