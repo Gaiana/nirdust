@@ -110,7 +110,7 @@ class NirdustSpectrum:
         )
         return NirdustSpectrum(**kwargs)
 
-    def _normalization(self):
+    def _normalize(self):
         """Normalize the spectrum to the mean value.
 
         Return
@@ -248,8 +248,8 @@ def Nirdustprepare(nuclear_spectrum, external_spectrum, mini, maxi):
     step1_nuc = nuclear_spectrum.cut_edges(mini, maxi)
     step1_ext = external_spectrum.cut_edges(mini, maxi)
 
-    step2_nuc = step1_nuc._normalization()
-    step2_ext = step1_ext._normalization()
+    step2_nuc = step1_nuc._normalize()
+    step2_ext = step1_ext._normalize()
 
     dif = len(step2_nuc.spec1d.spectral_axis) - len(
         step2_ext.spec1d.spectral_axis
