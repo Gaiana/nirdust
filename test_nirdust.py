@@ -87,7 +87,7 @@ def test_redshift_correction(NGC4945_continuum):
 
 def test_convert_to_frequency(NGC4945_continuum):
     spectrum = NGC4945_continuum
-    freq = spectrum._convert_to_frequency().frequency_axis
+    freq = spectrum.convert_to_frequency().frequency_axis
     np.testing.assert_almost_equal(
         freq.value.mean(), 137313.317328585, decimal=7
     )
