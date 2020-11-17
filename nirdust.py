@@ -94,7 +94,7 @@ class NirdustSpectrum:
         )
         return NirdustSpectrum(**kwargs)
 
-    def _convert_to_frequency(self):
+    def convert_to_frequency(self):
         """Convert the spectral axis to frequency in units of GHz.
 
         Return
