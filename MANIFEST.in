@@ -1,5 +1,6 @@
 include LICENSE
 include README.md
 
+exclude test_*.py
 exclude tox.ini
 exclude pyproject.toml
