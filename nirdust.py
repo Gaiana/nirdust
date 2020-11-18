@@ -48,7 +48,7 @@ class NirdustSpectrum:
     frequency_axis = attr.ib(repr=False)
 
     def __getattr__(self, a):
-        """Return objets after apply the "a" funcion."""
+        """getattr(x, y) <==> x.__getattr__(y) <==> getattr(x, y)."""
         return getattr(self.spec1d, a)
 
     def __getitem__(self, slice):
