@@ -1,5 +1,6 @@
 include LICENSE
 include README.md
+recursive-include test_data *.fits
 
 exclude test_*.py
 exclude tox.ini
