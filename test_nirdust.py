@@ -6,6 +6,7 @@ import os
 import pathlib
 
 from astropy import units as u
+from astropy.modeling import models
 
 import nirdust as nd
 
@@ -89,7 +90,7 @@ def test_convert_to_frequency(NGC4945_continuum):
     spectrum = NGC4945_continuum
     freq = spectrum.convert_to_frequency().frequency_axis
     np.testing.assert_almost_equal(
-        freq.value.mean(), 137313.317328585, decimal=7
+        freq.value.mean(), 137313317328585.02, decimal=7
     )
 
 
@@ -155,3 +156,12 @@ def test_sp_correction_third_if(
     prepared = nd.sp_correction(spectrum, external_spectrum)
     expected_len = len(spectrum.spectral_axis)
     assert len(prepared.spectral_axis) == expected_len
+
+
+def test_normalized_bb(NGC4945_continuum):
+    n_black = nd.normalized_blackbody()
+    n_inst = n_black(NGC4945_continuum.frequency_axis.value, 1200)
+    a_blackbody = models.BlackBody(1200 * u.K)
+    a_instance = a_blackbody(NGC4945_continuum.frequency_axis)
+    expected = a_instance / np.mean(a_instance)
+    np.testing.assert_almost_equal(n_inst[200], expected[200].value, decimal=7)
