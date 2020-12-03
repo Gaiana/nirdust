@@ -10,6 +10,7 @@
 # ==============================================================================
 from astropy import units as u
 from astropy.io import fits
+from astropy.modeling.models import custom_model
 
 import attr
 
@@ -21,6 +22,28 @@ import specutils.manipulation as sm
 # ==============================================================================
 # CONSTANTS
 # ==============================================================================
+
+# initial guessing for the dust temperature and black-body scale
+initial_temp = 1200
+
+# ==============================================================================
+# FUNCTIONS
+# ==============================================================================
+
+
+@custom_model
+def normalized_blackbody(nu, T):
+    """Normalize black-body function."""
+    from astropy.constants import h, k_B, c
+
+    cv = c.value
+    kv = k_B.value
+    hv = h.value
+
+    bb = 2 * hv * nu ** 3 / (cv ** 2 * (np.exp(hv * nu / (kv * T)) - 1))
+    mean = np.mean(bb)
+
+    return bb / mean
 
 
 # ==============================================================================
@@ -48,7 +71,7 @@ class NirdustSpectrum:
     frequency_axis = attr.ib(repr=False)
 
     def __getattr__(self, a):
-        """getattr(x, y) <==> x.__getattr__(y) <==> getattr(x, y)."""
+        """Return objets after apply the "a" funcion."""
         return getattr(self.spec1d, a)
 
     def __getitem__(self, slice):
@@ -103,7 +126,7 @@ class NirdustSpectrum:
             New instance of the nirdustSpectrun classe containing spectrum in
             frequencies.
         """
-        new_axis = self.spec1d.spectral_axis.to(u.GHz)
+        new_axis = self.spec1d.spectral_axis.to(u.Hz)
         kwargs = attr.asdict(self)
         kwargs.update(
             frequency_axis=new_axis,
@@ -269,12 +292,8 @@ def sp_correction(nuclear_spectrum, external_spectrum):
     substracted_1d_spectrum = su.Spectrum1D(
         flux_resta, normalized_nuc.spectral_axis
     )
+
     kwargs = attr.asdict(normalized_nuc)
     kwargs.update(spec1d=substracted_1d_spectrum)
 
     return NirdustSpectrum(**kwargs)
-
-
-# ==============================================================================
-# FIT SPECTRUM
-# ==============================================================================
