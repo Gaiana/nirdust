@@ -11,6 +11,7 @@ from astropy.modeling.models import BlackBody
 
 import nirdust as nd
 from nirdust import NirdustSpectrum
+from nirdust import Storage
 
 import numpy as np
 
@@ -211,3 +212,23 @@ def test_fit_temperature(NGC4945_continuum_rest_frame):
         .T.value
     )
     np.testing.assert_almost_equal(snth_bb_temp, 1000, decimal=7)
+
+
+def test_storage_temperature():
+    storage_inst = Storage(20 * u.K, "Hyperion", 2356.89, "redblackhole")
+    assert storage_inst.temperature == 20 * u.K
+
+
+def test_storage_info():
+    storage_inst = Storage(20 * u.K, "Hyperion", 2356.89, "redblackhole")
+    assert storage_inst.info == "Hyperion"
+
+
+def test_storage_covariance():
+    storage_inst = Storage(20 * u.K, "Hyperion", 2356.89, "redblackhole")
+    assert storage_inst.covariance == 2356.89
+
+
+def test_storage_fitted_blackbody():
+    storage_inst = Storage(20 * u.K, "Hyperion", 2356.89, "redblackhole")
+    assert storage_inst.fitted_blackbody == "redblackhole"
