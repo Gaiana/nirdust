@@ -7,8 +7,10 @@ import pathlib
 
 from astropy import units as u
 from astropy.modeling import models
+from astropy.modeling.models import BlackBody
 
 import nirdust as nd
+from nirdust import NirdustSpectrum
 
 import numpy as np
 
@@ -33,6 +35,13 @@ TEST_PATH = pathlib.Path(PATH) / "test_data"
 def NGC4945_continuum():
     file_name = TEST_PATH / "cont03.fits"
     spect = nd.read_spectrum(file_name, 0, 0.00188)
+    return spect
+
+
+@pytest.fixture(scope="session")
+def NGC4945_continuum_rest_frame():
+    file_name = TEST_PATH / "cont03.fits"
+    spect = nd.read_spectrum(file_name, 0, 0)
     return spect
 
 
@@ -117,7 +126,7 @@ def test_cut_edges(NGC4945_continuum):
 
 def test_nomrmalize(NGC4945_continuum):
     spectrum = NGC4945_continuum
-    normalized_spectrum = spectrum._normalize()
+    normalized_spectrum = spectrum.normalize()
     mean = np.mean(normalized_spectrum.spec1d.flux)
     assert mean == 1.0
 
@@ -159,9 +168,46 @@ def test_sp_correction_third_if(
 
 
 def test_normalized_bb(NGC4945_continuum):
-    n_black = nd.normalized_blackbody()
-    n_inst = n_black(NGC4945_continuum.frequency_axis.value, 1200)
+    n_black = nd.normalized_blackbody(T=1200)
+    n_inst = n_black(NGC4945_continuum.frequency_axis.value)
     a_blackbody = models.BlackBody(1200 * u.K)
     a_instance = a_blackbody(NGC4945_continuum.frequency_axis)
     expected = a_instance / np.mean(a_instance)
     np.testing.assert_almost_equal(n_inst[200], expected[200].value, decimal=7)
+
+
+def test_fit_temperature(NGC4945_continuum_rest_frame):
+    real_spectrum = NGC4945_continuum_rest_frame
+    freq_axis = real_spectrum.convert_to_frequency().frequency_axis
+    sinthetic_model = BlackBody(1000 * u.K)
+    sinthetic_flux = sinthetic_model(freq_axis)
+
+    dispersion = 3.51714285129581
+    first_wave = 18940.578099674
+    dispersion_type = "LINEAR  "
+
+    spectrum_length = len(real_spectrum.flux)
+    spectral_axis = (
+        first_wave + dispersion * np.arange(0, spectrum_length)
+    ) * u.AA
+    spec1d = su.Spectrum1D(flux=sinthetic_flux, spectral_axis=spectral_axis)
+    frequency_axis = spec1d.spectral_axis.to(u.Hz)
+
+    snth_blackbody = NirdustSpectrum(
+        header=None,
+        z=0,
+        spectrum_length=spectrum_length,
+        dispersion_key=None,
+        first_wavelength=None,
+        dispersion_type=dispersion_type,
+        spec1d=spec1d,
+        frequency_axis=frequency_axis,
+    )
+
+    snth_bb_temp = (
+        snth_blackbody.normalize()
+        .convert_to_frequency()
+        .fit_temperature(100)[0]
+        .T.value
+    )
+    np.testing.assert_almost_equal(snth_bb_temp, 1000, decimal=7)
