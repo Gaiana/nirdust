@@ -159,16 +159,37 @@ class NirdustSpectrum:
         stores the uncertainty of the temperature.
         """
         bb_model = normalized_blackbody(T=T)
-        # bb_model_inst = bb_model(self.frequency_axis.value, T)
         fitter = fitting.LevMarLSQFitter()
         fitted_model = fitter(
             bb_model, self.frequency_axis.value, self.flux.value
         )
 
-        return fitted_model, fitter.fit_info
+        fit_storage = Storage(
+            temperature=fitted_model.T,
+            info=fitter.fit_info,
+            covariance=fitter.fit_info["param_cov"],
+            fitted_blackbody=fitted_model,
+        )
+
+        return fitted_model, fitter.fit_info, fit_storage
 
 
-# en algun lado aca hay que poner T
+class Storage:
+    """
+
+    Creat the class type Storage.
+
+    Storages the results obtained with fit_temperature.
+
+    """
+
+    def __init__(self, temperature, info, covariance, fitted_blackbody):
+
+        self.temperature = temperature
+        self.info = info
+        self.covariance = covariance
+        self.fitted_blackbody = fitted_blackbody
+
 
 # ==============================================================================
 # LOAD SPECTRA
