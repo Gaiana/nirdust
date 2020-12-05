@@ -10,6 +10,7 @@
 # ==============================================================================
 from astropy import units as u
 from astropy.io import fits
+from astropy.modeling import fitting
 from astropy.modeling.models import custom_model
 
 import attr
@@ -32,7 +33,7 @@ initial_temp = 1200
 
 
 @custom_model
-def normalized_blackbody(nu, T):
+def normalized_blackbody(nu, T=None):
     """Normalize black-body function."""
     from astropy.constants import h, k_B, c
 
@@ -133,7 +134,7 @@ class NirdustSpectrum:
         )
         return NirdustSpectrum(**kwargs)
 
-    def _normalize(self):
+    def normalize(self):
         """Normalize the spectrum to the mean value.
 
         Return
@@ -148,6 +149,26 @@ class NirdustSpectrum:
         kwargs.update(spec1d=new_spec1d)
         return NirdustSpectrum(**kwargs)
 
+    def fit_temperature(self, T):
+        """Fits Black-body function to spectrum.
+
+        Return
+        ------
+        out: object scalar, scalar
+        A scalar wich stores the fitted temperature and another scalar which
+        stores the uncertainty of the temperature.
+        """
+        bb_model = normalized_blackbody(T=T)
+        # bb_model_inst = bb_model(self.frequency_axis.value, T)
+        fitter = fitting.LevMarLSQFitter()
+        fitted_model = fitter(
+            bb_model, self.frequency_axis.value, self.flux.value
+        )
+
+        return fitted_model, fitter.fit_info
+
+
+# en algun lado aca hay que poner T
 
 # ==============================================================================
 # LOAD SPECTRA
@@ -266,8 +287,8 @@ def sp_correction(nuclear_spectrum, external_spectrum):
         Return a new instance of the class NirdustSpectrum containing the
         nuclear spectrum ready for black-body fitting.
     """
-    normalized_nuc = nuclear_spectrum._normalize()
-    normalized_ext = external_spectrum._normalize()
+    normalized_nuc = nuclear_spectrum.normalize()
+    normalized_ext = external_spectrum.normalize()
 
     dif = len(normalized_nuc.spec1d.spectral_axis) - len(
         normalized_ext.spec1d.spectral_axis
