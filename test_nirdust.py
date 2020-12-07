@@ -177,41 +177,6 @@ def test_normalized_bb(NGC4945_continuum):
     np.testing.assert_almost_equal(n_inst[200], expected[200].value, decimal=7)
 
 
-#~ def test_blackbody_fitting(NGC4945_continuum_rest_frame):
-    #~ real_spectrum = NGC4945_continuum_rest_frame
-    #~ freq_axis = real_spectrum.convert_to_frequency().frequency_axis
-    #~ sinthetic_model = BlackBody(1000 * u.K)
-    #~ sinthetic_flux = sinthetic_model(freq_axis)
-
-    #~ dispersion = 3.51714285129581
-    #~ first_wave = 18940.578099674
-    #~ dispersion_type = "LINEAR  "
-
-    #~ spectrum_length = len(real_spectrum.flux)
-    #~ spectral_axis = (
-        #~ first_wave + dispersion * np.arange(0, spectrum_length)
-    #~ ) * u.AA
-    #~ spec1d = su.Spectrum1D(flux=sinthetic_flux, spectral_axis=spectral_axis)
-    #~ frequency_axis = spec1d.spectral_axis.to(u.Hz)
-
-    #~ snth_blackbody = NirdustSpectrum(
-        #~ header=None,
-        #~ z=0,
-        #~ spectrum_length=spectrum_length,
-        #~ dispersion_key=None,
-        #~ first_wavelength=None,
-        #~ dispersion_type=dispersion_type,
-        #~ spec1d=spec1d,
-        #~ frequency_axis=frequency_axis,
-    #~ )
-
-    #~ snth_bb_temp = nd.blackbody_fitter(
-        #~ snth_blackbody.normalize().convert_to_frequency(), 1200
-    #~ )[0].T.value
-
-    #~ np.testing.assert_almost_equal(snth_bb_temp, 1000, decimal=7)
-
-
 def test_storage_temperature():
     storage_inst = Storage(20 * u.K, "Hyperion", 2356.89, "redblackhole")
     assert storage_inst.temperature == 20 * u.K
@@ -230,8 +195,8 @@ def test_storage_covariance():
 def test_storage_fitted_blackbody():
     storage_inst = Storage(20 * u.K, "Hyperion", 2356.89, "redblackhole")
     assert storage_inst.fitted_blackbody == "redblackhole"
-    
-    
+
+
 def test_fit_blackbody(NGC4945_continuum_rest_frame):
     real_spectrum = NGC4945_continuum_rest_frame
     freq_axis = real_spectrum.convert_to_frequency().frequency_axis
@@ -260,10 +225,11 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
         frequency_axis=frequency_axis,
     )
 
-    snth_bb_temp = snth_blackbody.normalize().convert_to_frequency().fit_blackbody(1200).temperature
-    
+    snth_bb_temp = (
+        snth_blackbody.normalize()
+        .convert_to_frequency()
+        .fit_blackbody(1200)
+        .temperature
+    )
+
     np.testing.assert_almost_equal(snth_bb_temp.value, 1000, decimal=7)
-    
-    
-    
-    
