@@ -34,7 +34,25 @@ initial_temp = 1200
 
 @custom_model
 def normalized_blackbody(nu, T=None):
-    """Normalize black-body function."""
+    """Normalize black-body function.
+
+    The equetion for calculating the black body function is the same as in
+    the astropy blackbody model except that the "scale" parameter is
+    eliminated, i.e. is allways equal to 1.
+
+    The normalization is performed by dividing the black body flux by its
+    numerical mean.
+
+    Parameters
+    ----------
+    nu: frequency axis in units of Hz.
+    T: temperature of the black body.
+
+    Return
+    ------
+    out: astropy model for a normalized blackbody.
+
+    """
     from astropy.constants import h, k_B, c
 
     cv = c.value
@@ -50,11 +68,20 @@ def normalized_blackbody(nu, T=None):
 def blackbody_fitter(nirspec, T):
     """Fits Black-body function to spectrum.
 
+    Parameters
+    ----------
+    nirspec: a NirdustSpectrum instance containing a prepared spectrum for
+    blackbody fitting. Note: the spectrum must be cuted, normalized and
+    corrected for stellar population contribution.
+
+    T: temperature of the black body.
+
     Return
     ------
-    out: object scalar, scalar
-    A scalar wich stores the fitted temperature and another scalar which
-    stores the uncertainty of the temperature.
+    out: tuple, best fitted model, a dictionary containing the parameters
+    of the best fitted model.
+
+
     """
     bb_model = normalized_blackbody(T=T)
     fitter = fitting.LevMarLSQFitter()
@@ -73,10 +100,38 @@ def blackbody_fitter(nirspec, T):
 @attr.s(frozen=True)
 class NirdustSpectrum:
     """
-    Creat the class type NirdustSectrum.
+    Class containing a spectrum to operate with nirdust.
 
-    Prepares the spectrum with specific methods, stores it in each instance of
-    execution and then adjusts it.
+    Stores the spectrum in a Spectrum1D object and provides various methods
+    for obtaining the dust component and prepare it for black body fitting.
+
+    Parameters
+    ----------
+    header: fits header
+        the header of the spectrum obtained from the fits file
+    z: float
+        redshift of the galaxy
+        Default: 0
+
+    spectrum_length: int
+        the number of items in the spectrum axis as in len() method
+
+    dispersion_key: float
+        header keyword containing the dispersion in Å/pix
+
+    first_wavelength: float
+        header keyword containing the wavelength of first pixel
+
+    dispersion_type: str
+        header keyword containing the type of the dispersion function
+
+    spec1d: specutils.Spectrum1D object
+        containis the wavelength axis and the flux axis of the spectrum in
+        unities of Å and ADU respectively
+
+    frequency_axis: SpectralAxis object
+        spectral axis in units of Hz
+
 
     """
 
@@ -120,8 +175,8 @@ class NirdustSpectrum:
 
         Parameters
         ----------
-            mini: minimum wavelength to be cut
-            maxi: maximum wavelength to be cut
+        mini: minimum wavelength to be cut
+        maxi: maximum wavelength to be cut
 
         Return
         ------
@@ -134,6 +189,7 @@ class NirdustSpectrum:
         kwargs.update(
             spec1d=cutted_spec1d,
         )
+
         return NirdustSpectrum(**kwargs)
 
     def convert_to_frequency(self):
@@ -192,7 +248,25 @@ class Storage:
 
     Create the class Storage.
 
-    Storages the results obtained with fit_temperature.
+    Storages the results obtained with fit_blackbody.
+
+
+    Atributtes:
+    -----------
+
+    temperature: Quantity that stores the temperature obtainted in the best
+    black body fit in Kelvin.
+
+    info: The fit_info dictionary contains the values returned by
+    scipy.optimize.leastsq for the most recent fit, including the values from
+    the infodict dictionary it returns. See the scipy.optimize.leastsq
+    documentation for details on the meaning of these values.
+
+    covariance:  the covariance matrix of the parameters as a 2D numpy array.
+
+    fitted_blackbody: the normalized_blackbody model fot the best fit.
+
+
 
     """
 
@@ -223,16 +297,17 @@ def spectrum(
     Parameters
     ----------
     flux: Intensity for each pixel in arbitrary units
-    header: Header of spectrum
-    z: Redshift
-    dispersion_key: keywords that gives dispersion in Å/pix
-    first_wavelength: keywords that gives wavelength of first pixel
-    dispersion_type: keywords that gives order the dispersion function
+    header: Header of the spectrum
+    z: Redshif
+    dispersion_key: keyword that gives dispersion in Å/pix
+    first_wavelength: keyword that contains the wavelength of the first pixel
+    dispersion_type: keyword that contains the dispersion function type
 
     Return
     ------
     out: objets NirsdustSpectrum
-        Return a class of nerdustspectrum with the entered parameters.
+        Return a instance of the class NirdustSpectrum with the entered
+        parameters.
     """
     if header[dispersion_key] <= 0:
         raise ValueError("dispersion must be positive")
@@ -264,7 +339,7 @@ def spectrum(
 
 
 def read_spectrum(file_name, extension, z, **kwargs):
-    """Read a spectrum in fits format.
+    """Read a spectrum in fits format and store it in a NirdustSpectrum object.
 
     Parameters
     ----------
@@ -275,8 +350,7 @@ def read_spectrum(file_name, extension, z, **kwargs):
     Return
     ------
     out: objets NirsdustSpectrum
-        Return a new instance of the class nirdustspectrum with the stored
-        spectrum.
+        Return an instance of the class NirdustSpectrum.
     """
     with fits.open(file_name) as fits_spectrum:
 
@@ -294,11 +368,23 @@ def read_spectrum(file_name, extension, z, **kwargs):
 
 
 def sp_correction(nuclear_spectrum, external_spectrum):
-    """Prepare the nuclear spectrum for black-body fitting.
+    """Stellar Population correction.
 
-    The operations applied to prepare the nuclear spectrum are:
+    The spectral continuum of Type 2 Seyfert galaxies in the K band
+    (19.-2.5 $mu$m) is composed by the stellar population component and the
+    hot dust component. The first one is the sum of the Planck functions of
+    all the stars in the host galaxy and can be represented by a spectrum
+    extracted at a prudential distance from the nucleus, where the emission
+    is expected to be dominated by the stellar population. In sp_correction
+    this is introduced in the parameter "external spectrum". The stellar
+    population dominated spectrum must be substracted from the nuclear
+    spectrum in order to obtain the hot dust component in the nuclear
+    spectrum. The excess obtained from the substraction is expected to have
+    blackbody-shape.
 
-    1) normalization to the mean value of the flux axis for both spectra
+    The operations applied to prepare the nuclear spectrum for fitting are:
+
+    1) normalization to the mean value of the flux for both spectra
     3) substraction of the external spectrum flux from the nuclear spectrum
     flux.
 
@@ -309,11 +395,6 @@ def sp_correction(nuclear_spectrum, external_spectrum):
 
     external_spectrum: instance of NirdusSpectrum containing the external
     spectrum.
-
-    mini: lower limit of wavelenght to cut spectra
-
-    maxi: upper limit of wavelenght to cut spectra
-
 
     Return
     ------
