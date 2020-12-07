@@ -47,6 +47,24 @@ def normalized_blackbody(nu, T=None):
     return bb / mean
 
 
+def blackbody_fitter(nirspec, T):
+    """Fits Black-body function to spectrum.
+
+    Return
+    ------
+    out: object scalar, scalar
+    A scalar wich stores the fitted temperature and another scalar which
+    stores the uncertainty of the temperature.
+    """
+    bb_model = normalized_blackbody(T=T)
+    fitter = fitting.LevMarLSQFitter()
+    fitted_model = fitter(
+        bb_model, nirspec.frequency_axis.value, nirspec.flux.value
+    )
+
+    return fitted_model, fitter.fit_info
+
+
 # ==============================================================================
 # CLASSES
 # ==============================================================================
@@ -119,13 +137,13 @@ class NirdustSpectrum:
         return NirdustSpectrum(**kwargs)
 
     def convert_to_frequency(self):
-        """Convert the spectral axis to frequency in units of GHz.
+        """Convert the spectral axis to frequency in units of Hz.
 
         Return
         ------
         out: objets NirsdustSpectrum
-            New instance of the nirdustSpectrun classe containing spectrum in
-            frequencies.
+            New instance of the nirdustSpectrun class containing spectrum with
+            a frquency axis in units of Hz.
         """
         new_axis = self.spec1d.spectral_axis.to(u.Hz)
         kwargs = attr.asdict(self)
@@ -140,7 +158,7 @@ class NirdustSpectrum:
         Return
         ------
         out: objets NirsdustSpectrum
-            New instance of the nirdustSpectrun classe whose flow is normalized
+            New instance of the nirdustSpectrun class with the flux normalized
             to the average value.
         """
         normalized_flux = self.spec1d.flux / np.mean(self.spec1d.flux)
@@ -149,35 +167,30 @@ class NirdustSpectrum:
         kwargs.update(spec1d=new_spec1d)
         return NirdustSpectrum(**kwargs)
 
-    def fit_temperature(self, T):
-        """Fits Black-body function to spectrum.
+    def fit_blackbody(self, T):
+        """Call blackbody_fitter and store results in a class Storage object.
 
         Return
         ------
-        out: object scalar, scalar
-        A scalar wich stores the fitted temperature and another scalar which
-        stores the uncertainty of the temperature.
+        out: objets Storage
+            New instance of the Storage classe that holds the resuslts of the
+            blackbody fitting.
         """
-        bb_model = normalized_blackbody(T=T)
-        fitter = fitting.LevMarLSQFitter()
-        fitted_model = fitter(
-            bb_model, self.frequency_axis.value, self.flux.value
-        )
+        inst = blackbody_fitter(self, T)
 
-        fit_storage = Storage(
-            temperature=fitted_model.T,
-            info=fitter.fit_info,
-            covariance=fitter.fit_info["param_cov"],
-            fitted_blackbody=fitted_model,
+        storage = Storage(
+            temperature=inst[0].T,
+            info=inst[1],
+            covariance=inst[1]["param_cov"],
+            fitted_blackbody=inst[0],
         )
-
-        return fitted_model, fitter.fit_info, fit_storage
+        return storage
 
 
 class Storage:
     """
 
-    Creat the class type Storage.
+    Create the class Storage.
 
     Storages the results obtained with fit_temperature.
 
@@ -185,7 +198,7 @@ class Storage:
 
     def __init__(self, temperature, info, covariance, fitted_blackbody):
 
-        self.temperature = temperature
+        self.temperature = temperature.value * u.K
         self.info = info
         self.covariance = covariance
         self.fitted_blackbody = fitted_blackbody
