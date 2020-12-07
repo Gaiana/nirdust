@@ -185,10 +185,9 @@ class NirdustSpectrum:
         """
         region = su.SpectralRegion(mini * u.AA, maxi * u.AA)
         cutted_spec1d = sm.extract_region(self.spec1d, region)
+        new_len = len(cutted_spec1d.flux)
         kwargs = attr.asdict(self)
-        kwargs.update(
-            spec1d=cutted_spec1d,
-        )
+        kwargs.update(spec1d=cutted_spec1d, spectrum_length=new_len)
 
         return NirdustSpectrum(**kwargs)
 
