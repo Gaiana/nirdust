@@ -15,6 +15,8 @@ from astropy.modeling.models import custom_model
 
 import attr
 
+import matplotlib.pyplot as plt
+
 import numpy as np
 
 import specutils as su
@@ -231,6 +233,8 @@ class NirdustSpectrum:
             info=inst[1],
             covariance=inst[1]["param_cov"],
             fitted_blackbody=inst[0],
+            freq_axis=self.frequency_axis,
+            flux_axis=self.flux,
         )
         return storage
 
@@ -262,12 +266,35 @@ class Storage:
 
     """
 
-    def __init__(self, temperature, info, covariance, fitted_blackbody):
+    def __init__(
+        self,
+        temperature,
+        info,
+        covariance,
+        fitted_blackbody,
+        freq_axis,
+        flux_axis,
+    ):
 
         self.temperature = temperature.value * u.K
         self.info = info
         self.covariance = covariance
         self.fitted_blackbody = fitted_blackbody
+        self.freq_axis = freq_axis
+        self.flux_axis = flux_axis
+
+    def nplot(self, save=False):
+        """Build a plot of the fitted spectrum and the fitted model."""
+        instance = self.fitted_blackbody(self.freq_axis.value)
+        fig = plt.figure()
+        plt.plot(self.freq_axis, self.flux_axis, color="firebrick")
+        plt.plot(self.freq_axis, instance, color="navy")
+        plt.xlabel("Frequency [Hz]")
+        plt.ylabel("Normalized Energy [arbitrary units]")
+        plt.show()
+
+        if save is True:
+            fig.savefig("nirdust_fit.pdf")
 
 
 # ==============================================================================
