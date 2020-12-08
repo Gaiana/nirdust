@@ -178,28 +178,82 @@ def test_normalized_bb(NGC4945_continuum):
 
 
 def test_storage_temperature():
-    storage_inst = Storage(20 * u.K, "Hyperion", 2356.89, "redblackhole")
+    storage_inst = Storage(
+        20 * u.K,
+        "Hyperion",
+        2356.89,
+        "redblackhole",
+        freq_axis=None,
+        flux_axis=None,
+    )
     assert storage_inst.temperature == 20 * u.K
 
 
 def test_storage_info():
-    storage_inst = Storage(20 * u.K, "Hyperion", 2356.89, "redblackhole")
+    storage_inst = Storage(
+        20 * u.K,
+        "Hyperion",
+        2356.89,
+        "redblackhole",
+        freq_axis=None,
+        flux_axis=None,
+    )
     assert storage_inst.info == "Hyperion"
 
 
 def test_storage_covariance():
-    storage_inst = Storage(20 * u.K, "Hyperion", 2356.89, "redblackhole")
+    storage_inst = Storage(
+        20 * u.K,
+        "Hyperion",
+        2356.89,
+        "redblackhole",
+        freq_axis=None,
+        flux_axis=None,
+    )
     assert storage_inst.covariance == 2356.89
 
 
 def test_storage_fitted_blackbody():
-    storage_inst = Storage(20 * u.K, "Hyperion", 2356.89, "redblackhole")
+    storage_inst = Storage(
+        20 * u.K,
+        "Hyperion",
+        2356.89,
+        "redblackhole",
+        freq_axis=None,
+        flux_axis=None,
+    )
     assert storage_inst.fitted_blackbody == "redblackhole"
+
+
+def test_storage_freq_axis(NGC4945_continuum):
+    axis = NGC4945_continuum.frequency_axis
+    storage_inst = Storage(
+        20 * u.K,
+        "Hyperion",
+        2356.89,
+        "redblackhole",
+        freq_axis=axis,
+        flux_axis=None,
+    )
+    assert len(storage_inst.freq_axis) == len(axis)
+
+
+def test_storage_flux_axis(NGC4945_continuum):
+    fluxx = NGC4945_continuum.flux
+    storage_inst = Storage(
+        20 * u.K,
+        "Hyperion",
+        2356.89,
+        "redblackhole",
+        freq_axis=None,
+        flux_axis=fluxx,
+    )
+    assert len(storage_inst.flux_axis) == len(fluxx)
 
 
 def test_fit_blackbody(NGC4945_continuum_rest_frame):
     real_spectrum = NGC4945_continuum_rest_frame
-    freq_axis = real_spectrum.convert_to_frequency().frequency_axis
+    freq_axis = real_spectrum.frequency_axis
     sinthetic_model = BlackBody(1000 * u.K)
     sinthetic_flux = sinthetic_model(freq_axis)
 
