@@ -189,8 +189,8 @@ def test_sp_correction_second_if(
         19600, 22900
     )
     prepared = nd.sp_correction(spectrum, external_spectrum)
-    expected_len = len(spectrum.flux)
-    assert len(prepared.flux) == expected_len
+    expected_len = len(spectrum.spectral_axis)
+    assert len(prepared.spectral_axis) == expected_len
 
 
 def test_sp_correction_third_if(
@@ -201,7 +201,7 @@ def test_sp_correction_third_if(
         TEST_PATH / "cont01.fits", 0, 0.00188
     ).cut_edges(19600, 22900)
     prepared = nd.sp_correction(spectrum, external_spectrum)
-    expected_len = len(spectrum.spectral_axis)
+    expected_len = len(external_spectrum.spectral_axis)
     assert len(prepared.spectral_axis) == expected_len
 
 
