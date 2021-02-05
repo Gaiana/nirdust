@@ -439,14 +439,14 @@ def sp_correction(nuclear_spectrum, external_spectrum):
             normalized_nuc.spec1d.flux - normalized_ext.spec1d.flux
         ) + 1
 
-        new_spectral_axis = nuclear_specturm.spectral_axis
+        new_spectral_axis = nuclear_spectrum.spectral_axis
 
     elif dif < 0:
 
         new_ext = normalized_ext[-dif:]
         flux_resta = (normalized_nuc.spec1d.flux - new_ext.spec1d.flux) + 1
 
-        new_spectral_axis = external_specturm.spectral_axis[-dif:]
+        new_spectral_axis = external_spectrum.spectral_axis[-dif:]
 
     elif dif > 0:
 
@@ -462,22 +462,3 @@ def sp_correction(nuclear_spectrum, external_spectrum):
     kwargs.update(spec1d=substracted_1d_spectrum, frequency_axis=new_freq_axis)
 
     return NirdustSpectrum(**kwargs)
-
-
-holis_ext = read_spectrum(
-    "/home/fenix/Documents/DisSoftCientifico/nirdust/nirdust/test_data/external_spectrum_400pc_N4945.fits",
-    0,
-    0.00188,
-).cut_edges(19500, 22900)
-
-holis = read_spectrum(
-    "/home/fenix/Documents/DisSoftCientifico/nirdust/nirdust/test_data/cont_neg_03.fits",
-    0,
-    0.00188,
-).cut_edges(19500, 22900)
-
-aver = sp_correction(holis, holis_ext).convert_to_frequency()
-
-storage = aver.fit_blackbody(T=100)
-
-deltat = uncertainty_estimation(aver, storage)
