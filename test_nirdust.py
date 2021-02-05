@@ -10,8 +10,8 @@ from astropy.modeling import models
 from astropy.modeling.models import BlackBody
 
 import nirdust as nd
+from nirdust import NirdustResults
 from nirdust import NirdustSpectrum
-from nirdust import Storage
 
 import numpy as np
 
@@ -58,6 +58,43 @@ def NGC4945_external_continuum_200pc():
     file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
     spect = nd.read_spectrum(file_name, 0, 0.00188)
     return spect
+
+
+@pytest.fixture(scope="session")
+def snth_spectrum_1000(NGC4945_continuum_rest_frame):
+
+    real_spectrum = NGC4945_continuum_rest_frame
+    freq_axis = real_spectrum.frequency_axis
+    sinthetic_model = nd.normalized_blackbody(1000)
+    sinthetic_flux = sinthetic_model(freq_axis.value)
+
+    mu, sigma = 0, 0.1
+    nd_random = np.random.RandomState(50)
+    gaussian_noise = nd_random.normal(mu, sigma, len(freq_axis))
+    noisy_model = sinthetic_flux * (1 * u.adu + gaussian_noise * u.adu)
+
+    dispersion = 3.51714285129581
+    first_wave = 18940.578099674
+    dispersion_type = "LINEAR  "
+
+    spectrum_length = len(real_spectrum.flux)
+    spectral_axis = (
+        first_wave + dispersion * np.arange(0, spectrum_length)
+    ) * u.AA
+    spec1d = su.Spectrum1D(flux=noisy_model, spectral_axis=spectral_axis)
+    frequency_axis = spec1d.spectral_axis.to(u.Hz)
+
+    snth_spectrum = NirdustSpectrum(
+        header=None,
+        z=0,
+        spectrum_length=spectrum_length,
+        dispersion_key=None,
+        first_wavelength=None,
+        dispersion_type=dispersion_type,
+        spec1d=spec1d,
+        frequency_axis=frequency_axis,
+    )
+    return snth_spectrum
 
 
 # ==============================================================================
@@ -177,8 +214,8 @@ def test_normalized_bb(NGC4945_continuum):
     np.testing.assert_almost_equal(n_inst[200], expected[200].value, decimal=7)
 
 
-def test_storage_temperature():
-    storage_inst = Storage(
+def test_NirdustResults_temperature():
+    nr_inst = NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -186,11 +223,11 @@ def test_storage_temperature():
         freq_axis=None,
         flux_axis=None,
     )
-    assert storage_inst.temperature == 20 * u.K
+    assert nr_inst.temperature == 20 * u.K
 
 
-def test_storage_info():
-    storage_inst = Storage(
+def test_NirdustResults_info():
+    nr_inst = NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -198,11 +235,11 @@ def test_storage_info():
         freq_axis=None,
         flux_axis=None,
     )
-    assert storage_inst.info == "Hyperion"
+    assert nr_inst.info == "Hyperion"
 
 
-def test_storage_covariance():
-    storage_inst = Storage(
+def test_NirdustResults_covariance():
+    nr_inst = NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -210,11 +247,11 @@ def test_storage_covariance():
         freq_axis=None,
         flux_axis=None,
     )
-    assert storage_inst.covariance == 2356.89
+    assert nr_inst.covariance == 2356.89
 
 
-def test_storage_fitted_blackbody():
-    storage_inst = Storage(
+def test_NirdustResults_fitted_blackbody():
+    nr_inst = NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -222,12 +259,12 @@ def test_storage_fitted_blackbody():
         freq_axis=None,
         flux_axis=None,
     )
-    assert storage_inst.fitted_blackbody == "redblackhole"
+    assert nr_inst.fitted_blackbody == "redblackhole"
 
 
-def test_storage_freq_axis(NGC4945_continuum):
+def test_NirdustResults_freq_axis(NGC4945_continuum):
     axis = NGC4945_continuum.frequency_axis
-    storage_inst = Storage(
+    nr_inst = NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -235,12 +272,12 @@ def test_storage_freq_axis(NGC4945_continuum):
         freq_axis=axis,
         flux_axis=None,
     )
-    assert len(storage_inst.freq_axis) == len(axis)
+    assert len(nr_inst.freq_axis) == len(axis)
 
 
-def test_storage_flux_axis(NGC4945_continuum):
+def test_NirdustResults_flux_axis(NGC4945_continuum):
     fluxx = NGC4945_continuum.flux
-    storage_inst = Storage(
+    nr_inst = NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -248,7 +285,7 @@ def test_storage_flux_axis(NGC4945_continuum):
         freq_axis=None,
         flux_axis=fluxx,
     )
-    assert len(storage_inst.flux_axis) == len(fluxx)
+    assert len(nr_inst.flux_axis) == len(fluxx)
 
 
 def test_fit_blackbody(NGC4945_continuum_rest_frame):
