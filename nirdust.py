@@ -180,9 +180,14 @@ class NirdustSpectrum:
         """
         region = su.SpectralRegion(mini * u.AA, maxi * u.AA)
         cutted_spec1d = sm.extract_region(self.spec1d, region)
+        cutted_freq_axis = cutted_spec1d.spectral_axis.to(u.Hz)
         new_len = len(cutted_spec1d.flux)
         kwargs = attr.asdict(self)
-        kwargs.update(spec1d=cutted_spec1d, spectrum_length=new_len)
+        kwargs.update(
+            spec1d=cutted_spec1d,
+            spectrum_length=new_len,
+            frequency_axis=cutted_freq_axis,
+        )
 
         return NirdustSpectrum(**kwargs)
 
@@ -228,7 +233,7 @@ class NirdustSpectrum:
         """
         inst = blackbody_fitter(self, T)
 
-        storage = Storage(
+        storage = NirdustResults(
             temperature=inst[0].T,
             info=inst[1],
             covariance=inst[1]["param_cov"],
@@ -239,7 +244,7 @@ class NirdustSpectrum:
         return storage
 
 
-class Storage:
+class NirdustResults:
     """
 
     Create the class Storage.
@@ -434,21 +439,45 @@ def sp_correction(nuclear_spectrum, external_spectrum):
             normalized_nuc.spec1d.flux - normalized_ext.spec1d.flux
         ) + 1
 
+        new_spectral_axis = nuclear_specturm.spectral_axis
+
     elif dif < 0:
 
         new_ext = normalized_ext[-dif:]
         flux_resta = (normalized_nuc.spec1d.flux - new_ext.spec1d.flux) + 1
 
+        new_spectral_axis = external_specturm.spectral_axis[-dif:]
+
     elif dif > 0:
 
         new_nuc = normalized_nuc[dif:]
         flux_resta = (new_nuc.spec1d.flux - normalized_ext.spec1d.flux) + 1
+        new_spectral_axis = nuclear_spectrum.spectral_axis[dif:]
 
-    substracted_1d_spectrum = su.Spectrum1D(
-        flux_resta, normalized_nuc.spectral_axis
-    )
+    substracted_1d_spectrum = su.Spectrum1D(flux_resta, new_spectral_axis)
+
+    new_freq_axis = substracted_1d_spectrum.spectral_axis.to(u.Hz)
 
     kwargs = attr.asdict(normalized_nuc)
-    kwargs.update(spec1d=substracted_1d_spectrum)
+    kwargs.update(spec1d=substracted_1d_spectrum, frequency_axis=new_freq_axis)
 
     return NirdustSpectrum(**kwargs)
+
+
+holis_ext = read_spectrum(
+    "/home/fenix/Documents/DisSoftCientifico/nirdust/nirdust/test_data/external_spectrum_400pc_N4945.fits",
+    0,
+    0.00188,
+).cut_edges(19500, 22900)
+
+holis = read_spectrum(
+    "/home/fenix/Documents/DisSoftCientifico/nirdust/nirdust/test_data/cont_neg_03.fits",
+    0,
+    0.00188,
+).cut_edges(19500, 22900)
+
+aver = sp_correction(holis, holis_ext).convert_to_frequency()
+
+storage = aver.fit_blackbody(T=100)
+
+deltat = uncertainty_estimation(aver, storage)
