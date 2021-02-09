@@ -9,6 +9,8 @@ from astropy import units as u
 from astropy.modeling import models
 from astropy.modeling.models import BlackBody
 
+from matplotlib.testing.decorators import check_figures_equal
+
 import nirdust as nd
 from nirdust import NirdustResults
 from nirdust import NirdustSpectrum
@@ -324,3 +326,34 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
     )
 
     np.testing.assert_almost_equal(snth_bb_temp.value, 1000, decimal=7)
+
+
+@check_figures_equal(extensions=["png"])
+def test_nplot(fig_test, fig_ref):
+    
+    spectrum = (
+        nd.read_spectrum(TEST_PATH / "cont03.fits", 0, 0.00188)
+        .cut_edges(19500, 22900)
+        .normalize()
+    )
+
+    freq_axis = spectrum.frequency_axis
+    flux = spectrum.flux
+
+    stella = nd.normalized_blackbody(1100)
+    instanstella = stella(freq_axis.value)
+
+    fit_results = NirdustResults(
+        1100 * u.K, "Claire Dunphy", 71, stella, freq_axis, flux
+    )
+
+    ax_test = fig_test.subplots()
+    fit_results.nplot(ax=ax_test)
+
+    ax_ref = fig_ref.subplots()
+
+    ax_ref.plot(freq_axis, flux, color="firebrick", label="continuum")
+    ax_ref.plot(freq_axis, instanstella, color="navy", label="model")
+    ax_ref.set_xlabel("Frequency [Hz]")
+    ax_ref.set_ylabel("Normalized Energy [arbitrary units]")
+    ax_ref.legend()
