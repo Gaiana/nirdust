@@ -1,6 +1,7 @@
 include LICENSE
 include README.md
 recursive-include test_data *.fits
+recursive-include result_images/test_nirdust *.png
 recursive-include draft *.py
 recursive-include draft *.ipynb
 
