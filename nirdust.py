@@ -225,12 +225,12 @@ class NirdustSpectrum:
     def fit_blackbody(self, T):
         """Call blackbody_fitter and store results in a class Storage object.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         T = initial temperature for the fit.
 
-        Returns:
-        --------
+        Returns
+        -------
         out: objets Storage
             New instance of the Storage classe that holds the resuslts of the
             blackbody fitting.
@@ -269,7 +269,7 @@ class NirdustResults:
     the infodict dictionary it returns. See the scipy.optimize.leastsq
     documentation for details on the meaning of these values.
 
-    covariance:  scalar, the covariance of the fit as calculed by 
+    covariance:  scalar, the covariance of the fit as calculed by
     LevMarLSQFitter().
 
     fitted_blackbody: the normalized_blackbody model for the best fit.
