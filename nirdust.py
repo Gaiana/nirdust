@@ -208,7 +208,7 @@ class NirdustSpectrum:
         return NirdustSpectrum(**kwargs)
 
     def normalize(self):
-        """Normalize the spectrum to the mean value.
+        """Normalize the spectrum to the unity using the mean value.
 
         Return
         ------
@@ -225,8 +225,12 @@ class NirdustSpectrum:
     def fit_blackbody(self, T):
         """Call blackbody_fitter and store results in a class Storage object.
 
-        Return
-        ------
+        Parameters:
+        -----------
+        T = initial temperature for the fit.
+
+        Returns:
+        --------
         out: objets Storage
             New instance of the Storage classe that holds the resuslts of the
             blackbody fitting.
@@ -265,7 +269,8 @@ class NirdustResults:
     the infodict dictionary it returns. See the scipy.optimize.leastsq
     documentation for details on the meaning of these values.
 
-    covariance:  the covariance matrix of the parameters as a 2D numpy array.
+    covariance:  scalar, the covariance of the fit as calculed by 
+    LevMarLSQFitter().
 
     fitted_blackbody: the normalized_blackbody model for the best fit.
 
@@ -433,7 +438,7 @@ def sp_correction(nuclear_spectrum, external_spectrum):
 
     The operations applied to prepare the nuclear spectrum for fitting are:
 
-    1) normalization to the mean value of the flux for both spectra
+    1) normalization using the mean value of the flux for both spectra
     3) substraction of the external spectrum flux from the nuclear spectrum
     flux.
 
