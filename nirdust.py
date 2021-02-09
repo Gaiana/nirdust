@@ -288,18 +288,21 @@ class NirdustResults:
         self.freq_axis = freq_axis
         self.flux_axis = flux_axis
 
-    def nplot(self, save=False):
+    def nplot(self, ax=None, color1="firebrick", color2="navy"):
         """Build a plot of the fitted spectrum and the fitted model."""
         instance = self.fitted_blackbody(self.freq_axis.value)
-        fig = plt.figure()
-        plt.plot(self.freq_axis, self.flux_axis, color="firebrick")
-        plt.plot(self.freq_axis, instance, color="navy")
-        plt.xlabel("Frequency [Hz]")
-        plt.ylabel("Normalized Energy [arbitrary units]")
-        plt.show()
+        if ax is None:
+            ax = plt.gca()
 
-        if save is True:
-            fig.savefig("nirdust_fit.pdf")
+        ax.plot(
+            self.freq_axis, self.flux_axis, color=color1, label="continuum"
+        )
+        ax.plot(self.freq_axis, instance, color=color2, label="model")
+        ax.set_xlabel("Frequency [Hz]")
+        ax.set_ylabel("Normalized Energy [arbitrary units]")
+        ax.legend()
+
+        return ax
 
 
 # ==============================================================================
