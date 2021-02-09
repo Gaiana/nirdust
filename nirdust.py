@@ -247,9 +247,11 @@ class NirdustSpectrum:
 class NirdustResults:
     """
 
-    Create the class Storage.
+    Create the class NirdustResults.
 
-    Storages the results obtained with fit_blackbody.
+    Storages the results obtained with fit_blackbody plus the spectral and flux
+    axis of the fitted spectrum. The method nplot() can be called to plot the
+    spectrum and the black body model obtained in the fitting.
 
 
     Atributtes:
@@ -265,7 +267,12 @@ class NirdustResults:
 
     covariance:  the covariance matrix of the parameters as a 2D numpy array.
 
-    fitted_blackbody: the normalized_blackbody model fot the best fit.
+    fitted_blackbody: the normalized_blackbody model for the best fit.
+
+    freq_axis: the axis containing the spectral information of the spectrum in
+    units of Hz.
+
+    flux_axis: the axis containing the flux of the spectrum in arbitrary units.
 
 
 
@@ -288,16 +295,31 @@ class NirdustResults:
         self.freq_axis = freq_axis
         self.flux_axis = flux_axis
 
-    def nplot(self, ax=None, color1="firebrick", color2="navy"):
-        """Build a plot of the fitted spectrum and the fitted model."""
+    def nplot(self, ax=None, data_color="firebrick", model_color="navy"):
+        """Build a plot of the fitted spectrum and the fitted model.
+
+        Parameters
+        ----------
+        ax: object of type Axes containing complete information of the
+        properties to generate the image, by default it is None.
+        data_color: the color in wich the spectrum must be plotted, default is
+        "firebrick".
+        model_color: the color in wich the fitted black body must be plotted,
+        default if "navy".
+
+        Return
+        ------
+        ``matplotlib.pyplot.Axis`` :
+            The axis where the method draws.
+        """
         instance = self.fitted_blackbody(self.freq_axis.value)
         if ax is None:
             ax = plt.gca()
 
         ax.plot(
-            self.freq_axis, self.flux_axis, color=color1, label="continuum"
+            self.freq_axis, self.flux_axis, color=data_color, label="continuum"
         )
-        ax.plot(self.freq_axis, instance, color=color2, label="model")
+        ax.plot(self.freq_axis, instance, color=model_color, label="model")
         ax.set_xlabel("Frequency [Hz]")
         ax.set_ylabel("Normalized Energy [arbitrary units]")
         ax.legend()
