@@ -330,7 +330,7 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
 
 @check_figures_equal(extensions=["png"])
 def test_nplot(fig_test, fig_ref):
-    
+
     spectrum = (
         nd.read_spectrum(TEST_PATH / "cont03.fits", 0, 0.00188)
         .cut_edges(19500, 22900)
