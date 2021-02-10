@@ -123,7 +123,7 @@ def test_wav_axis(NGC4945_continuum):
 
 def test_calibration():
     with pytest.raises(ValueError):
-        path = TEST_PATH / "galaxia_sin_calibrar.fits"
+        path = TEST_PATH / "no-calibrated_spectrum.fits"
         nd.read_spectrum(path, 0, 0)
 
 
