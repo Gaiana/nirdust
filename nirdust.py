@@ -29,23 +29,26 @@ import specutils.manipulation as sm
 
 @custom_model
 def normalized_blackbody(nu, T=None):
-    """Normalize black-body function.
+    """Normalize blackbody model.
 
-    The equetion for calculating the black body function is the same as in
-    the astropy blackbody model except that the "scale" parameter is
+    The equation for calculating the blackbody model is the same as in
+    the Astropy blackbody model except that the "scale" parameter is
     eliminated, i.e. is allways equal to 1.
 
-    The normalization is performed by dividing the black body flux by its
+    The normalization is performed by dividing the blackbody flux by its
     numerical mean.
 
     Parameters
     ----------
-    nu: frequency axis in units of Hz.
-    T: temperature of the black body.
+    nu: SpectralAxis object
+    Frequency axis in units of Hz.
 
-    Return
-    ------
-    out: astropy model for a normalized blackbody.
+    T: float, default is None
+    Temperature of the blackbody.
+
+    Returns
+    -------
+    out: normalized blackbody model.
 
     """
     from astropy.constants import h, k_B, c
@@ -61,21 +64,25 @@ def normalized_blackbody(nu, T=None):
 
 
 def blackbody_fitter(nirspec, T):
-    """Fits Black-body function to spectrum.
+    """Fits Blackbody model to spectrum.
+
+    The fitting is performed by using the LevMarLSQFitter class from Astropy.
 
     Parameters
     ----------
-    nirspec: a NirdustSpectrum instance containing a prepared spectrum for
-    blackbody fitting. Note: the spectrum must be cuted, normalized and
-    corrected for stellar population contribution.
+    nirspec: NirdustSpectrum object
+        A NirdustSpectrum instance containing a prepared spectrum for blackbody
+        fitting. Note: the spectrum must be cuted, normalized and corrected for
+        stellar population contribution.
 
-    T: temperature of the black body.
+    T: float
+        Temperature of the blackbody.
 
     Return
     ------
-    out: tuple, best fitted model, a dictionary containing the parameters
-    of the best fitted model.
-
+    out: tuple
+        Best fitted model and a dictionary containing the parameters of the
+        best fitted model.
 
     """
     bb_model = normalized_blackbody(T=T)
@@ -98,34 +105,34 @@ class NirdustSpectrum:
     Class containing a spectrum to operate with nirdust.
 
     Stores the spectrum in a Spectrum1D object and provides various methods
-    for obtaining the dust component and prepare it for black body fitting.
+    for obtaining the dust component and perform blackbody fitting.
 
     Parameters
     ----------
-    header: fits header
-        the header of the spectrum obtained from the fits file
+    header: FITS header
+        The header of the spectrum obtained from the fits file.
+
     z: float
-        redshift of the galaxy
-        Default: 0
+        Redshift of the galaxy. Default is 0.
 
     spectrum_length: int
-        the number of items in the spectrum axis as in len() method
+        The number of items in the spectrum axis as in len() method.
 
     dispersion_key: float
-        header keyword containing the dispersion in Å/pix
+        Header keyword containing the dispersion in Å/pix.
 
     first_wavelength: float
-        header keyword containing the wavelength of first pixel
+        Header keyword containing the wavelength of first pixel.
 
     dispersion_type: str
-        header keyword containing the type of the dispersion function
+        Header keyword containing the type of the dispersion function.
 
     spec1d: specutils.Spectrum1D object
-        containis the wavelength axis and the flux axis of the spectrum in
-        unities of Å and ADU respectively
+        Containis the wavelength axis and the flux axis of the spectrum in
+        unities of Å and ADU respectively.
 
     frequency_axis: SpectralAxis object
-        spectral axis in units of Hz
+        Spectral axis in units of Hz
 
 
     """
@@ -140,21 +147,31 @@ class NirdustSpectrum:
     frequency_axis = attr.ib(repr=False)
 
     def __getattr__(self, a):
-        """Return objets after apply the "a" funcion."""
-        return getattr(self.spec1d, a)
-
-    def __getitem__(self, slice):
-        """Define the method that cuts the spectrum.
+        """Return an attribute from specutils.Spectrum1D class.
 
         Parameters
         ----------
-        slice: object
-            The object contain a NirdustSpectrum
+        a: attribute from spectrum1D class.
+
+        Returns
+        -------
+        out: a
+
+        """
+        return getattr(self.spec1d, a)
+
+    def __getitem__(self, slice):
+        """Define the method for getting a slice of a NirdustSpectrum object.
+
+        Parameters
+        ----------
+        slice: pair of indexes given with the method [].
 
         Return
         ------
-        out: objets NirsdustSpectrum
-            Return a new instance of the class nirdustspectrum.
+        out: NirsdustSpectrum object
+            Return a new instance of the class NirdustSpectrum sliced by the
+            given indexes.
         """
         spec1d = self.spec1d.__getitem__(slice)
         frequency_axis = spec1d.spectral_axis.to(u.Hz)
@@ -170,13 +187,16 @@ class NirdustSpectrum:
 
         Parameters
         ----------
-        mini: minimum wavelength to be cut
-        maxi: maximum wavelength to be cut
+        mini: float
+            Lower limit to cut the spectrum.
 
-        Return
-        ------
-        out: objets NirsdustSpectrum
-            Return a new instance of class nirdustspectrum cut in wavelength.
+        maxi: float
+            Upper limit to cut the spectrum.
+
+        Returns
+        -------
+        out: NirsdustSpectrum object
+            Return a new instance of class NirdustSpectrum cut in wavelength.
         """
         region = su.SpectralRegion(mini * u.AA, maxi * u.AA)
         cutted_spec1d = sm.extract_region(self.spec1d, region)
@@ -194,11 +214,11 @@ class NirdustSpectrum:
     def convert_to_frequency(self):
         """Convert the spectral axis to frequency in units of Hz.
 
-        Return
-        ------
-        out: objets NirsdustSpectrum
-            New instance of the nirdustSpectrun class containing spectrum with
-            a frquency axis in units of Hz.
+        Returns
+        -------
+        out: object NirsdustSpectrum
+            New instance of the NirdustSpectrun class containing the spectrum
+            with a frquency axis in units of Hz.
         """
         new_axis = self.spec1d.spectral_axis.to(u.Hz)
         kwargs = attr.asdict(self)
@@ -210,11 +230,11 @@ class NirdustSpectrum:
     def normalize(self):
         """Normalize the spectrum to the unity using the mean value.
 
-        Return
-        ------
-        out: objets NirsdustSpectrum
-            New instance of the nirdustSpectrun class with the flux normalized
-            to the average value.
+        Returns
+        -------
+        out: NirsdustSpectrum object
+            New instance of the NirdustSpectrun class with the flux normalized
+            to unity.
         """
         normalized_flux = self.spec1d.flux / np.mean(self.spec1d.flux)
         new_spec1d = su.Spectrum1D(normalized_flux, self.spec1d.spectral_axis)
@@ -223,17 +243,18 @@ class NirdustSpectrum:
         return NirdustSpectrum(**kwargs)
 
     def fit_blackbody(self, T):
-        """Call blackbody_fitter and store results in a class Storage object.
+        """Call blackbody_fitter and store results in a NirdustResults object.
 
         Parameters
         ----------
-        T = initial temperature for the fit.
+        T: float
+            Initial temperature for the fit.
 
         Returns
         -------
-        out: objets Storage
-            New instance of the Storage classe that holds the resuslts of the
-            blackbody fitting.
+        out: NirdustResults object
+            An instance of the NirdustResults class that holds the resuslts of
+            the blackbody fitting.
         """
         inst = blackbody_fitter(self, T)
 
@@ -255,29 +276,33 @@ class NirdustResults:
 
     Storages the results obtained with fit_blackbody plus the spectral and flux
     axis of the fitted spectrum. The method nplot() can be called to plot the
-    spectrum and the black body model obtained in the fitting.
+    spectrum and the blackbody model obtained in the fitting.
 
 
     Atributtes:
     -----------
 
-    temperature: Quantity that stores the temperature obtainted in the best
-    black body fit in Kelvin.
+    temperature: Quantity
+        The temperature obtainted in the best black body fit in Kelvin.
 
-    info: The fit_info dictionary contains the values returned by
-    scipy.optimize.leastsq for the most recent fit, including the values from
-    the infodict dictionary it returns. See the scipy.optimize.leastsq
-    documentation for details on the meaning of these values.
+    info: dict
+        The fit_info dictionary contains the values returned by
+        scipy.optimize.leastsq for the most recent fit, including the values
+        from the infodict dictionary it returns. See the scipy.optimize.leastsq
+        documentation for details on the meaning of these values.
 
-    covariance:  scalar, the covariance of the fit as calculed by
-    LevMarLSQFitter().
+    covariance:  scalar
+        The covariance of the fit as calculed by LevMarLSQFitter.
 
-    fitted_blackbody: the normalized_blackbody model for the best fit.
+    fitted_blackbody: model
+        The normalized_blackbody model for the best fit.
 
-    freq_axis: the axis containing the spectral information of the spectrum in
-    units of Hz.
+    freq_axis: SpectralAxis object
+        The axis containing the spectral information of the spectrum in
+        units of Hz.
 
-    flux_axis: the axis containing the flux of the spectrum in arbitrary units.
+    flux_axis: Quantity
+        The flux of the spectrum in arbitrary units.
 
 
 
@@ -305,16 +330,21 @@ class NirdustResults:
 
         Parameters
         ----------
-        ax: object of type Axes containing complete information of the
-        properties to generate the image, by default it is None.
-        data_color: the color in wich the spectrum must be plotted, default is
-        "firebrick".
-        model_color: the color in wich the fitted black body must be plotted,
-        default if "navy".
+        ax: ``matplotlib.pyplot.Axis`` object
+            Object of type Axes containing complete information of the
+            properties to generate the image, by default it is None.
 
-        Return
-        ------
-        ``matplotlib.pyplot.Axis`` :
+        data_color: str
+            The color in wich the spectrum must be plotted, default is
+            "firebrick".
+
+        model_color: str
+            The color in wich the fitted black body must be plotted, default
+            if "navy".
+
+        Returns
+        -------
+        out: ``matplotlib.pyplot.Axis`` :
             The axis where the method draws.
         """
         instance = self.fitted_blackbody(self.freq_axis.value)
@@ -346,16 +376,29 @@ def spectrum(
     dispersion_type="CTYPE1",
     **kwargs,
 ):
-    """Instantiate NirdustSpectrum from fits parameters.
+    """Instantiate a NirdustSpectrum object from FITS parameters.
 
     Parameters
     ----------
-    flux: Intensity for each pixel in arbitrary units
-    header: Header of the spectrum
-    z: Redshif
-    dispersion_key: keyword that gives dispersion in Å/pix
-    first_wavelength: keyword that contains the wavelength of the first pixel
-    dispersion_type: keyword that contains the dispersion function type
+    flux: Quantity
+        Intensity for each pixel in arbitrary units.
+
+    header: FITS header
+        Header of the spectrum.
+
+    z: float
+    Redshif of the galaxy.
+
+    dispersion_key: str
+        Header keyword that gives dispersion in Å/pix. Default is 'CD1_1'
+
+    first_wavelength: str
+        Header keyword that contains the wavelength of the first pixel. Default
+        is 'CRVAL1'.
+
+    dispersion_type: str
+        Header keyword that contains the dispersion function type. Default is
+        'CTYPE1'.
 
     Return
     ------
@@ -393,18 +436,23 @@ def spectrum(
 
 
 def read_spectrum(file_name, extension, z, **kwargs):
-    """Read a spectrum in fits format and store it in a NirdustSpectrum object.
+    """Read a spectrum in FITS format and store it in a NirdustSpectrum object.
 
     Parameters
     ----------
-    file_name: Path to where the fits file is stored
-    extension: File extension fits
-    z: Redshift
+    file_name: str
+        Path to where the fits file is stored.
 
-    Return
-    ------
-    out: objets NirsdustSpectrum
-        Return an instance of the class NirdustSpectrum.
+    extension: int
+        Extension of the FITS file where the spectrum is stored.
+
+    z: float
+        Redshift of the galaxy.
+
+    Returns
+    -------
+    out: NirsdustSpectrum object
+        Returns an instance of the class NirdustSpectrum.
     """
     with fits.open(file_name) as fits_spectrum:
 
@@ -422,7 +470,7 @@ def read_spectrum(file_name, extension, z, **kwargs):
 
 
 def sp_correction(nuclear_spectrum, external_spectrum):
-    """Stellar Population correction.
+    """Stellar Population substraction.
 
     The spectral continuum of Type 2 Seyfert galaxies in the K band
     (19.-2.5 $mu$m) is composed by the stellar population component and the
@@ -439,22 +487,22 @@ def sp_correction(nuclear_spectrum, external_spectrum):
     The operations applied to prepare the nuclear spectrum for fitting are:
 
     1) normalization using the mean value of the flux for both spectra
-    3) substraction of the external spectrum flux from the nuclear spectrum
+    2) substraction of the external spectrum flux from the nuclear spectrum
     flux.
 
     Parameters
     ----------
-    nuclear_spectrum: instance of NirdusSpectrum containing the nuclear
-    spectrum.
+    nuclear_spectrum: NirdustSpectrum object
+        Instance of NirdusSpectrum containing the nuclear spectrum.
 
-    external_spectrum: instance of NirdusSpectrum containing the external
-    spectrum.
+    external_spectrum: NirdustSpectrum object
+        Instance of NirdusSpectrum containing the external spectrum.
 
-    Return
-    ------
-    out: objet NirsdustSpectrum
-        Return a new instance of the class NirdustSpectrum containing the
-        nuclear spectrum ready for black-body fitting.
+    Returns
+    -------
+    out: NirsdustSpectrum object
+        Returns a new instance of the class NirdustSpectrum containing the
+        nuclear spectrum ready for blackbody fitting.
     """
     normalized_nuc = nuclear_spectrum.normalize()
     normalized_ext = external_spectrum.normalize()
