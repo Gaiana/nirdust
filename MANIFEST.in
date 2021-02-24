@@ -1,9 +1,11 @@
 include LICENSE
 include README.md
-recursive-include test_data *.fits
-recursive-include result_images/test_nirdust *.png
 
+recursive-exclude test_data *
+recursive-exclude result_images *
+recursive-exclude docs *
 
 exclude test_*.py
 exclude tox.ini
 exclude pyproject.toml
+
