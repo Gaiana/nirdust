@@ -29,16 +29,21 @@ matrix:
           env: TOXENV=py38
           dist: xenial
           sudo: true
-          
+
         - python: 3.8
           env: TOXENV=docstyle
           dist: xenial
           sudo: true
-          
+
         - python: 3.8
           env: TOXENV=check-manifest
           dist: xenial
           sudo: true
-          
+
+        - python: 3.9
+          env: TOXENV=make-docs
+          dist: xenial
+          sudo: true
+
 after_success:
   - coveralls
