@@ -9,6 +9,7 @@
 # IMPORTS
 # ==============================================================================
 from astropy import units as u
+from astropy.constants import c, h, k_B
 from astropy.io import fits
 from astropy.modeling import fitting
 from astropy.modeling.models import custom_model
@@ -51,8 +52,6 @@ def normalized_blackbody(nu, T=None):
     out: normalized blackbody model.
 
     """
-    from astropy.constants import h, k_B, c
-
     cv = c.value
     kv = k_B.value
     hv = h.value
@@ -270,18 +269,14 @@ class NirdustSpectrum:
 
 
 class NirdustResults:
-    """
-
-    Create the class NirdustResults.
+    """Create the class NirdustResults.
 
     Storages the results obtained with fit_blackbody plus the spectral and flux
     axis of the fitted spectrum. The method nplot() can be called to plot the
     spectrum and the blackbody model obtained in the fitting.
 
-
-    Atributtes:
-    -----------
-
+    Attributes
+    ----------
     temperature: Quantity
         The temperature obtainted in the best black body fit in Kelvin.
 
