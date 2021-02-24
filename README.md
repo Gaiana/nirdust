@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.com/Gaiana/nirdust.svg?branch=main)](https://travis-ci.com/Gaiana/nirdust)
+[![https://github.com/leliel12/diseno_sci_sfw](https://img.shields.io/badge/DiSoftCompCi-FAMAF-ffda00)](https://github.com/leliel12/diseno_sci_sfw)
 
 # Nirdust: Near Infrared Dust Finder
 
