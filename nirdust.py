@@ -394,15 +394,15 @@ def spectrum(
 
     first_wavelength: str
         Header keyword that contains the wavelength of the first pixel. Default
-        is 'CRVAL1'.
+        is ``CRVAL1``.
 
     dispersion_type: str
         Header keyword that contains the dispersion function type. Default is
-        'CTYPE1'.
+        ``CTYPE1``.
 
     Return
     ------
-    out: objets NirsdustSpectrum
+    spectrum: ``NirsdustSpectrum``
         Return a instance of the class NirdustSpectrum with the entered
         parameters.
     """
@@ -488,7 +488,7 @@ def sp_correction(nuclear_spectrum, external_spectrum):
 
     1) normalization using the mean value of the flux for both spectra
     2) substraction of the external spectrum flux from the nuclear spectrum
-    flux.
+       flux.
 
     Parameters
     ----------
