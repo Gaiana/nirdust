@@ -12,8 +12,8 @@ accretion disk.
 
 K-band nuclear spectral continuum of Type 2 AGNs is often composed of two 
 components: the stellar population emission and a hot 800 - 1600 K dust component.
-Via substraction of the stellar emission dust component fitting can be performed
-to map its prescence and estimate its temperature.
+Via subtraction of the stellar emission dust component fitting can be performed
+to map its presence and estimate its temperature.
 
 
 ## Features
