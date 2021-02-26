@@ -21,8 +21,8 @@ Nirduts's documentation!
    :alt: Curso doctoral FAMAF: Diseño de software para cómputo científico
 
 .. image:: https://readthedocs.org/projects/nirdust/badge/?version=latest
-:target: https://nirdust.readthedocs.io/en/latest/?badge=latest
-:alt: Documentation Status
+   :target: https://nirdust.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation Status
 
 
 **Nirdust** is a python package that uses K-band (2.2 micrometers) spectra to measure the temperature of the dust heated by an Active Galactic Nuclei (AGN) accretion disk.
