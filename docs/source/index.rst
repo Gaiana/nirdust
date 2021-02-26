@@ -49,12 +49,12 @@ https://github.com/Gaiana/nirdust
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
    :caption: Contents:
 
    api.rst
    licence.rst
-
+   installation.rst
 
 
 Indices and tables
