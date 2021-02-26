@@ -40,7 +40,7 @@ matrix:
           dist: xenial
           sudo: true
 
-        - python: 3.9
+        - python: 3.8
           env: TOXENV=make-docs
           dist: xenial
           sudo: true
