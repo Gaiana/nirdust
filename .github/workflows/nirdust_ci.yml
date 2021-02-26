@@ -2,7 +2,7 @@
 # CI with GitHub Actions
 # ==============================================================
 
-name: Pyedra
+name: Nirdust
 
 on:
   - push
