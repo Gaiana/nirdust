@@ -45,8 +45,9 @@ You will need Python 3.8 or 3.9 to run Nirdust.
 
 Clone this repo and then inside the local directory execute
 
+``` python
 $ pip install -e .
-
+```
 
 Authors: Gaia Gaspar, José Alacoria.
 
