@@ -2,7 +2,6 @@
 [![https://github.com/leliel12/diseno_sci_sfw](https://img.shields.io/badge/DiSoftCompCi-FAMAF-ffda00)](https://github.com/leliel12/diseno_sci_sfw)
 [![Documentation Status](https://readthedocs.org/projects/nirdust/badge/?version=latest)](https://nirdust.readthedocs.io/en/latest/?badge=latest)
 
-
 # Nirdust: Near Infrared Dust Finder
 
 Nirdust is a python package that uses K-band (2.2 micrometers) spectra to 
@@ -36,6 +35,19 @@ Nirdust to subtract the stellar emission from the nuclear spectrum.
 
 Footnote: the hot dust component may or may not be present in your type 2 
 nuclei, do not get disappointed if Nirdust finds nothing.
+
+
+## Requeriments
+
+You will need Python 3.8 or 3.9 to run Nirdust.
+
+## Installation
+
+Clone this repo and then inside the local directory execute
+
+``` python
+$ pip install -e .
+```
 
 Authors: Gaia Gaspar, José Alacoria.
 
