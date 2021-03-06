@@ -55,7 +55,7 @@ https://github.com/Gaiana/nirdust
    api.rst
    licence.rst
    installation.rst
-
+   tutorial.ipynb
 
 Indices and tables
 ==================
