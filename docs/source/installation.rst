@@ -17,7 +17,6 @@ After setting up and activating the virtualenv, run the following command:
    $ pip install nirdust
    ...
 
-That should be it all.
 
 
 
