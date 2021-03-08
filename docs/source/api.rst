@@ -9,13 +9,11 @@ The input file must be a .fit.
 -------------------------------------------------------------------------------------
 
 .. toctree::
-   :maxdepth: 4
+   :maxdepth: 2
 
 Module ``nirdust``
 ----------------------
-
-
 .. automodule:: nirdust
    :members:
-   :undoc-members:
    :show-inheritance:
+   :member-order: bysource
