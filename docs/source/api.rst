@@ -1,10 +1,26 @@
 Nirdust API
 ==============
 
+Two input files in .FITS format must be provided in order to run Nirdust, the 
+one where the dust component is expected to be found and the one that quantify 
+the stellar population. 
 
-**Nerdust** currently has two functions, each of which prepares a spectrum.
+**Nirdust** provides the following class methods for finding the dust component 
+in a spectrum:
 
-The input file must be a .fit.
+#- cut_edges():  cuts the spectrum given two limits.  
+#- converttofrequency():  converts  the  spectral  axis  of  thespectrum to 
+unities of Hz. 
+#- normalize():  normalize the intensity axis of the spectrumby dividing it by 
+its numerical mean.
+#- fitblackbody():  uses the normalizedblackbody model tofit data
+
+The sp_correction() function must be applied after both imput spectra have been
+cuted and converted to frqeuency space.
+
+See the turorial for details.
+
+
 
 -------------------------------------------------------------------------------------
 
