@@ -83,4 +83,4 @@ html_static_path = ['_static']
 
 
 # not execute notebooks before conversion
-nbsphinx_execute  = "never"
+# nbsphinx_execute  = "never"
