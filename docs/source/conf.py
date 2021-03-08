@@ -10,10 +10,20 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-#import os
-#import sys
-#import pathlib
 
+import os
+import pathlib
+import sys
+
+
+# this path is pointing to project/docs/source
+CURRENT_PATH = pathlib.Path(os.path.abspath(os.path.dirname(__file__)))
+NIRDUST_PATH = CURRENT_PATH.parent.parent
+
+sys.path.insert(0, str(NIRDUST_PATH))
+
+
+import nirdust
 
 
 # -- Project information -----------------------------------------------------
