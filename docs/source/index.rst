@@ -52,9 +52,9 @@ https://github.com/Gaiana/nirdust
    :maxdepth: 1
    :caption: Contents:
 
-   api.rst
-   licence.rst
-   installation.rst
+   api
+   licence
+   installation
    tutorial.ipynb
 
 Indices and tables
