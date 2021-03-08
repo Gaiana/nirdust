@@ -13,7 +13,7 @@ The input file must be a .fit.
 
 Module ``nirdust``
 ----------------------
-.. automodule:: nirdust
+.. automodule:: nirdust.py
    :members:
    :show-inheritance:
    :member-order: bysource
