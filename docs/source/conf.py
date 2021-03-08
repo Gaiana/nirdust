@@ -22,13 +22,12 @@ NIRDUST_PATH = CURRENT_PATH.parent.parent
 
 sys.path.insert(0, str(NIRDUST_PATH))
 
-
 import nirdust
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'Nirduts'
+project = 'Nirdust'
 copyright = '2021, Gaia Gaspar & Jose Alacoria'
 author = 'Gaia Gaspar & Jose Alacoria'
 
