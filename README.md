@@ -44,7 +44,14 @@ You will need Python 3.8 or 3.9 to run Nirdust.
 
 ## Installation
 
-Clone this repo and then inside the local directory execute
+You can install the least stable version of Nirdust from pip:
+
+
+``` python
+$ pip install nirdust
+```
+
+Or, for the develovepment instalation clone this repository and then inside the local directory execute
 
 ``` python
 $ pip install -e .
