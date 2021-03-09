@@ -1,6 +1,7 @@
 [![Build Status](https://travis-ci.com/Gaiana/nirdust.svg?branch=main)](https://travis-ci.com/Gaiana/nirdust)
 [![https://github.com/leliel12/diseno_sci_sfw](https://img.shields.io/badge/DiSoftCompCi-FAMAF-ffda00)](https://github.com/leliel12/diseno_sci_sfw)
 [![Documentation Status](https://readthedocs.org/projects/nirdust/badge/?version=latest)](https://nirdust.readthedocs.io/en/latest/?badge=latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 # Nirdust: Near Infrared Dust Finder
 
@@ -43,7 +44,14 @@ You will need Python 3.8 or 3.9 to run Nirdust.
 
 ## Installation
 
-Clone this repo and then inside the local directory execute
+You can install the least stable version of Nirdust from pip:
+
+
+``` python
+$ pip install nirdust
+```
+
+Or, for the develovepment instalation clone this repository and then inside the local directory execute
 
 ``` python
 $ pip install -e .
