@@ -15,14 +15,14 @@ Nirdust documentation!
 .. image:: https://travis-ci.com/Gaiana/nirdust.svg?branch=main
     :target: https://travis-ci.com/github/Gaiana/nirdust
     :alt: Build Status
+    
+.. image:: https://readthedocs.org/projects/nirdust/badge/?version=latest
+   :target: https://nirdust.readthedocs.io/en/latest/?badge=latest
+   :alt: Documentation Status
 
 .. image:: https://img.shields.io/badge/DiSoftCompCi-FAMAF-ffda00
    :target: https://github.com/leliel12/diseno_sci_sfw
    :alt: Curso doctoral FAMAF: Diseño de software para cómputo científico
-
-.. image:: https://readthedocs.org/projects/nirdust/badge/?version=latest
-   :target: https://nirdust.readthedocs.io/en/latest/?badge=latest
-   :alt: Documentation Status
    
 .. image:: https://img.shields.io/badge/python-3.8+-blue.svg
    :target: https://badge.fury.io/py/uttrs
