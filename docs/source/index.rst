@@ -26,6 +26,7 @@ Nirdust documentation!
    
 .. image:: https://img.shields.io/badge/License-MIT-blue.svg
    :target: https://tldrlegal.com/license/mit-license
+   :alt: License
 
 **Nirdust** is a python package that uses K-band (2.2 micrometers) spectra to measure the temperature of the dust heated by an Active Galactic Nuclei (AGN) accretion disk.
 
