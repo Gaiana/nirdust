@@ -24,6 +24,10 @@ Nirdust documentation!
    :target: https://github.com/leliel12/diseno_sci_sfw
    :alt: Curso doctoral FAMAF: Diseño de software para cómputo científico
    
+.. image:: https://coveralls.io/repos/github/Gaiana/nirdust/badge.svg?branch=main
+   :target: https://coveralls.io/github/Gaiana/nirdust?branch=main
+   :alt: Coverage
+   
 .. image:: https://img.shields.io/badge/python-3.8+-blue.svg
    :target: https://badge.fury.io/py/uttrs
    :alt: Python 3.8+
