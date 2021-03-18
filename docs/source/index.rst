@@ -24,6 +24,10 @@ Nirdust documentation!
    :target: https://nirdust.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
    
+.. image:: https://img.shields.io/badge/python-3.8+-blue.svg
+   :target: https://badge.fury.io/py/uttrs
+   :alt: Python 3.8+
+   
 .. image:: https://img.shields.io/badge/License-MIT-blue.svg
    :target: https://tldrlegal.com/license/mit-license
    :alt: License
