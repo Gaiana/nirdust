@@ -25,7 +25,7 @@ Nirdust documentation!
    :alt: Curso doctoral FAMAF: Diseño de software para cómputo científico
    
 .. image:: https://coveralls.io/repos/github/Gaiana/nirdust/badge.svg?branch=main
-   :target: https://coveralls.io/github/Gaiana/nirdust?branch=main
+:target: https://coveralls.io/github/Gaiana/nirdust?branch=main
    :alt: Coverage
    
 .. image:: https://img.shields.io/badge/python-3.8+-blue.svg
