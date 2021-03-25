@@ -12,6 +12,10 @@ Nirdust documentation!
         :align: center
         :scale: 50 %
 
+.. image:: https://badge.fury.io/py/nirdust.svg
+    :target: https://badge.fury.io/py/nirdust
+    :alt: PyPi Version
+
 .. image:: https://travis-ci.com/Gaiana/nirdust.svg?branch=main
     :target: https://travis-ci.com/github/Gaiana/nirdust
     :alt: Build Status
