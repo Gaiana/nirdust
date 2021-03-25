@@ -20,6 +20,11 @@ Nirdust documentation!
     :target: https://travis-ci.com/github/Gaiana/nirdust
     :alt: Build Status
     
+    
+.. image:: https://github.com/Gaiana/nirdust/actions/workflows/nirdust_ci.yml/badge.svg
+    :target: https://github.com/Gaiana/nirdust/actions/workflows/nirdust_ci.yml
+    :alt: Build Status
+    
 .. image:: https://readthedocs.org/projects/nirdust/badge/?version=latest
    :target: https://nirdust.readthedocs.io/en/latest/?badge=latest
    :alt: Documentation Status
