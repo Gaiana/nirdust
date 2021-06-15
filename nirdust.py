@@ -43,6 +43,7 @@ import specutils.manipulation as sm
 # BLACK BODY METHODS
 # ==============================================================================
 
+
 class NormalizedBlackBody(Fittable1DModel):
     """Normalized blackbody model.
 
