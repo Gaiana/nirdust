@@ -23,12 +23,11 @@ accretion disk.
 # ==============================================================================
 # IMPORTS
 # ==============================================================================
+from astropy import constants as const
 from astropy import units as u
-from astropy.constants import c, h, k_B
 from astropy.io import fits
-from astropy.modeling import fitting
-from astropy.modeling.models import custom_model
 from astropy.modeling import Fittable1DModel, Parameter
+from astropy.modeling import fitting
 
 import attr
 
@@ -39,48 +38,36 @@ import numpy as np
 import specutils as su
 import specutils.manipulation as sm
 
+
 # ==============================================================================
-# FUNCTIONS
+# BLACK BODY METHODS
 # ==============================================================================
 
+class NormalizedBlackBody(Fittable1DModel):
+    """Normalized blackbody model.
 
-@custom_model
-def normalized_blackbody(nu, T=None):
-    """Normalize blackbody model.
-
-    The equation for calculating the blackbody model is the same as in
-    the Astropy blackbody model except that the "scale" parameter is
-    eliminated, i.e. is allways equal to 1.
+    This class is similar to the BlackBody model provided by Astropy except
+    that the 'scale' parameter is eliminated, i.e. is allways equal to 1.
 
     The normalization is performed by dividing the blackbody flux by its
-    numerical mean.
+    numerical mean. The result is a dimensionless Quantity.
 
     Parameters
     ----------
-    nu: SpectralAxis object
-    Frequency axis in units of Hz.
+    temperature: float, `~numpy.ndarray`, or `~astropy.units.Quantity`
+        Temperature of the blackbody.
 
-    T: float, default is None
-    Temperature of the blackbody.
-
-    Returns
-    -------
-    out: normalized blackbody model.
+    Notes
+    -----
+    The Astropy BlackBody model can not be used directly to obtain a
+    normalized black body since the 'scale' parameter is not known a priori.
+    The scaling value (the mean in this case) directly depends on the
+    black body value.
 
     """
-    cv = c.value
-    kv = k_B.value
-    hv = h.value
-
-    bb = 2 * hv * nu ** 3 / (cv ** 2 * (np.exp(hv * nu / (kv * T)) - 1))
-    mean = np.mean(bb)
-
-    return bb / mean
-
-class NormalizedBlackBody(Fittable1DModel):
 
     # We parametrize this model with a temperature.
-    temperature = Parameter(default=None, min=0, unit=u.K)
+    temperature = Parameter(default=None, min=0)
 
     @property
     def T(self):
@@ -103,9 +90,10 @@ class NormalizedBlackBody(Fittable1DModel):
         Returns
         -------
         intensity : number or ndarray
-            Blackbody spectrum. 
+            Blackbody spectrum.
 
         """
+        print(temperature)
         if not isinstance(temperature, u.Quantity):
             in_temp = u.Quantity(temperature, u.K)
         else:
@@ -117,6 +105,7 @@ class NormalizedBlackBody(Fittable1DModel):
             in_freq = nu
 
         # Convert to units for calculations, also force double precision
+        # This is just in case the input units differ from K or Hz
         with u.add_enabled_equivalencies(u.spectral() + u.temperature()):
             freq = u.Quantity(in_freq, u.Hz, dtype=np.float64)
             temp = u.Quantity(in_temp, u.K)
@@ -124,9 +113,8 @@ class NormalizedBlackBody(Fittable1DModel):
         log_boltz = const.h * freq / (const.k_B * temp)
         boltzm1 = np.expm1(log_boltz)
 
-        # Calculate blackbody flux
+        # Calculate blackbody flux and normalize with the mean
         bb = 2.0 * const.h * freq ** 3 / (const.c ** 2 * boltzm1) / u.sr
-
         intensity = bb / np.mean(bb)
 
         # If the temperature parameter has no unit, we should return a unitless
@@ -137,8 +125,7 @@ class NormalizedBlackBody(Fittable1DModel):
         return intensity.value
 
 
-
-def blackbody_fitter(nirspec, T):
+def blackbody_fitter(nirspec, T0):
     """Fits Blackbody model to spectrum.
 
     The fitting is performed by using the LevMarLSQFitter class from Astropy.
@@ -150,8 +137,8 @@ def blackbody_fitter(nirspec, T):
         fitting. Note: the spectrum must be cuted, normalized and corrected for
         stellar population contribution.
 
-    T: float
-        Temperature of the blackbody.
+    T0: float
+        Initial temperature for the fitting procedure.
 
     Return
     ------
@@ -160,7 +147,13 @@ def blackbody_fitter(nirspec, T):
         best fitted model.
 
     """
-    bb_model = normalized_blackbody(T=T)
+    # LevMarLSQFitter does not support inputs with units
+    if isinstance(T0, u.Quantity):
+        temp = T0.value
+    else:
+        temp = T0
+
+    bb_model = NormalizedBlackBody(temp)
     fitter = fitting.LevMarLSQFitter()
     fitted_model = fitter(
         bb_model, nirspec.frequency_axis.value, nirspec.flux.value
@@ -317,12 +310,12 @@ class NirdustSpectrum:
         kwargs.update(spec1d=new_spec1d)
         return NirdustSpectrum(**kwargs)
 
-    def fit_blackbody(self, T):
+    def fit_blackbody(self, T0):
         """Call blackbody_fitter and store results in a NirdustResults object.
 
         Parameters
         ----------
-        T: float
+        T0: float
             Initial temperature for the fit.
 
         Returns
@@ -331,7 +324,7 @@ class NirdustSpectrum:
             An instance of the NirdustResults class that holds the resuslts of
             the blackbody fitting.
         """
-        inst = blackbody_fitter(self, T)
+        inst = blackbody_fitter(self, T0)
 
         storage = NirdustResults(
             temperature=inst[0].T,

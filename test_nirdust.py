@@ -208,7 +208,7 @@ def test_sp_correction_third_if(
 
 
 def test_normalized_bb(NGC4945_continuum):
-    n_black = nd.normalized_blackbody(T=1200)
+    n_black = nd.NormalizedBlackBody(1200 * u.K)
     n_inst = n_black(NGC4945_continuum.frequency_axis.value)
     a_blackbody = models.BlackBody(1200 * u.K)
     a_instance = a_blackbody(NGC4945_continuum.frequency_axis)
@@ -340,7 +340,7 @@ def test_nplot(fig_test, fig_ref):
     freq_axis = spectrum.frequency_axis
     flux = spectrum.flux
 
-    stella = nd.normalized_blackbody(1100)
+    stella = nd.NormalizedBlackBody(1100)
     instanstella = stella(freq_axis.value)
 
     fit_results = NirdustResults(
