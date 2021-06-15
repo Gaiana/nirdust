@@ -28,6 +28,7 @@ from astropy.constants import c, h, k_B
 from astropy.io import fits
 from astropy.modeling import fitting
 from astropy.modeling.models import custom_model
+from astropy.modeling import Fittable1DModel, Parameter
 
 import attr
 
@@ -75,6 +76,66 @@ def normalized_blackbody(nu, T=None):
     mean = np.mean(bb)
 
     return bb / mean
+
+class NormalizedBlackBody(Fittable1DModel):
+
+    # We parametrize this model with a temperature.
+    temperature = Parameter(default=None, min=0, unit=u.K)
+
+    @property
+    def T(self):
+        """Proxy for temperature."""
+        return self.temperature
+
+    def evaluate(self, nu, temperature):
+        """Evaluate the model.
+
+        Parameters
+        ----------
+        nu : float, `~numpy.ndarray`, or `~astropy.units.Quantity`
+            Frequency at which to compute the blackbody. If no units are given,
+            this defaults to Hz.
+
+        temperature : float, `~numpy.ndarray`, or `~astropy.units.Quantity`
+            Temperature of the blackbody. If no units are given, this defaults
+            to Kelvin.
+
+        Returns
+        -------
+        intensity : number or ndarray
+            Blackbody spectrum. 
+
+        """
+        if not isinstance(temperature, u.Quantity):
+            in_temp = u.Quantity(temperature, u.K)
+        else:
+            in_temp = temperature
+
+        if not isinstance(nu, u.Quantity):
+            in_freq = u.Quantity(nu, u.Hz)
+        else:
+            in_freq = nu
+
+        # Convert to units for calculations, also force double precision
+        with u.add_enabled_equivalencies(u.spectral() + u.temperature()):
+            freq = u.Quantity(in_freq, u.Hz, dtype=np.float64)
+            temp = u.Quantity(in_temp, u.K)
+
+        log_boltz = const.h * freq / (const.k_B * temp)
+        boltzm1 = np.expm1(log_boltz)
+
+        # Calculate blackbody flux
+        bb = 2.0 * const.h * freq ** 3 / (const.c ** 2 * boltzm1) / u.sr
+
+        intensity = bb / np.mean(bb)
+
+        # If the temperature parameter has no unit, we should return a unitless
+        # value. This occurs for instance during fitting, since we drop the
+        # units temporarily.
+        if hasattr(temperature, "unit"):
+            return intensity
+        return intensity.value
+
 
 
 def blackbody_fitter(nirspec, T):
