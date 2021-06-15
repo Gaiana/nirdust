@@ -94,7 +94,6 @@ class NormalizedBlackBody(Fittable1DModel):
             Blackbody spectrum.
 
         """
-        print(temperature)
         if not isinstance(temperature, u.Quantity):
             in_temp = u.Quantity(temperature, u.K)
         else:
