@@ -207,13 +207,51 @@ def test_sp_correction_third_if(
     assert len(prepared.spectral_axis) == expected_len
 
 
-def test_normalized_bb(NGC4945_continuum):
+def test_NormalizedBlackBody_normalization(NGC4945_continuum):
+    """Test NBB normalization by the mean"""
     n_black = nd.NormalizedBlackBody(1200 * u.K)
     n_inst = n_black(NGC4945_continuum.frequency_axis.value)
     a_blackbody = models.BlackBody(1200 * u.K)
     a_instance = a_blackbody(NGC4945_continuum.frequency_axis)
     expected = a_instance / np.mean(a_instance)
-    np.testing.assert_almost_equal(n_inst[200], expected[200].value, decimal=7)
+    np.testing.assert_almost_equal(n_inst, expected.value, decimal=10)
+
+
+def test_NormalizedBlackBody_T_proxy():
+    """Test consistency of NBB temperature proxy"""
+    bb = nd.NormalizedBlackBody(1200 * u.K)
+    assert bb.T.value == bb.temperature.value
+    assert bb.T.unit == bb.temperature.unit
+
+
+def test_NormalizedBlackBody_initialization_units():
+    """Test NBB T unit at instantiation"""
+    bb_with_units = nd.NormalizedBlackBody(1200 * u.K)
+    assert bb_with_units.T.unit is u.K
+
+    bb_with_no_units = nd.NormalizedBlackBody(1200)
+    assert bb_with_no_units.T.unit is None
+
+
+def test_NormalizedBlackBody_evaluation_units():
+    """Test NBB T and freq units at evaluation"""
+    bb_T_with_units = nd.NormalizedBlackBody(1200 * u.K)
+    freq_with_units = np.arange(1, 10) * u.Hz
+    result_with_units = bb_T_with_units(freq_with_units)
+    assert isinstance(
+        result_with_units, u.Quantity
+    )  # only Quantity if T is Quantity
+    assert result_with_units.unit.is_unity()
+
+    bb_T_with_no_units = nd.NormalizedBlackBody(1200)
+    freq_with_no_units = np.arange(1, 10)
+    result_with_no_units = bb_T_with_no_units(freq_with_no_units)
+    assert not isinstance(
+        result_with_no_units, u.Quantity
+    )  # only Quantity if T is Quantity
+    np.testing.assert_almost_equal(
+        result_with_no_units, result_with_units.value, decimal=10
+    )
 
 
 def test_NirdustResults_temperature():
@@ -324,7 +362,15 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
         .fit_blackbody(1200)
         .temperature
     )
+    np.testing.assert_almost_equal(snth_bb_temp.value, 1000, decimal=7)
 
+    # test also if fit_backbody can recieve T with units
+    snth_bb_temp = (
+        snth_blackbody.normalize()
+        .convert_to_frequency()
+        .fit_blackbody(100 * u.K)
+        .temperature
+    )
     np.testing.assert_almost_equal(snth_bb_temp.value, 1000, decimal=7)
 
 
