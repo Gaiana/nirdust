@@ -125,17 +125,27 @@ class NormalizedBlackBody(Fittable1DModel):
         return intensity.value
 
 
-def blackbody_fitter(nirspec, T0):
-    """Fits Blackbody model to spectrum.
+def _get_quantity_value(quantity):
+    """Check if object is an Astropy Quantity and return its value."""
+    if isinstance(quantity, u.Quantity):
+        value = quantity.value
+    else:
+        value = quantity
+    return value
+
+
+def normalized_blackbody_fitter(frequency, flux, T0):
+    """Fits a Normalized Blackbody model to spectrum.
 
     The fitting is performed by using the LevMarLSQFitter class from Astropy.
 
     Parameters
     ----------
-    nirspec: NirdustSpectrum object
-        A NirdustSpectrum instance containing a prepared spectrum for blackbody
-        fitting. Note: the spectrum must be cuted, normalized and corrected for
-        stellar population contribution.
+    frequency: `~numpy.ndarray`, or `~astropy.units.Quantity`
+        Spectral axis in units of Hz.
+
+    flux: `~numpy.ndarray`, or `~astropy.units.Quantity`
+        Normalized intensity.
 
     T0: float
         Initial temperature for the fitting procedure.
@@ -148,16 +158,14 @@ def blackbody_fitter(nirspec, T0):
 
     """
     # LevMarLSQFitter does not support inputs with units
-    if isinstance(T0, u.Quantity):
-        temp = T0.value
-    else:
-        temp = T0
+    # if inputs have units we work with the stored value
+    freq_value = _get_quantity_value(frequency)
+    flux_value = _get_quantity_value(flux)
+    T0_value = _get_quantity_value(T0)
 
-    bb_model = NormalizedBlackBody(temp)
-    fitter = fitting.LevMarLSQFitter()
-    fitted_model = fitter(
-        bb_model, nirspec.frequency_axis.value, nirspec.flux.value
-    )
+    bb_model = NormalizedBlackBody(temperature=T0_value)
+    fitter = fitting.LevMarLSQFitter(calc_uncertainties=True)
+    fitted_model = fitter(bb_model, freq_value, flux_value)
 
     return fitted_model, fitter.fit_info
 
@@ -315,8 +323,8 @@ class NirdustSpectrum:
 
         Parameters
         ----------
-        T0: float
-            Initial temperature for the fit.
+        T0: float or `~astropy.units.Quantity`
+            Initial temperature for the fit in Kelvin.
 
         Returns
         -------
@@ -324,13 +332,15 @@ class NirdustSpectrum:
             An instance of the NirdustResults class that holds the resuslts of
             the blackbody fitting.
         """
-        inst = blackbody_fitter(self, T0)
+        model, fit_info = normalized_blackbody_fitter(
+            self.frequency_axis, self.flux, T0
+        )
 
         storage = NirdustResults(
-            temperature=inst[0].T,
-            info=inst[1],
-            covariance=inst[1]["param_cov"],
-            fitted_blackbody=inst[0],
+            temperature=model.temperature,
+            info=fit_info,
+            uncertainty=model.temperature.std,
+            fitted_blackbody=model,
             freq_axis=self.frequency_axis,
             flux_axis=self.flux,
         )
@@ -355,8 +365,8 @@ class NirdustResults:
         from the infodict dictionary it returns. See the scipy.optimize.leastsq
         documentation for details on the meaning of these values.
 
-    covariance:  scalar
-        The covariance of the fit as calculed by LevMarLSQFitter.
+    uncertainty:  scalar
+        The uncertainty in the temparture fit as calculed by LevMarLSQFitter.
 
     fitted_blackbody: model
         The normalized_blackbody model for the best fit.
@@ -376,7 +386,7 @@ class NirdustResults:
         self,
         temperature,
         info,
-        covariance,
+        uncertainty,
         fitted_blackbody,
         freq_axis,
         flux_axis,
@@ -384,7 +394,7 @@ class NirdustResults:
 
         self.temperature = temperature.value * u.K
         self.info = info
-        self.covariance = covariance
+        self.uncertainty = uncertainty
         self.fitted_blackbody = fitted_blackbody
         self.freq_axis = freq_axis
         self.flux_axis = flux_axis

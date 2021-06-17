@@ -67,7 +67,7 @@ def snth_spectrum_1000(NGC4945_continuum_rest_frame):
 
     real_spectrum = NGC4945_continuum_rest_frame
     freq_axis = real_spectrum.frequency_axis
-    sinthetic_model = nd.normalized_blackbody(1000)
+    sinthetic_model = nd.NormalizedBlackBody(1000)
     sinthetic_flux = sinthetic_model(freq_axis.value)
 
     mu, sigma = 0, 0.1
@@ -254,6 +254,32 @@ def test_NormalizedBlackBody_evaluation_units():
     )
 
 
+@pytest.mark.parametrize("T_kelvin", [500.0, 1000.0, 5000.0])
+@pytest.mark.parametrize("noise_tolerance", [(0.0, 4), (0.1, -1), (0.2, -2)])
+def test_normalized_blackbody_fitter(T_kelvin, noise_tolerance):
+
+    # noise_tolerance has two values: noise and tolerance
+    noise_level, decimal_tolerance = noise_tolerance
+
+    freq = np.linspace(1e14, 2e14, 10000) * u.Hz
+    sinthetic_model = BlackBody(T_kelvin * u.K)
+    flux = sinthetic_model(freq)
+
+    mu, sigma = 0, noise_level
+    nd_random = np.random.RandomState(42)
+    gaussian_noise = nd_random.normal(mu, sigma, len(freq))
+    noisy_flux = flux * (1 + gaussian_noise)
+
+    normalized_flux = noisy_flux / np.mean(noisy_flux)
+    fitted_model, fit_info = nd.normalized_blackbody_fitter(
+        freq, normalized_flux, T0=900
+    )
+
+    np.testing.assert_almost_equal(
+        fitted_model.T.value, T_kelvin, decimal=decimal_tolerance
+    )
+
+
 def test_NirdustResults_temperature():
     nr_inst = NirdustResults(
         20 * u.K,
@@ -278,7 +304,7 @@ def test_NirdustResults_info():
     assert nr_inst.info == "Hyperion"
 
 
-def test_NirdustResults_covariance():
+def test_NirdustResults_uncertainty():
     nr_inst = NirdustResults(
         20 * u.K,
         "Hyperion",
@@ -287,7 +313,7 @@ def test_NirdustResults_covariance():
         freq_axis=None,
         flux_axis=None,
     )
-    assert nr_inst.covariance == 2356.89
+    assert nr_inst.uncertainty == 2356.89
 
 
 def test_NirdustResults_fitted_blackbody():
