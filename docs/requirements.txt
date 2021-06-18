@@ -1,5 +1,5 @@
 ipykernel
 ipython
 Sphinx
-sphinx-rtd-theme
+astropy-sphinx-theme
 nbsphinx
