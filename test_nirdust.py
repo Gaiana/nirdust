@@ -37,28 +37,28 @@ TEST_PATH = pathlib.Path(PATH) / "test_data"
 @pytest.fixture(scope="session")
 def NGC4945_continuum():
     file_name = TEST_PATH / "cont03.fits"
-    spect = nd.read_spectrum(file_name, 0, 0.00188)
+    spect = nd.read_spectrum(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_continuum_rest_frame():
     file_name = TEST_PATH / "cont03.fits"
-    spect = nd.read_spectrum(file_name, 0, 0)
+    spect = nd.read_spectrum(file_name, 0, z=0)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_external_continuum_400pc():
     file_name = TEST_PATH / "external_spectrum_400pc_N4945.fits"
-    spect = nd.read_spectrum(file_name, 0, 0.00188)
+    spect = nd.read_spectrum(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_external_continuum_200pc():
     file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
-    spect = nd.read_spectrum(file_name, 0, 0.00188)
+    spect = nd.read_spectrum(file_name, 0, z=0.00188)
     return spect
 
 
@@ -102,6 +102,13 @@ def snth_spectrum_1000(NGC4945_continuum_rest_frame):
 # ==============================================================================
 # TESTS
 # ==============================================================================
+
+
+def test_read_spectrum():
+    # read with no extension and wrong keyword
+    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    with pytest.raises(nd.HeaderKeywordError):
+        nd.read_spectrum(file_name, dispersion_key="CD11")
 
 
 def test_match(NGC4945_continuum):
@@ -185,7 +192,7 @@ def test_sp_correction_second_if(
     NGC4945_continuum, NGC4945_external_continuum_200pc
 ):
     spectrum = nd.read_spectrum(
-        TEST_PATH / "cont01.fits", 0, 0.00188
+        TEST_PATH / "cont01.fits", 0, z=0.00188
     ).cut_edges(19600, 22900)
     external_spectrum = NGC4945_external_continuum_200pc.cut_edges(
         19600, 22900
@@ -200,7 +207,7 @@ def test_sp_correction_third_if(
 ):
     spectrum = NGC4945_external_continuum_200pc.cut_edges(19600, 22900)
     external_spectrum = nd.read_spectrum(
-        TEST_PATH / "cont01.fits", 0, 0.00188
+        TEST_PATH / "cont01.fits", 0, z=0.00188
     ).cut_edges(19600, 22900)
     prepared = nd.sp_correction(spectrum, external_spectrum)
     expected_len = len(external_spectrum.spectral_axis)
@@ -404,7 +411,7 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
 def test_nplot(fig_test, fig_ref):
 
     spectrum = (
-        nd.read_spectrum(TEST_PATH / "cont03.fits", 0, 0.00188)
+        nd.read_spectrum(TEST_PATH / "cont03.fits", 0, z=0.00188)
         .cut_edges(19500, 22900)
         .normalize()
     )
@@ -429,3 +436,15 @@ def test_nplot(fig_test, fig_ref):
     ax_ref.set_xlabel("Frequency [Hz]")
     ax_ref.set_ylabel("Normalized Energy [arbitrary units]")
     ax_ref.legend()
+
+
+def test_pix2wavelength():
+    pix_array = np.arange(10, 50)
+    pix_0_wav = 5.0
+    pix_disp = np.pi
+    z = 0.1
+
+    expected = (pix_0_wav + pix_disp * pix_array) / (1 + z)
+    result = nd.pix2wavelength(pix_array, 5.0, np.pi, 0.1)
+
+    np.testing.assert_almost_equal(result, expected, decimal=14)

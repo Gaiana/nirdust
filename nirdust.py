@@ -38,6 +38,16 @@ import numpy as np
 import specutils as su
 import specutils.manipulation as sm
 
+# ==============================================================================
+# EXCEPTIONS
+# ==============================================================================
+
+
+class HeaderKeywordError(KeyError):
+    """Raised when eader keyword not found."""
+
+    pass
+
 
 # ==============================================================================
 # BLACK BODY METHODS
@@ -441,13 +451,66 @@ class NirdustResults:
 # ==============================================================================
 
 
+def _get_science_extension(
+    hdulist, extension, disp_k, first_wav_k, disp_type_k
+):
+    """Auto detect fits science extension using the provided keywords."""
+    if extension is not None:
+        return extension
+
+    keys = {disp_k, first_wav_k, disp_type_k}
+    extl = []
+    for ext, hdu in enumerate(hdulist):
+        if keys.issubset(hdu.header.keys()):
+            extl.append(ext)
+
+    if len(extl) > 1:
+        raise HeaderKeywordError(
+            "More than one extension with relevant keywords. "
+            "Please specify the extension."
+        )
+
+    elif len(extl) == 0:
+        raise HeaderKeywordError(
+            "No fits extension found with the requested keywords."
+        )
+
+    return extl[0]
+
+
+def pix2wavelength(pix_arr, pix_0_wav, pix_disp, z=0):
+    """Transform pixel to wavelength assuming linear dispersion.
+
+    This transformation assumes a linear dispersion.
+
+    Parameters
+    ----------
+    pix_arr: float or `~numpy.ndarray`
+        Array of pixels values.
+
+    pix_0_wav: float
+        Wavelength value of the first pixel in pix_arr
+
+    pix_disp: float
+        Wavelength dispersion per pixel. Must be in same
+        units as pix_0_wav.
+
+    z: float
+        Redshift of object. Use for the scale factor 1 / (1 + z).
+    """
+    scale_factor = 1 / (1 + z)
+    wave_arr = pix_0_wav + pix_disp * pix_arr  # assume linear dispersion
+    wave_arr *= scale_factor
+    return wave_arr
+
+
 def spectrum(
     flux,
     header,
+    dispersion_key,
+    first_wavelength,
+    dispersion_type,
     z=0,
-    dispersion_key="CD1_1",
-    first_wavelength="CRVAL1",
-    dispersion_type="CTYPE1",
     **kwargs,
 ):
     """Instantiate a NirdustSpectrum object from FITS parameters.
@@ -460,9 +523,6 @@ def spectrum(
     header: FITS header
         Header of the spectrum.
 
-    z: float
-    Redshif of the galaxy.
-
     dispersion_key: str
         Header keyword that gives dispersion in Å/pix. Default is 'CD1_1'
 
@@ -474,24 +534,27 @@ def spectrum(
         Header keyword that contains the dispersion function type. Default is
         ``CTYPE1``.
 
+    z: float
+        Redshif of the galaxy.
+
     Return
     ------
     spectrum: ``NirsdustSpectrum``
         Return a instance of the class NirdustSpectrum with the entered
         parameters.
     """
-    if header[dispersion_key] <= 0:
+    pix_0_wav = header[first_wavelength]  # wavelength of first pixel
+    pix_disp = header[dispersion_key]  # dispersion Angstrom per pixel
+
+    if pix_disp <= 0:
         raise ValueError("dispersion must be positive")
 
     spectrum_length = len(flux)
-    spectral_axis = (
-        (
-            header[first_wavelength]
-            + header[dispersion_key] * np.arange(0, spectrum_length)
-        )
-        / (1 + z)
-        * u.AA
-    )
+
+    # unit should be the same as first_wavelength and dispersion_key, AA ?
+    pixel_axis = np.arange(spectrum_length)
+    spectral_axis = pix2wavelength(pixel_axis, pix_0_wav, pix_disp, z) * u.AA
+
     spec1d = su.Spectrum1D(
         flux=flux * u.adu, spectral_axis=spectral_axis, **kwargs
     )
@@ -509,7 +572,15 @@ def spectrum(
     )
 
 
-def read_spectrum(file_name, extension, z, **kwargs):
+def read_spectrum(
+    file_name,
+    extension=None,
+    dispersion_key="CD1_1",
+    first_wavelength="CRVAL1",
+    dispersion_type="CTYPE1",
+    z=0,
+    **kwargs,
+):
     """Read a spectrum in FITS format and store it in a NirdustSpectrum object.
 
     Parameters
@@ -517,23 +588,52 @@ def read_spectrum(file_name, extension, z, **kwargs):
     file_name: str
         Path to where the fits file is stored.
 
-    extension: int
-        Extension of the FITS file where the spectrum is stored.
+    extension: int or str
+        Extension of the FITS file where the spectrum is stored. If None the
+        extension will be automatically identified by searching for the
+        relevant header keywords. Default is None.
+
+    dispersion_key: str
+        Header keyword that gives dispersion in Å/pix. Default is 'CD1_1'
+
+    first_wavelength: str
+        Header keyword that contains the wavelength of the first pixel. Default
+        is ``CRVAL1``.
+
+    dispersion_type: str
+        Header keyword that contains the dispersion function type. Default is
+        ``CTYPE1``.
 
     z: float
-        Redshift of the galaxy.
+        Redshift of the galaxy. Used to scale the spectral axis with the
+        cosmological sacle factor 1/(1+z). Default is 0.
 
     Returns
     -------
     out: NirsdustSpectrum object
         Returns an instance of the class NirdustSpectrum.
     """
-    with fits.open(file_name) as fits_spectrum:
+    with fits.open(file_name) as hdulist:
 
-        fluxx = fits_spectrum[extension].data
-        header = fits.getheader(file_name)
+        ext = _get_science_extension(
+            hdulist,
+            extension,
+            dispersion_key,
+            first_wavelength,
+            dispersion_type,
+        )
+        flux = hdulist[ext].data
+        header = hdulist[ext].header
 
-    single_spectrum = spectrum(flux=fluxx, header=header, z=z, **kwargs)
+    single_spectrum = spectrum(
+        flux,
+        header,
+        dispersion_key,
+        first_wavelength,
+        dispersion_type,
+        z,
+        **kwargs,
+    )
 
     return single_spectrum
 
