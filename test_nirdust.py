@@ -6,6 +6,7 @@ import os
 import pathlib
 
 from astropy import units as u
+from astropy.io import fits
 from astropy.modeling import models
 from astropy.modeling.models import BlackBody
 
@@ -90,9 +91,6 @@ def snth_spectrum_1000(NGC4945_continuum_rest_frame):
         header=None,
         z=0,
         spectrum_length=spectrum_length,
-        dispersion_key=None,
-        first_wavelength=None,
-        dispersion_type=dispersion_type,
         spec1d=spec1d,
         frequency_axis=frequency_axis,
     )
@@ -102,13 +100,6 @@ def snth_spectrum_1000(NGC4945_continuum_rest_frame):
 # ==============================================================================
 # TESTS
 # ==============================================================================
-
-
-def test_read_spectrum():
-    # read with no extension and wrong keyword
-    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
-    with pytest.raises(nd.HeaderKeywordError):
-        nd.read_spectrum(file_name, dispersion_key="CD11")
 
 
 def test_match(NGC4945_continuum):
@@ -382,9 +373,6 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
         header=None,
         z=0,
         spectrum_length=spectrum_length,
-        dispersion_key=None,
-        first_wavelength=None,
-        dispersion_type=dispersion_type,
         spec1d=spec1d,
         frequency_axis=frequency_axis,
     )
@@ -439,12 +427,18 @@ def test_nplot(fig_test, fig_ref):
 
 
 def test_pix2wavelength():
-    pix_array = np.arange(10, 50)
-    pix_0_wav = 5.0
-    pix_disp = np.pi
+    file_name = TEST_PATH / "external_spectrum_400pc_N4945.fits"
+
+    with fits.open(file_name) as hdul:
+        header = hdul[0].header
+
+    pix_0_wav = header['CRVAL1']
+    pix_disp = header['CD1_1']
+
+    pix_array = np.arange(50.)
     z = 0.1
 
     expected = (pix_0_wav + pix_disp * pix_array) / (1 + z)
-    result = nd.pix2wavelength(pix_array, 5.0, np.pi, 0.1)
+    result = nd.pix2wavelength(pix_array, header, z)
 
-    np.testing.assert_almost_equal(result, expected, decimal=14)
+    np.testing.assert_almost_equal(result, expected, decimal=10)
