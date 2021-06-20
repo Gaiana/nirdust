@@ -112,6 +112,24 @@ def test_read_spectrum():
     )
 
 
+def test_infer_science_extension_MEF_multiple_spectrum():
+    # fits with multiple extensions
+    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    with fits.open(file_name) as hdul:
+        data = hdul[0].data
+        header = hdul[0].header
+
+    hdu0 = fits.PrimaryHDU()
+    hdu1 = fits.ImageHDU(data=data.copy(), header=header.copy())
+    hdu2 = fits.ImageHDU(data=data.copy(), header=None)
+    hdu3 = fits.ImageHDU(data=data.copy(), header=header.copy())
+    hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3])
+
+    ext_candidates = nd.infer_fits_science_extension(hdul)
+    assert len(ext_candidates) == 2
+    np.testing.assert_array_equal(ext_candidates, np.array([1, 3]))
+
+
 def test_read_spectrum_MEF_single_spectrum():
     # fits with multiple extensions
     file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"

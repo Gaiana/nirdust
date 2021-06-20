@@ -437,13 +437,21 @@ class NirdustResults:
 # ==============================================================================
 
 
-def _get_science_extension(hdulist, extension):
-    """Auto detect fits science extension using the provided keywords."""
-    if extension is not None:
-        return extension
+def infer_fits_science_extension(hdulist):
+    """Auto detect fits science extension using the provided keywords.
 
+    Parameters
+    ----------
+    hdulist: `~astropy.io.fits.HDUList`
+        Object containing the FITS extensions.
+
+    Return
+    ------
+    extensions: `~numpy.array`
+        Array with the science extensions indeces in the hdulist.
+    """
     if len(hdulist) == 1:
-        return 0
+        return np.array([0])
 
     keys = {"CRVAL1"}  # keywords that are present in science extensions
     extl = []
@@ -451,13 +459,7 @@ def _get_science_extension(hdulist, extension):
         if keys.issubset(hdu.header.keys()):
             extl.append(ext)
 
-    if len(extl) > 1:
-        raise HeaderKeywordError(
-            "More than one extension with relevant keywords. "
-            "Please specify the extension."
-        )
-
-    return extl[0]
+    return np.array(extl)
 
 
 def pix2wavelength(pix_arr, header, z=0):
@@ -475,6 +477,11 @@ def pix2wavelength(pix_arr, header, z=0):
 
     z: float
         Redshift of object. Use for the scale factor 1 / (1 + z).
+
+    Return
+    ------
+    wavelength: `~numpy.ndarray`
+        Array with the spectral axis.
     """
     wcs = WCS(header, naxis=1, relax=False, fix=False)
     wave_arr = wcs.wcs_pix2world(pix_arr, 0)[0]
@@ -537,23 +544,31 @@ def read_spectrum(file_name, extension=None, z=0, **kwargs):
 
     extension: int or str
         Extension of the FITS file where the spectrum is stored. If None the
-        extension will be automatically identified by searching for the
-        relevant header keywords. Default is None.
+        extension will be automatically identified by searching relevant
+        header keywords. Default is None.
 
     z: float
         Redshift of the galaxy. Used to scale the spectral axis with the
         cosmological sacle factor 1/(1+z). Default is 0.
 
-    Returns
-    -------
+    Return
+    ------
     out: NirsdustSpectrum object
         Returns an instance of the class NirdustSpectrum.
     """
     with fits.open(file_name) as hdulist:
 
-        ext = _get_science_extension(hdulist, extension)
-        flux = hdulist[ext].data
-        header = hdulist[ext].header
+        if extension is None:
+            ext_candidates = infer_fits_science_extension(hdulist)
+            if len(ext_candidates) > 1:
+                raise HeaderKeywordError(
+                    "More than one extension with relevant keywords. "
+                    "Please specify the extension."
+                )
+            extension = ext_candidates[0]
+
+        flux = hdulist[extension].data
+        header = hdulist[extension].header
 
     single_spectrum = spectrum(flux, header, z, **kwargs)
 
@@ -594,8 +609,8 @@ def sp_correction(nuclear_spectrum, external_spectrum):
     external_spectrum: NirdustSpectrum object
         Instance of NirdusSpectrum containing the external spectrum.
 
-    Returns
-    -------
+    Return
+    ------
     out: NirsdustSpectrum object
         Returns a new instance of the class NirdustSpectrum containing the
         nuclear spectrum ready for blackbody fitting.
