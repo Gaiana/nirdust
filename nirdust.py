@@ -205,15 +205,6 @@ class NirdustSpectrum:
     spectrum_length: int
         The number of items in the spectrum axis as in len() method.
 
-    dispersion_key: float
-        Header keyword containing the dispersion in Å/pix.
-
-    first_wavelength: float
-        Header keyword containing the wavelength of first pixel.
-
-    dispersion_type: str
-        Header keyword containing the type of the dispersion function.
-
     spec1d: specutils.Spectrum1D object
         Containis the wavelength axis and the flux axis of the spectrum in
         unities of Å and ADU respectively.
@@ -448,14 +439,13 @@ class NirdustResults:
 
 def _get_science_extension(hdulist, extension):
     """Auto detect fits science extension using the provided keywords."""
-
     if extension is not None:
         return extension
 
     if len(hdulist) == 1:
         return 0
 
-    keys = {'CRVAL1'}   # keywords that are present in science extensions
+    keys = {"CRVAL1"}  # keywords that are present in science extensions
     extl = []
     for ext, hdu in enumerate(hdulist):
         if keys.issubset(hdu.header.keys()):
@@ -471,14 +461,17 @@ def _get_science_extension(hdulist, extension):
 
 
 def pix2wavelength(pix_arr, header, z=0):
-    """Transform pixel to wavelength assuming linear dispersion.
+    """Transform pixel to wavelength.
 
-    This transformation assumes a linear dispersion.
+    This function uses header information to perform WCS transformation.
 
     Parameters
     ----------
     pix_arr: float or `~numpy.ndarray`
         Array of pixels values.
+
+    header: FITS header
+        Header of the spectrum.
 
     z: float
         Redshift of object. Use for the scale factor 1 / (1 + z).
@@ -514,7 +507,6 @@ def spectrum(
         Return a instance of the class NirdustSpectrum with the entered
         parameters.
     """
-
     spectrum_length = len(flux)
 
     # unit should be the same as first_wavelength and dispersion_key, AA ?
@@ -547,17 +539,6 @@ def read_spectrum(file_name, extension=None, z=0, **kwargs):
         Extension of the FITS file where the spectrum is stored. If None the
         extension will be automatically identified by searching for the
         relevant header keywords. Default is None.
-
-    dispersion_key: str
-        Header keyword that gives dispersion in Å/pix. Default is 'CD1_1'
-
-    first_wavelength: str
-        Header keyword that contains the wavelength of the first pixel. Default
-        is ``CRVAL1``.
-
-    dispersion_type: str
-        Header keyword that contains the dispersion function type. Default is
-        ``CTYPE1``.
 
     z: float
         Redshift of the galaxy. Used to scale the spectral axis with the
