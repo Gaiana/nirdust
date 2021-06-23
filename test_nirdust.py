@@ -497,7 +497,7 @@ def test_nplot(fig_test, fig_ref):
     instanstella = stella(freq_axis.value)
 
     fit_results = NirdustResults(
-        1100 * u.K, "Claire Dunphy", 71, stella, freq_axis, flux
+        1100, "Claire Dunphy", 71, stella, freq_axis, flux
     )
 
     ax_test = fig_test.subplots()

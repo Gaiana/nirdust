@@ -568,6 +568,18 @@ class NirdustSpectrum:
         return storage
 
 
+# =============================================================================
+# NIRDUST RESULT
+# =============================================================================
+
+
+def _temperature_to_kelvin(temperature):
+    if isinstance(temperature, u.Quantity):
+        return temperature.to(u.K)
+    return temperature * u.K
+
+
+@attr.s(frozen=True)
 class NirdustResults:
     """Create the class NirdustResults.
 
@@ -600,22 +612,12 @@ class NirdustResults:
         The flux of the spectrum in arbitrary units.
     """
 
-    def __init__(
-        self,
-        temperature,
-        info,
-        uncertainty,
-        fitted_blackbody,
-        freq_axis,
-        flux_axis,
-    ):
-
-        self.temperature = temperature.value * u.K
-        self.info = info
-        self.uncertainty = uncertainty
-        self.fitted_blackbody = fitted_blackbody
-        self.freq_axis = freq_axis
-        self.flux_axis = flux_axis
+    temperature = attr.ib(converter=_temperature_to_kelvin)
+    info = attr.ib()
+    uncertainty = attr.ib()
+    fitted_blackbody = attr.ib()
+    freq_axis = attr.ib(repr=False)
+    flux_axis = attr.ib(repr=False)
 
     def nplot(self, ax=None, data_color="firebrick", model_color="navy"):
         """Build a plot of the fitted spectrum and the fitted model.
