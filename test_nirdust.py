@@ -4,8 +4,10 @@
 
 import os
 import pathlib
+from unittest.mock import patch
 
 from astropy import units as u
+from astropy.io import fits
 from astropy.modeling import models
 from astropy.modeling.models import BlackBody
 
@@ -37,28 +39,28 @@ TEST_PATH = pathlib.Path(PATH) / "test_data"
 @pytest.fixture(scope="session")
 def NGC4945_continuum():
     file_name = TEST_PATH / "cont03.fits"
-    spect = nd.read_spectrum(file_name, 0, 0.00188)
+    spect = nd.read_spectrum(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_continuum_rest_frame():
     file_name = TEST_PATH / "cont03.fits"
-    spect = nd.read_spectrum(file_name, 0, 0)
+    spect = nd.read_spectrum(file_name, 0, z=0)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_external_continuum_400pc():
     file_name = TEST_PATH / "external_spectrum_400pc_N4945.fits"
-    spect = nd.read_spectrum(file_name, 0, 0.00188)
+    spect = nd.read_spectrum(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_external_continuum_200pc():
     file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
-    spect = nd.read_spectrum(file_name, 0, 0.00188)
+    spect = nd.read_spectrum(file_name, 0, z=0.00188)
     return spect
 
 
@@ -67,7 +69,7 @@ def snth_spectrum_1000(NGC4945_continuum_rest_frame):
 
     real_spectrum = NGC4945_continuum_rest_frame
     freq_axis = real_spectrum.frequency_axis
-    sinthetic_model = nd.normalized_blackbody(1000)
+    sinthetic_model = nd.NormalizedBlackBody(1000)
     sinthetic_flux = sinthetic_model(freq_axis.value)
 
     mu, sigma = 0, 0.1
@@ -77,7 +79,6 @@ def snth_spectrum_1000(NGC4945_continuum_rest_frame):
 
     dispersion = 3.51714285129581
     first_wave = 18940.578099674
-    dispersion_type = "LINEAR  "
 
     spectrum_length = len(real_spectrum.flux)
     spectral_axis = (
@@ -90,9 +91,6 @@ def snth_spectrum_1000(NGC4945_continuum_rest_frame):
         header=None,
         z=0,
         spectrum_length=spectrum_length,
-        dispersion_key=None,
-        first_wavelength=None,
-        dispersion_type=dispersion_type,
         spec1d=spec1d,
         frequency_axis=frequency_axis,
     )
@@ -102,6 +100,77 @@ def snth_spectrum_1000(NGC4945_continuum_rest_frame):
 # ==============================================================================
 # TESTS
 # ==============================================================================
+
+
+def test_read_spectrum():
+    # read with no extension and wrong keyword
+    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    obj1 = nd.read_spectrum(file_name)
+    obj2 = nd.read_spectrum(file_name, extension=0)
+    np.testing.assert_almost_equal(
+        obj1.frequency_axis.value, obj2.frequency_axis.value, decimal=10
+    )
+
+
+def test_infer_science_extension_MEF_multiple_spectrum():
+    # fits with multiple extensions
+    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    with fits.open(file_name) as hdul:
+        data = hdul[0].data
+        header = hdul[0].header
+
+    hdu0 = fits.PrimaryHDU()
+    hdu1 = fits.ImageHDU(data=data.copy(), header=header.copy())
+    hdu2 = fits.ImageHDU(data=data.copy(), header=None)
+    hdu3 = fits.ImageHDU(data=data.copy(), header=header.copy())
+    hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3])
+
+    ext_candidates = nd.infer_fits_science_extension(hdul)
+    assert len(ext_candidates) == 2
+    np.testing.assert_array_equal(ext_candidates, np.array([1, 3]))
+
+
+def test_read_spectrum_MEF_single_spectrum():
+    # fits with multiple extensions
+    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    with fits.open(file_name) as hdul:
+        data = hdul[0].data
+        header = hdul[0].header
+
+    # only one header with relevant keywords
+    hdu0 = fits.PrimaryHDU()
+    hdu1 = fits.ImageHDU(data=None)
+    hdu2 = fits.ImageHDU(data=data.copy(), header=header.copy())
+    hdu3 = fits.ImageHDU(data=None)
+    hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3])
+
+    with patch("astropy.io.fits.open", return_value=hdul):
+        obj = nd.read_spectrum("imaginary_file.fits")
+        assert isinstance(obj, nd.NirdustSpectrum)
+
+
+def test_read_spectrum_MEF_multiple_spectrum():
+    # fits with multiple extensions
+    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    with fits.open(file_name) as hdul:
+        data = hdul[0].data
+        header = hdul[0].header
+
+    hdu0 = fits.PrimaryHDU()
+    hdu1 = fits.ImageHDU(data=data.copy(), header=header.copy())
+    hdu2 = fits.ImageHDU(data=data.copy(), header=header.copy())
+    hdu3 = fits.ImageHDU(data=data.copy(), header=header.copy())
+    hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3])
+
+    with patch("astropy.io.fits.open", return_value=hdul):
+        with pytest.raises(nd.HeaderKeywordError):
+            # Default is extension=None. this tries to detect
+            # the data extension, if there are many the error is raised
+            nd.read_spectrum("imaginary_file.fits")
+
+        # If the extension is specified it should work ok
+        obj = nd.read_spectrum("imaginary_file.fits", extension=2)
+        assert isinstance(obj, nd.NirdustSpectrum)
 
 
 def test_match(NGC4945_continuum):
@@ -185,7 +254,7 @@ def test_sp_correction_second_if(
     NGC4945_continuum, NGC4945_external_continuum_200pc
 ):
     spectrum = nd.read_spectrum(
-        TEST_PATH / "cont01.fits", 0, 0.00188
+        TEST_PATH / "cont01.fits", 0, z=0.00188
     ).cut_edges(19600, 22900)
     external_spectrum = NGC4945_external_continuum_200pc.cut_edges(
         19600, 22900
@@ -200,7 +269,7 @@ def test_sp_correction_third_if(
 ):
     spectrum = NGC4945_external_continuum_200pc.cut_edges(19600, 22900)
     external_spectrum = nd.read_spectrum(
-        TEST_PATH / "cont01.fits", 0, 0.00188
+        TEST_PATH / "cont01.fits", 0, z=0.00188
     ).cut_edges(19600, 22900)
     prepared = nd.sp_correction(spectrum, external_spectrum)
     expected_len = len(external_spectrum.spectral_axis)
@@ -254,6 +323,32 @@ def test_NormalizedBlackBody_evaluation_units():
     )
 
 
+@pytest.mark.parametrize("T_kelvin", [500.0, 1000.0, 5000.0])
+@pytest.mark.parametrize("noise_tolerance", [(0.0, 4), (0.1, -1), (0.2, -2)])
+def test_normalized_blackbody_fitter(T_kelvin, noise_tolerance):
+
+    # noise_tolerance has two values: noise and tolerance
+    noise_level, decimal_tolerance = noise_tolerance
+
+    freq = np.linspace(1e14, 2e14, 10000) * u.Hz
+    sinthetic_model = BlackBody(T_kelvin * u.K)
+    flux = sinthetic_model(freq)
+
+    mu, sigma = 0, noise_level
+    nd_random = np.random.RandomState(42)
+    gaussian_noise = nd_random.normal(mu, sigma, len(freq))
+    noisy_flux = flux * (1 + gaussian_noise)
+
+    normalized_flux = noisy_flux / np.mean(noisy_flux)
+    fitted_model, fit_info = nd.normalized_blackbody_fitter(
+        freq, normalized_flux, T0=900
+    )
+
+    np.testing.assert_almost_equal(
+        fitted_model.T.value, T_kelvin, decimal=decimal_tolerance
+    )
+
+
 def test_NirdustResults_temperature():
     nr_inst = NirdustResults(
         20 * u.K,
@@ -278,7 +373,7 @@ def test_NirdustResults_info():
     assert nr_inst.info == "Hyperion"
 
 
-def test_NirdustResults_covariance():
+def test_NirdustResults_uncertainty():
     nr_inst = NirdustResults(
         20 * u.K,
         "Hyperion",
@@ -287,7 +382,7 @@ def test_NirdustResults_covariance():
         freq_axis=None,
         flux_axis=None,
     )
-    assert nr_inst.covariance == 2356.89
+    assert nr_inst.uncertainty == 2356.89
 
 
 def test_NirdustResults_fitted_blackbody():
@@ -336,7 +431,6 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
 
     dispersion = 3.51714285129581
     first_wave = 18940.578099674
-    dispersion_type = "LINEAR  "
 
     spectrum_length = len(real_spectrum.flux)
     spectral_axis = (
@@ -349,9 +443,6 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
         header=None,
         z=0,
         spectrum_length=spectrum_length,
-        dispersion_key=None,
-        first_wavelength=None,
-        dispersion_type=dispersion_type,
         spec1d=spec1d,
         frequency_axis=frequency_axis,
     )
@@ -378,7 +469,7 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
 def test_nplot(fig_test, fig_ref):
 
     spectrum = (
-        nd.read_spectrum(TEST_PATH / "cont03.fits", 0, 0.00188)
+        nd.read_spectrum(TEST_PATH / "cont03.fits", 0, z=0.00188)
         .cut_edges(19500, 22900)
         .normalize()
     )
@@ -403,3 +494,21 @@ def test_nplot(fig_test, fig_ref):
     ax_ref.set_xlabel("Frequency [Hz]")
     ax_ref.set_ylabel("Normalized Energy [arbitrary units]")
     ax_ref.legend()
+
+
+def test_pix2wavelength():
+    file_name = TEST_PATH / "external_spectrum_400pc_N4945.fits"
+
+    with fits.open(file_name) as hdul:
+        header = hdul[0].header
+
+    pix_0_wav = header["CRVAL1"]
+    pix_disp = header["CD1_1"]
+
+    pix_array = np.arange(50.0)
+    z = 0.1
+
+    expected = (pix_0_wav + pix_disp * pix_array) / (1 + z)
+    result = nd.pix2wavelength(pix_array, header, z)
+
+    np.testing.assert_almost_equal(result, expected, decimal=10)

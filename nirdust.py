@@ -29,6 +29,7 @@ from astropy.io import fits
 from astropy.modeling import Fittable1DModel, Parameter
 from astropy.modeling import fitting
 from astropy.modeling import models
+from astropy.wcs import WCS
 
 
 import attr
@@ -44,6 +45,16 @@ from specutils.fitting import fit_generic_continuum
 from specutils.fitting import fit_lines
 from specutils.manipulation import noise_region_uncertainty
 from specutils.spectra import SpectralRegion, Spectrum1D
+
+# ==============================================================================
+# EXCEPTIONS
+# ==============================================================================
+
+
+class HeaderKeywordError(KeyError):
+    """Raised when eader keyword not found."""
+
+    pass
 
 
 # ==============================================================================
@@ -132,17 +143,27 @@ class NormalizedBlackBody(Fittable1DModel):
         return intensity.value
 
 
-def blackbody_fitter(nirspec, T0):
-    """Fits Blackbody model to spectrum.
+def _get_quantity_value(quantity):
+    """Check if object is an Astropy Quantity and return its value."""
+    if isinstance(quantity, u.Quantity):
+        value = quantity.value
+    else:
+        value = quantity
+    return value
+
+
+def normalized_blackbody_fitter(frequency, flux, T0):
+    """Fits a Normalized Blackbody model to spectrum.
 
     The fitting is performed by using the LevMarLSQFitter class from Astropy.
 
     Parameters
     ----------
-    nirspec: NirdustSpectrum object
-        A NirdustSpectrum instance containing a prepared spectrum for blackbody
-        fitting. Note: the spectrum must be cuted, normalized and corrected for
-        stellar population contribution.
+    frequency: `~numpy.ndarray`, or `~astropy.units.Quantity`
+        Spectral axis in units of Hz.
+
+    flux: `~numpy.ndarray`, or `~astropy.units.Quantity`
+        Normalized intensity.
 
     T0: float
         Initial temperature for the fitting procedure.
@@ -155,16 +176,14 @@ def blackbody_fitter(nirspec, T0):
 
     """
     # LevMarLSQFitter does not support inputs with units
-    if isinstance(T0, u.Quantity):
-        temp = T0.value
-    else:
-        temp = T0
+    # if inputs have units we work with the stored value
+    freq_value = _get_quantity_value(frequency)
+    flux_value = _get_quantity_value(flux)
+    T0_value = _get_quantity_value(T0)
 
-    bb_model = NormalizedBlackBody(temp)
-    fitter = fitting.LevMarLSQFitter()
-    fitted_model = fitter(
-        bb_model, nirspec.frequency_axis.value, nirspec.flux.value
-    )
+    bb_model = NormalizedBlackBody(temperature=T0_value)
+    fitter = fitting.LevMarLSQFitter(calc_uncertainties=True)
+    fitted_model = fitter(bb_model, freq_value, flux_value)
 
     return fitted_model, fitter.fit_info
 
@@ -193,15 +212,6 @@ class NirdustSpectrum:
     spectrum_length: int
         The number of items in the spectrum axis as in len() method.
 
-    dispersion_key: float
-        Header keyword containing the dispersion in Å/pix.
-
-    first_wavelength: float
-        Header keyword containing the wavelength of first pixel.
-
-    dispersion_type: str
-        Header keyword containing the type of the dispersion function.
-
     spec1d: specutils.Spectrum1D object
         Containis the wavelength axis and the flux axis of the spectrum in
         unities of Å and ADU respectively.
@@ -215,9 +225,6 @@ class NirdustSpectrum:
     header = attr.ib(repr=False)
     z = attr.ib()
     spectrum_length = attr.ib()
-    dispersion_key = attr.ib()
-    first_wavelength = attr.ib()
-    dispersion_type = attr.ib()
     spec1d = attr.ib(repr=False)
     frequency_axis = attr.ib(repr=False)
 
@@ -496,8 +503,8 @@ class NirdustSpectrum:
 
         Parameters
         ----------
-        T0: float
-            Initial temperature for the fit.
+        T0: float or `~astropy.units.Quantity`
+            Initial temperature for the fit in Kelvin.
 
         Returns
         -------
@@ -505,13 +512,15 @@ class NirdustSpectrum:
             An instance of the NirdustResults class that holds the resuslts of
             the blackbody fitting.
         """
-        inst = blackbody_fitter(self, T0)
+        model, fit_info = normalized_blackbody_fitter(
+            self.frequency_axis, self.flux, T0
+        )
 
         storage = NirdustResults(
-            temperature=inst[0].T,
-            info=inst[1],
-            covariance=inst[1]["param_cov"],
-            fitted_blackbody=inst[0],
+            temperature=model.temperature,
+            info=fit_info,
+            uncertainty=model.temperature.std,
+            fitted_blackbody=model,
             freq_axis=self.frequency_axis,
             flux_axis=self.flux,
         )
@@ -536,8 +545,8 @@ class NirdustResults:
         from the infodict dictionary it returns. See the scipy.optimize.leastsq
         documentation for details on the meaning of these values.
 
-    covariance:  scalar
-        The covariance of the fit as calculed by LevMarLSQFitter.
+    uncertainty:  scalar
+        The uncertainty in the temparture fit as calculed by LevMarLSQFitter.
 
     fitted_blackbody: model
         The normalized_blackbody model for the best fit.
@@ -548,16 +557,13 @@ class NirdustResults:
 
     flux_axis: Quantity
         The flux of the spectrum in arbitrary units.
-
-
-
     """
 
     def __init__(
         self,
         temperature,
         info,
-        covariance,
+        uncertainty,
         fitted_blackbody,
         freq_axis,
         flux_axis,
@@ -565,7 +571,7 @@ class NirdustResults:
 
         self.temperature = temperature.value * u.K
         self.info = info
-        self.covariance = covariance
+        self.uncertainty = uncertainty
         self.fitted_blackbody = fitted_blackbody
         self.freq_axis = freq_axis
         self.flux_axis = flux_axis
@@ -612,13 +618,62 @@ class NirdustResults:
 # ==============================================================================
 
 
+def infer_fits_science_extension(hdulist):
+    """Auto detect fits science extension using the provided keywords.
+
+    Parameters
+    ----------
+    hdulist: `~astropy.io.fits.HDUList`
+        Object containing the FITS extensions.
+
+    Return
+    ------
+    extensions: `~numpy.array`
+        Array with the science extensions indeces in the hdulist.
+    """
+    if len(hdulist) == 1:
+        return np.array([0])
+
+    keys = {"CRVAL1"}  # keywords that are present in science extensions
+    extl = []
+    for ext, hdu in enumerate(hdulist):
+        if keys.issubset(hdu.header.keys()):
+            extl.append(ext)
+
+    return np.array(extl)
+
+
+def pix2wavelength(pix_arr, header, z=0):
+    """Transform pixel to wavelength.
+
+    This function uses header information to perform WCS transformation.
+
+    Parameters
+    ----------
+    pix_arr: float or `~numpy.ndarray`
+        Array of pixels values.
+
+    header: FITS header
+        Header of the spectrum.
+
+    z: float
+        Redshift of object. Use for the scale factor 1 / (1 + z).
+
+    Return
+    ------
+    wavelength: `~numpy.ndarray`
+        Array with the spectral axis.
+    """
+    wcs = WCS(header, naxis=1, relax=False, fix=False)
+    wave_arr = wcs.wcs_pix2world(pix_arr, 0)[0]
+    scale_factor = 1 / (1 + z)
+    return wave_arr * scale_factor
+
+
 def spectrum(
     flux,
     header,
     z=0,
-    dispersion_key="CD1_1",
-    first_wavelength="CRVAL1",
-    dispersion_type="CTYPE1",
     **kwargs,
 ):
     """Instantiate a NirdustSpectrum object from FITS parameters.
@@ -632,18 +687,7 @@ def spectrum(
         Header of the spectrum.
 
     z: float
-    Redshif of the galaxy.
-
-    dispersion_key: str
-        Header keyword that gives dispersion in Å/pix. Default is 'CD1_1'
-
-    first_wavelength: str
-        Header keyword that contains the wavelength of the first pixel. Default
-        is ``CRVAL1``.
-
-    dispersion_type: str
-        Header keyword that contains the dispersion function type. Default is
-        ``CTYPE1``.
+        Redshif of the galaxy.
 
     Return
     ------
@@ -651,18 +695,12 @@ def spectrum(
         Return a instance of the class NirdustSpectrum with the entered
         parameters.
     """
-    if header[dispersion_key] <= 0:
-        raise ValueError("dispersion must be positive")
-
     spectrum_length = len(flux)
-    spectral_axis = (
-        (
-            header[first_wavelength]
-            + header[dispersion_key] * np.arange(0, spectrum_length)
-        )
-        / (1 + z)
-        * u.AA
-    )
+
+    # unit should be the same as first_wavelength and dispersion_key, AA ?
+    pixel_axis = np.arange(spectrum_length)
+    spectral_axis = pix2wavelength(pixel_axis, header, z) * u.AA
+
     spec1d = su.Spectrum1D(
         flux=flux * u.adu, spectral_axis=spectral_axis, **kwargs
     )
@@ -672,15 +710,12 @@ def spectrum(
         header=header,
         z=z,
         spectrum_length=spectrum_length,
-        dispersion_key=dispersion_key,
-        first_wavelength=first_wavelength,
-        dispersion_type=dispersion_type,
         spec1d=spec1d,
         frequency_axis=frequency_axis,
     )
 
 
-def read_spectrum(file_name, extension, z, **kwargs):
+def read_spectrum(file_name, extension=None, z=0, **kwargs):
     """Read a spectrum in FITS format and store it in a NirdustSpectrum object.
 
     Parameters
@@ -688,23 +723,35 @@ def read_spectrum(file_name, extension, z, **kwargs):
     file_name: str
         Path to where the fits file is stored.
 
-    extension: int
-        Extension of the FITS file where the spectrum is stored.
+    extension: int or str
+        Extension of the FITS file where the spectrum is stored. If None the
+        extension will be automatically identified by searching relevant
+        header keywords. Default is None.
 
     z: float
-        Redshift of the galaxy.
+        Redshift of the galaxy. Used to scale the spectral axis with the
+        cosmological sacle factor 1/(1+z). Default is 0.
 
-    Returns
-    -------
+    Return
+    ------
     out: NirsdustSpectrum object
         Returns an instance of the class NirdustSpectrum.
     """
-    with fits.open(file_name) as fits_spectrum:
+    with fits.open(file_name) as hdulist:
 
-        fluxx = fits_spectrum[extension].data
-        header = fits.getheader(file_name)
+        if extension is None:
+            ext_candidates = infer_fits_science_extension(hdulist)
+            if len(ext_candidates) > 1:
+                raise HeaderKeywordError(
+                    "More than one extension with relevant keywords. "
+                    "Please specify the extension."
+                )
+            extension = ext_candidates[0]
 
-    single_spectrum = spectrum(flux=fluxx, header=header, z=z, **kwargs)
+        flux = hdulist[extension].data
+        header = hdulist[extension].header
+
+    single_spectrum = spectrum(flux, header, z, **kwargs)
 
     return single_spectrum
 
@@ -743,8 +790,8 @@ def sp_correction(nuclear_spectrum, external_spectrum):
     external_spectrum: NirdustSpectrum object
         Instance of NirdusSpectrum containing the external spectrum.
 
-    Returns
-    -------
+    Return
+    ------
     out: NirsdustSpectrum object
         Returns a new instance of the class NirdustSpectrum containing the
         nuclear spectrum ready for blackbody fitting.
