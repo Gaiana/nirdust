@@ -193,7 +193,7 @@ def normalized_blackbody_fitter(frequency, flux, T0):
 # ==============================================================================
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, repr=False)
 class NirdustSpectrum:
     """
     Class containing a spectrum to operate with nirdust.
@@ -222,11 +222,36 @@ class NirdustSpectrum:
 
     """
 
-    header = attr.ib(repr=False)
+    header = attr.ib()
     z = attr.ib()
     spectrum_length = attr.ib()
-    spec1d = attr.ib(repr=False)
-    frequency_axis = attr.ib(repr=False)
+    spec1d = attr.ib()
+    frequency_axis = attr.ib()
+    spectral_range_ = attr.ib(init=False)
+
+    @spectral_range_.default
+    def _spectral_range_default(self):
+        return [
+            np.min(self.spec1d.spectral_axis),
+            np.max(self.spec1d.spectral_axis)
+        ]
+
+    def __dir__(self):
+        """x.__dir__() <==> dir(x)"""
+        return super().__dir__() + dir(self.spec1d)
+
+    def __repr__(self):
+        """x.__repr__() <==> repr(x)"""
+
+        sprange = self.spectral_range_[0].value, self.spectral_range_[1].value
+        spunit = self.spec1d.spectral_axis.unit
+
+        return (
+            f"NirdustSpectrum(z={self.z}, "
+            f"spectrum_length={self.spectrum_length}, "
+            f"spectral_range=[{sprange[0]:.2f}-{sprange[1]:.2f}] {spunit})"
+        )
+
 
     def __getattr__(self, a):
         """Return an attribute from specutils.Spectrum1D class.
