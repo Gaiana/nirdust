@@ -36,7 +36,7 @@ use_setuptools()
 REQUIREMENTS = [
     "numpy",
     "scipy",
-    "astropy",
+    "astropy>===4.2.1",
     "specutils",
     "matplotlib",
     "attrs",

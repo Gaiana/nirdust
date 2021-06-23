@@ -233,16 +233,23 @@ class NirdustSpectrum:
     def _spectral_range_default(self):
         return [
             np.min(self.spec1d.spectral_axis),
-            np.max(self.spec1d.spectral_axis)
+            np.max(self.spec1d.spectral_axis),
         ]
 
     def __dir__(self):
-        """x.__dir__() <==> dir(x)"""
+        """List all the content of the NirdustSpectum and the internal \
+        spec1d.
+
+        dir(x) <==> x.__dir__()
+        """
         return super().__dir__() + dir(self.spec1d)
 
     def __repr__(self):
-        """x.__repr__() <==> repr(x)"""
+        """Representation of the NirdustSpectrum.
 
+        repr(x) <==> x.__repr__()
+
+        """
         sprange = self.spectral_range_[0].value, self.spectral_range_[1].value
         spunit = self.spec1d.spectral_axis.unit
 
@@ -251,7 +258,6 @@ class NirdustSpectrum:
             f"spectrum_length={self.spectrum_length}, "
             f"spectral_range=[{sprange[0]:.2f}-{sprange[1]:.2f}] {spunit})"
         )
-
 
     def __getattr__(self, a):
         """Return an attribute from specutils.Spectrum1D class.
@@ -438,7 +444,7 @@ class NirdustSpectrum:
             auto_mask = np.ones_like(self.spectral_axis, dtype=bool)
 
             for i, j in line_indexes:
-                auto_mask[i : j + 1] = False # noqa
+                auto_mask[i : j + 1] = False  # noqa
 
             masked_spectrum_flux = self.flux[:, auto_mask]
             masked_spectrum_spax = self.spectral_axis[:, auto_mask]

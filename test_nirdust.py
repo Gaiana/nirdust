@@ -112,6 +112,22 @@ def test_read_spectrum():
     )
 
 
+def test_spectrum_dir():
+    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    obj1 = nd.read_spectrum(file_name)
+    result = repr(obj1)
+    expected = "NirdustSpectrum(z=0, spectrum_length=1751, spectral_range=[18940.65-25095.62] Angstrom)"  # noqa
+    assert result == expected
+
+
+def test_spectrum_repr():
+    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    obj1 = nd.read_spectrum(file_name)
+    result = dir(obj1)
+    expected = dir(obj1.spec1d)
+    assert not set(expected).difference(result)
+
+
 def test_infer_science_extension_MEF_multiple_spectrum():
     # fits with multiple extensions
     file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
@@ -322,7 +338,7 @@ def test_NormalizedBlackBody_evaluation_units():
         result_with_no_units, result_with_units.value, decimal=10
     )
 
-@pytest.mark.xfail
+
 @pytest.mark.parametrize("T_kelvin", [500.0, 1000.0, 5000.0])
 @pytest.mark.parametrize("noise_tolerance", [(0.0, 4), (0.1, -1), (0.2, -2)])
 def test_normalized_blackbody_fitter(T_kelvin, noise_tolerance):
@@ -422,7 +438,7 @@ def test_NirdustResults_flux_axis(NGC4945_continuum):
     )
     assert len(nr_inst.flux_axis) == len(fluxx)
 
-@pytest.mark.xfail
+
 def test_fit_blackbody(NGC4945_continuum_rest_frame):
     real_spectrum = NGC4945_continuum_rest_frame
     freq_axis = real_spectrum.frequency_axis
