@@ -213,7 +213,7 @@ class NirdustSpectrum:
         The number of items in the spectrum axis as in len() method.
 
     spec1d: specutils.Spectrum1D object
-        Containis the wavelength axis and the flux axis of the spectrum in
+        Contains the wavelength axis and the flux axis of the spectrum in
         unities of Å and ADU respectively.
 
     frequency_axis: SpectralAxis object
@@ -282,11 +282,14 @@ class NirdustSpectrum:
         """
         spec1d = self.spec1d.__getitem__(slice)
         frequency_axis = spec1d.spectral_axis.to(u.Hz)
+
         kwargs = attr.asdict(self)
+        del kwargs["spectral_range_"]
         kwargs.update(
             spec1d=spec1d,
             frequency_axis=frequency_axis,
         )
+
         return NirdustSpectrum(**kwargs)
 
     def line_spectrum(
@@ -455,6 +458,7 @@ class NirdustSpectrum:
         new_len = len(masked_spectrum.spectral_axis)
 
         kwargs = attr.asdict(self)
+        del kwargs["spectral_range_"]
         kwargs.update(
             spec1d=masked_spectrum,
             spectrum_length=new_len,
@@ -483,7 +487,9 @@ class NirdustSpectrum:
         cutted_spec1d = sm.extract_region(self.spec1d, region)
         cutted_freq_axis = cutted_spec1d.spectral_axis.to(u.Hz)
         new_len = len(cutted_spec1d.flux)
+
         kwargs = attr.asdict(self)
+        del kwargs["spectral_range_"]
         kwargs.update(
             spec1d=cutted_spec1d,
             spectrum_length=new_len,
@@ -502,10 +508,11 @@ class NirdustSpectrum:
             with a frquency axis in units of Hz.
         """
         new_axis = self.spec1d.spectral_axis.to(u.Hz)
+
         kwargs = attr.asdict(self)
-        kwargs.update(
-            frequency_axis=new_axis,
-        )
+        del kwargs["spectral_range_"]
+        kwargs.update(frequency_axis=new_axis)
+
         return NirdustSpectrum(**kwargs)
 
     def normalize(self):
@@ -519,8 +526,11 @@ class NirdustSpectrum:
         """
         normalized_flux = self.spec1d.flux / np.mean(self.spec1d.flux)
         new_spec1d = su.Spectrum1D(normalized_flux, self.spec1d.spectral_axis)
+
         kwargs = attr.asdict(self)
+        del kwargs["spectral_range_"]
         kwargs.update(spec1d=new_spec1d)
+
         return NirdustSpectrum(**kwargs)
 
     def fit_blackbody(self, T0):
@@ -854,6 +864,7 @@ def sp_correction(nuclear_spectrum, external_spectrum):
     new_freq_axis = substracted_1d_spectrum.spectral_axis.to(u.Hz)
 
     kwargs = attr.asdict(normalized_nuc)
+    del kwargs["spectral_range_"]
     kwargs.update(spec1d=substracted_1d_spectrum, frequency_axis=new_freq_axis)
 
     return NirdustSpectrum(**kwargs)

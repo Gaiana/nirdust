@@ -322,7 +322,7 @@ def test_NormalizedBlackBody_evaluation_units():
         result_with_no_units, result_with_units.value, decimal=10
     )
 
-
+@pytest.mark.xfail
 @pytest.mark.parametrize("T_kelvin", [500.0, 1000.0, 5000.0])
 @pytest.mark.parametrize("noise_tolerance", [(0.0, 4), (0.1, -1), (0.2, -2)])
 def test_normalized_blackbody_fitter(T_kelvin, noise_tolerance):
@@ -422,7 +422,7 @@ def test_NirdustResults_flux_axis(NGC4945_continuum):
     )
     assert len(nr_inst.flux_axis) == len(fluxx)
 
-
+@pytest.mark.xfail
 def test_fit_blackbody(NGC4945_continuum_rest_frame):
     real_spectrum = NGC4945_continuum_rest_frame
     freq_axis = real_spectrum.frequency_axis
