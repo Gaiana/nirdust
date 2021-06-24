@@ -380,7 +380,8 @@ class NirdustSpectrum:
                 )
                 * u.Angstrom
             )
-
+            # hacer que los angstroms vayan al ultimo y hacer que en vez de
+            # listas se usen empty arrays
             emi_spec = emi_spec + intensity
 
             interval_e.append(interval_i)
@@ -394,21 +395,18 @@ class NirdustSpectrum:
             )
             intensity = gauss_fit(new_flux.spectral_axis)
             stddev = gauss_fit.stddev
-            interval_i = (
-                np.array(
-                    [
-                        absorption[i].value - 3 * stddev,
-                        absorption[i].value + 3 * stddev,
-                    ]
-                )
-                * u.Angstrom
+            interval_i = np.array(
+                [
+                    absorption[i].value - 3 * stddev,
+                    absorption[i].value + 3 * stddev,
+                ]
             )
 
             absorb_spec = absorb_spec + intensity
             interval_a.append(interval_i)
 
         line_spectrum = emi_spec + absorb_spec
-        line_positions = interval_e + interval_a
+        line_positions = (interval_e + interval_a) * u.Angstrom
 
         line_fitting_quality = 0.0
 
