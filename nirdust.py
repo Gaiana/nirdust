@@ -298,7 +298,6 @@ class NirdustSpectrum:
 
         return NirdustSpectrum(**kwargs)
 
-
     def mask_spectrum(self, line_intervals=None, mask=None):
         """Mask spectrum to remove spectral lines.
 
@@ -312,12 +311,12 @@ class NirdustSpectrum:
         line_intervals: python iterable
             A list containing any iterable object with pairs containing the
             beginning and end of the region were the spectral lines are. The
-            second return of 'line_spectrum()' is valid. 
-        
+            second return of 'line_spectrum()' is valid.
+
         mask: boolean array
-            array containing a mask of boolean values as established by the 
-            'Numpy' convention. i.e. containing 'True' values in all the 
-            positions were the spectrum should be masked. 
+            array containing a mask of boolean values as established by the
+            'Numpy' convention. i.e. containing 'True' values in all the
+            positions were the spectrum should be masked.
         """
         if all(v is None for v in (line_intervals, mask)):
             raise ValueError("Expected one parameter, recived none.")
@@ -325,20 +324,24 @@ class NirdustSpectrum:
         elif all(v is not None for v in (line_intervals, mask)):
             raise ValueError("Two mask parameters were given. Expected one.")
 
-        elif line_positions is not None:
+        elif line_intervals is not None:
 
             line_indexes = np.searchsorted(self.spectral_axis, line_intervals)
             auto_mask = np.ones(self.spectrum_length, dtype=bool)
-            
+
             for i, j in line_indexes:
                 auto_mask[i : j + 1] = False  # noqa
-                
 
             masked_spectrum = Spectrum1D(
                 self.flux[auto_mask], self.spectral_axis[auto_mask]
             )
 
         elif mask is not None:
+
+            if len(mask) != self.spectrum_length:
+                raise ValueError(
+                    "Mask length must be equal to 'spectrum_length'"
+                )
 
             masked_spectrum = Spectrum1D(
                 self.flux[mask], self.spectral_axis[mask]
@@ -682,9 +685,11 @@ def read_spectrum(file_name, extension=None, z=0, **kwargs):
 
     return single_spectrum
 
+
 # ==============================================================================
 # FIND LINE INTERVALS FROM AUTHOMATIC LINE FITTING
 # ==============================================================================
+
 
 def line_spectrum(
     spectrum,
@@ -703,8 +708,8 @@ def line_spectrum(
     Parameters
     ----------
     spectrum: NirdustSpectrum object
-        A spectrum stored in a NirdustSpectrum class object.    
-    
+        A spectrum stored in a NirdustSpectrum class object.
+
     low_lim_ns: float
         Lower limit of the spectral region defined to measure the
         noise level. Default is 20650 (wavelenght in Angstroms).
@@ -723,13 +728,13 @@ def line_spectrum(
         the spectrum to use in the fitting. If None, then the whole
         spectrum will be used in the fitting. Window is used in the
         Gaussian fitting of the spectral lines. Default is 50 (Angstroms).
-        
+
     Return
     ------
     out: flux axis, list, list
-        Returns in the first position a flux axis of the same lenght as the 
-        original spectrum containing the fitted lines. In the second position, 
-        returns the intervals where those lines were finded determined by 
+        Returns in the first position a flux axis of the same lenght as the
+        original spectrum containing the fitted lines. In the second position,
+        returns the intervals where those lines were finded determined by
         3-sigma values around the center of the line. In the third position
         returns an array with the quality of the fitting for each line.
 
@@ -741,13 +746,9 @@ def line_spectrum(
     noise_region_def = SpectralRegion(
         low_lim_ns * u.Angstrom, upper_lim_ns * u.Angstrom
     )
-    noise_reg_spectrum = noise_region_uncertainty(
-        new_flux, noise_region_def
-    )
+    noise_reg_spectrum = noise_region_uncertainty(new_flux, noise_region_def)
 
-    lines = find_lines_threshold(
-        noise_reg_spectrum, noise_factor=noise_factor
-    )
+    lines = find_lines_threshold(noise_reg_spectrum, noise_factor=noise_factor)
 
     centers = lines["line_center"]
 
@@ -771,16 +772,12 @@ def line_spectrum(
         )
         intensity = gauss_fit(new_flux.spectral_axis)
         stddev = gauss_fit.stddev
-        interval_i = (
-            np.array(
-                [
-                    emission[i].value - 3 * stddev,
-                    emission[i].value + 3 * stddev,
-                ]
-            )
-            * u.Angstrom
+        interval_i = np.array(
+            [
+                emission[i].value - 3 * stddev,
+                emission[i].value + 3 * stddev,
+            ]
         )
-        # hacer que los angstroms vayan al ultimo y hacer que en vez de
         # listas se usen empty arrays
         emi_spec = emi_spec + intensity
 
@@ -805,14 +802,12 @@ def line_spectrum(
         absorb_spec = absorb_spec + intensity
         interval_a.append(interval_i)
 
-    line_spectrum = emi_spec + absorb_spec
+    line_spectrum = (emi_spec + absorb_spec) * u.Angstrom
     line_intervals = (interval_e + interval_a) * u.Angstrom
 
     line_fitting_quality = 0.0
 
     return line_spectrum, line_intervals, line_fitting_quality
-
-
 
 
 # ==============================================================================

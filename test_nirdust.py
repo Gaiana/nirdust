@@ -563,7 +563,9 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
         * u.Angstrom
     )
 
-    positions = nd.line_spectrum(snth_line_spectrum,23000, 24000, 6, window=80)[1]
+    positions = nd.line_spectrum(
+        snth_line_spectrum, 23000, 24000, 6, window=80
+    )[1]
 
     np.testing.assert_almost_equal(
         positions.value * 0.001, expected_positions.value * 0.001, decimal=0
@@ -593,6 +595,69 @@ def test_number_of_lines(NGC4945_continuum_rest_frame):
         frequency_axis=None,
     )
 
-    positions = nd.line_spectrum(snth_line_spectrum,23000, 24000, 6, window=80)[1]
+    positions = nd.line_spectrum(
+        snth_line_spectrum, 23000, 24000, 6, window=80
+    )[1]
 
     assert len(positions[0]) == 2
+
+
+def test_mask_spectrum_1(NGC4945_continuum_rest_frame):
+
+    spectrum = NGC4945_continuum_rest_frame
+
+    with pytest.raises(ValueError):
+        spectrum.mask_spectrum(line_intervals=None, mask=None)
+
+
+def test_mask_spectrum_2(NGC4945_continuum_rest_frame):
+
+    spectrum = NGC4945_continuum_rest_frame
+    line_intervals = ((20000, 20050), (21230, 21280)) * u.Angstrom
+    mask = (True, True, False, False)
+
+    with pytest.raises(ValueError):
+        spectrum.mask_spectrum(line_intervals, mask)
+
+
+def test_mask_spectrum_3(NGC4945_continuum_rest_frame):
+
+    spectrum = NGC4945_continuum_rest_frame
+    line_intervals = ((20000, 20050), (21230, 21280)) * u.Angstrom
+
+    line_indexes = np.searchsorted(spectrum.spectral_axis, line_intervals)
+    mask = np.ones(spectrum.spectrum_length, dtype=bool)
+
+    for i, j in line_indexes:
+        mask[i : j + 1] = False  # noqa
+
+    new_flux = spectrum.flux[mask]
+
+    masked_flux = spectrum.mask_spectrum(line_intervals).flux
+
+    np.testing.assert_array_equal(new_flux, masked_flux, verbose=True)
+
+
+def test_mask_spectrum_4(NGC4945_continuum_rest_frame):
+
+    spectrum = NGC4945_continuum_rest_frame
+
+    mask = np.ones(spectrum.spectrum_length, dtype=bool)
+    mask[100] = False
+
+    new_flux = spectrum.flux[mask]
+
+    masked_flux = spectrum.mask_spectrum(mask=mask).flux
+
+    np.testing.assert_array_equal(new_flux, masked_flux, verbose=True)
+
+
+def test_mask_spectrum_5(NGC4945_continuum_rest_frame):
+
+    spectrum = NGC4945_continuum_rest_frame
+
+    mask = np.ones(1200, dtype=bool)
+    mask[100] = False
+
+    with pytest.raises(ValueError):
+        spectrum.mask_spectrum(mask=mask)
