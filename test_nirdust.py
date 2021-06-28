@@ -538,7 +538,7 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
     y = (
         g1(sp_axis.value)
         + g2(sp_axis.value)
-        + np.random.normal(0.0, 0.03, sp_axis.shape)
+        + np.random.normal(0.0, 0.01, sp_axis.shape)
     )
     y_tot = (y + 0.0001 * sp_axis.value + 1000) * u.adu
 
@@ -563,7 +563,7 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
         * u.Angstrom
     )
 
-    positions = snth_line_spectrum.line_spectrum(23000, 24000, 6, window=80)[1]
+    positions = nd.line_spectrum(snth_line_spectrum,23000, 24000, 6, window=80)[1]
 
     np.testing.assert_almost_equal(
         positions.value * 0.001, expected_positions.value * 0.001, decimal=0
@@ -593,6 +593,6 @@ def test_number_of_lines(NGC4945_continuum_rest_frame):
         frequency_axis=None,
     )
 
-    positions = snth_line_spectrum.line_spectrum(23000, 24000, 6, window=80)[1]
+    positions = nd.line_spectrum(snth_line_spectrum,23000, 24000, 6, window=80)[1]
 
     assert len(positions[0]) == 2

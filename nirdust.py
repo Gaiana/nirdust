@@ -298,121 +298,8 @@ class NirdustSpectrum:
 
         return NirdustSpectrum(**kwargs)
 
-    def line_spectrum(
-        self,
-        low_lim_ns=20650,
-        upper_lim_ns=21000,
-        noise_factor=3,
-        window=50,
-    ):
-        """Construct the line spectrum.
 
-        Uses various Specutils features to fit the continuum of the spectrum,
-        subtract it and find the emission and absorption lines in the spectrum.
-        Then fits all the lines with gaussian models to construct the line
-        spectrum.
-
-        Parameters
-        ----------
-        low_lim_ns: float
-            Lower limit of the spectral region defined to measure the
-            noise level. Default is 20650 (wavelenght in Angstroms).
-
-        upper_lim_ns: float
-            Lower limit of the spectral region defined to measure the
-            noise level. Default is 21000 (wavelenght in Angstroms).
-
-        noise_factor: float
-            Same parameter as in find_lines_threshold from Specutils.
-            Factor multiplied by the spectrum’s``uncertainty``, used for
-            thresholding. Default is 3.
-
-        window: float
-            Same parameter as in fit_lines from specutils.fitting. Regions of
-            the spectrum to use in the fitting. If None, then the whole
-            spectrum will be used in the fitting. Window is used in the
-            Gaussian fitting of the spectral lines. Default is 50 (Angstroms).
-
-        """
-        continuum_model = fit_generic_continuum(self.spec1d)
-        continuum_fitted = continuum_model(self.spec1d.spectral_axis)
-        new_flux = self.spec1d - continuum_fitted
-
-        noise_region_def = SpectralRegion(
-            low_lim_ns * u.Angstrom, upper_lim_ns * u.Angstrom
-        )
-        noise_reg_spectrum = noise_region_uncertainty(
-            new_flux, noise_region_def
-        )
-
-        lines = find_lines_threshold(
-            noise_reg_spectrum, noise_factor=noise_factor
-        )
-
-        centers = lines["line_center"]
-
-        e_condition = lines["line_type"] == "emission"
-        a_condition = lines["line_type"] == "absorption"
-
-        emission = centers[e_condition]
-        absorption = centers[a_condition]
-
-        len_e = len(emission)
-        len_a = len(absorption)
-
-        emi_spec = np.zeros(len(new_flux.spectral_axis))
-        interval_e = []
-        interval_a = []
-
-        for i in range(len_e):
-            gauss_model = models.Gaussian1D(amplitude=1, mean=emission[i])
-            gauss_fit = fit_lines(
-                new_flux, gauss_model, window=window * u.Angstrom
-            )
-            intensity = gauss_fit(new_flux.spectral_axis)
-            stddev = gauss_fit.stddev
-            interval_i = (
-                np.array(
-                    [
-                        emission[i].value - 3 * stddev,
-                        emission[i].value + 3 * stddev,
-                    ]
-                )
-                * u.Angstrom
-            )
-            # hacer que los angstroms vayan al ultimo y hacer que en vez de
-            # listas se usen empty arrays
-            emi_spec = emi_spec + intensity
-
-            interval_e.append(interval_i)
-
-        absorb_spec = np.zeros(len(new_flux.spectral_axis))
-
-        for i in range(len_a):
-            gauss_model = models.Gaussian1D(amplitude=-1, mean=absorption[i])
-            gauss_fit = fit_lines(
-                new_flux, gauss_model, window=window * u.Angstrom
-            )
-            intensity = gauss_fit(new_flux.spectral_axis)
-            stddev = gauss_fit.stddev
-            interval_i = np.array(
-                [
-                    absorption[i].value - 3 * stddev,
-                    absorption[i].value + 3 * stddev,
-                ]
-            )
-
-            absorb_spec = absorb_spec + intensity
-            interval_a.append(interval_i)
-
-        line_spectrum = emi_spec + absorb_spec
-        line_positions = (interval_e + interval_a) * u.Angstrom
-
-        line_fitting_quality = 0.0
-
-        return line_spectrum, line_positions, line_fitting_quality
-
-    def mask_spectrum(self, mask=None, line_positions=None):
+    def mask_spectrum(self, line_intervals=None, mask=None):
         """Mask spectrum to remove spectral lines.
 
         Recives either a boolean mask containing 'False' values in the line
@@ -422,40 +309,39 @@ class NirdustSpectrum:
 
         Parameters
         ----------
+        line_intervals: python iterable
+            A list containing any iterable object with pairs containing the
+            beginning and end of the region were the spectral lines are. The
+            second return of 'line_spectrum()' is valid. 
+        
         mask: boolean array
-            array containing 'False' values in all the positions were the
-            spectrum should be masked. (mejorar)
-
-        line_positions: List
-            A list containing pairs with the beginning and ending of the region
-            were the spectral lines are. (mejorar)
+            array containing a mask of boolean values as established by the 
+            'Numpy' convention. i.e. containing 'True' values in all the 
+            positions were the spectrum should be masked. 
         """
-        if all(v is None for v in (mask, line_positions)):
+        if all(v is None for v in (line_intervals, mask)):
             raise ValueError("Expected one parameter, recived none.")
 
-        elif all(v is not None for v in (mask, line_positions)):
+        elif all(v is not None for v in (line_intervals, mask)):
             raise ValueError("Two mask parameters were given. Expected one.")
 
         elif line_positions is not None:
 
-            line_indexes = np.searchsorted(self.spectral_axis, line_positions)
-            auto_mask = np.ones_like(self.spectral_axis, dtype=bool)
-
+            line_indexes = np.searchsorted(self.spectral_axis, line_intervals)
+            auto_mask = np.ones(self.spectrum_length, dtype=bool)
+            
             for i, j in line_indexes:
                 auto_mask[i : j + 1] = False  # noqa
+                
 
-            masked_spectrum_flux = self.flux[:, auto_mask]
-            masked_spectrum_spax = self.spectral_axis[:, auto_mask]
             masked_spectrum = Spectrum1D(
-                masked_spectrum_flux, masked_spectrum_spax
+                self.flux[auto_mask], self.spectral_axis[auto_mask]
             )
 
         elif mask is not None:
 
-            masked_spectrum_flux = self.flux[:, mask]
-            masked_spectrum_spax = self.spectral_axis[:, mask]
             masked_spectrum = Spectrum1D(
-                masked_spectrum_flux, masked_spectrum_spax
+                self.flux[mask], self.spectral_axis[mask]
             )
 
         cutted_freq_axis = masked_spectrum.spectral_axis.to(u.Hz)
@@ -795,6 +681,138 @@ def read_spectrum(file_name, extension=None, z=0, **kwargs):
     single_spectrum = spectrum(flux, header, z, **kwargs)
 
     return single_spectrum
+
+# ==============================================================================
+# FIND LINE INTERVALS FROM AUTHOMATIC LINE FITTING
+# ==============================================================================
+
+def line_spectrum(
+    spectrum,
+    low_lim_ns=20650,
+    upper_lim_ns=21000,
+    noise_factor=3,
+    window=50,
+):
+    """Construct the line spectrum.
+
+    Uses various Specutils features to fit the continuum of the spectrum,
+    subtract it and find the emission and absorption lines in the spectrum.
+    Then fits all the lines with gaussian models to construct the line
+    spectrum.
+
+    Parameters
+    ----------
+    spectrum: NirdustSpectrum object
+        A spectrum stored in a NirdustSpectrum class object.    
+    
+    low_lim_ns: float
+        Lower limit of the spectral region defined to measure the
+        noise level. Default is 20650 (wavelenght in Angstroms).
+
+    upper_lim_ns: float
+        Lower limit of the spectral region defined to measure the
+        noise level. Default is 21000 (wavelenght in Angstroms).
+
+    noise_factor: float
+        Same parameter as in find_lines_threshold from Specutils.
+        Factor multiplied by the spectrum’s``uncertainty``, used for
+        thresholding. Default is 3.
+
+    window: float
+        Same parameter as in fit_lines from specutils.fitting. Regions of
+        the spectrum to use in the fitting. If None, then the whole
+        spectrum will be used in the fitting. Window is used in the
+        Gaussian fitting of the spectral lines. Default is 50 (Angstroms).
+        
+    Return
+    ------
+    out: flux axis, list, list
+        Returns in the first position a flux axis of the same lenght as the 
+        original spectrum containing the fitted lines. In the second position, 
+        returns the intervals where those lines were finded determined by 
+        3-sigma values around the center of the line. In the third position
+        returns an array with the quality of the fitting for each line.
+
+    """
+    continuum_model = fit_generic_continuum(spectrum.spec1d)
+    continuum_fitted = continuum_model(spectrum.spec1d.spectral_axis)
+    new_flux = spectrum.spec1d - continuum_fitted
+
+    noise_region_def = SpectralRegion(
+        low_lim_ns * u.Angstrom, upper_lim_ns * u.Angstrom
+    )
+    noise_reg_spectrum = noise_region_uncertainty(
+        new_flux, noise_region_def
+    )
+
+    lines = find_lines_threshold(
+        noise_reg_spectrum, noise_factor=noise_factor
+    )
+
+    centers = lines["line_center"]
+
+    e_condition = lines["line_type"] == "emission"
+    a_condition = lines["line_type"] == "absorption"
+
+    emission = centers[e_condition]
+    absorption = centers[a_condition]
+
+    len_e = len(emission)
+    len_a = len(absorption)
+
+    emi_spec = np.zeros(len(new_flux.spectral_axis))
+    interval_e = []
+    interval_a = []
+
+    for i in range(len_e):
+        gauss_model = models.Gaussian1D(amplitude=1, mean=emission[i])
+        gauss_fit = fit_lines(
+            new_flux, gauss_model, window=window * u.Angstrom
+        )
+        intensity = gauss_fit(new_flux.spectral_axis)
+        stddev = gauss_fit.stddev
+        interval_i = (
+            np.array(
+                [
+                    emission[i].value - 3 * stddev,
+                    emission[i].value + 3 * stddev,
+                ]
+            )
+            * u.Angstrom
+        )
+        # hacer que los angstroms vayan al ultimo y hacer que en vez de
+        # listas se usen empty arrays
+        emi_spec = emi_spec + intensity
+
+        interval_e.append(interval_i)
+
+    absorb_spec = np.zeros(len(new_flux.spectral_axis))
+
+    for i in range(len_a):
+        gauss_model = models.Gaussian1D(amplitude=-1, mean=absorption[i])
+        gauss_fit = fit_lines(
+            new_flux, gauss_model, window=window * u.Angstrom
+        )
+        intensity = gauss_fit(new_flux.spectral_axis)
+        stddev = gauss_fit.stddev
+        interval_i = np.array(
+            [
+                absorption[i].value - 3 * stddev,
+                absorption[i].value + 3 * stddev,
+            ]
+        )
+
+        absorb_spec = absorb_spec + intensity
+        interval_a.append(interval_i)
+
+    line_spectrum = emi_spec + absorb_spec
+    line_intervals = (interval_e + interval_a) * u.Angstrom
+
+    line_fitting_quality = 0.0
+
+    return line_spectrum, line_intervals, line_fitting_quality
+
+
 
 
 # ==============================================================================
