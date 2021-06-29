@@ -63,7 +63,19 @@ def NGC4945_external_continuum_200pc():
     spect = nd.read_spectrum(file_name, 0, z=0.00188)
     return spect
 
-
+@pytest.fixture(scope="session")
+def NGC4945_external_with_lines_200pc():
+    file_name = TEST_PATH / "External_with_lines.fits"
+    spect = nd.read_spectrum(file_name, 0, z=0.00188)
+    return spect
+    
+@pytest.fixture(scope="session")
+def NGC4945_nuclear_with_lines():
+    file_name = TEST_PATH / "NuclearNGC4945.fits"
+    spect = nd.read_spectrum(file_name, 0, z=0.00188)
+    return spect
+    
+        
 @pytest.fixture(scope="session")
 def snth_spectrum_1000(NGC4945_continuum_rest_frame):
 
@@ -667,3 +679,21 @@ def test_mask_spectrum_5(NGC4945_continuum_rest_frame):
 
     with pytest.raises(ValueError):
         spectrum.mask_spectrum(mask=mask)
+        
+def test_sp_correction_with_mask(NGC4945_nuclear_with_lines,NGC4945_external_with_lines_200pc):        
+    
+    nuclear_sp = NGC4945_nuclear_with_lines.cut_edges(20000,22500)
+    external_sp = NGC4945_external_with_lines_200pc.cut_edges(20000,22500)
+    
+    w1 = nd.line_spectrum(nuclear_sp, 20800, 21050, 5, window=80)[1]
+    w2 = nd.line_spectrum(external_sp, 20800, 21050, 5, window=80)[1]
+    
+    clean_nuc_sp = nuclear_sp.mask_spectrum(w1)
+    clean_ext_sp = external_sp.mask_spectrum(w2)
+    
+    dust = nd.sp_correction(clean_nuc_sp,clean_ext_sp)
+    
+    assert len(dust.flux) == 544
+    
+
+
