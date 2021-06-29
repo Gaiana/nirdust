@@ -309,14 +309,19 @@ class NirdustSpectrum:
         Parameters
         ----------
         line_intervals: python iterable
-            A list containing any iterable object with pairs containing the
-            beginning and end of the region were the spectral lines are. The
-            second return of 'line_spectrum()' is valid.
+            Any iterable object with pairs containing the beginning and end of
+            the region were the spectral lines are. The second return of 
+            'line_spectrum()' is valid.
 
         mask: boolean array
-            array containing a mask of boolean values as established by the
-            'Numpy' convention. i.e. containing 'True' values in all the
-            positions were the spectrum should be masked.
+            array with same length as the spectrum containing boolean values 
+            with False values in the indexes that should be masked.
+            
+        Return
+        ------
+        NirdustSpectrum object
+            A new instance of NirdustSpectrum class with the especified 
+            intervals removed.            
         """
         if all(v is None for v in (line_intervals, mask)):
             raise ValueError("Expected one parameter, recived none.")
