@@ -510,7 +510,7 @@ def test_nplot(fig_test, fig_ref):
     ax_ref.set_xlabel("Frequency [Hz]")
     ax_ref.set_ylabel("Normalized Energy [arbitrary units]")
     ax_ref.legend()
-
+    
 
 def test_pix2wavelength():
     file_name = TEST_PATH / "external_spectrum_400pc_N4945.fits"
@@ -535,10 +535,13 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
     sp_axis = NGC4945_continuum_rest_frame.spectral_axis
     g1 = models.Gaussian1D(0.6, 21200, 10)
     g2 = models.Gaussian1D(-0.3, 22000, 15)
+    
+    rng = np.random.default_rng(75)    
+    
     y = (
         g1(sp_axis.value)
         + g2(sp_axis.value)
-        + np.random.normal(0.0, 0.01, sp_axis.shape)
+        + rng.normal(0.0, 0.01, sp_axis.shape)
     )
     y_tot = (y + 0.0001 * sp_axis.value + 1000) * u.adu
 
@@ -564,7 +567,7 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
     )
 
     positions = nd.line_spectrum(
-        snth_line_spectrum, 23000, 24000, 6, window=80
+        snth_line_spectrum, 23000, 24000, 5, window=80
     )[1]
 
     np.testing.assert_almost_equal(
@@ -577,10 +580,13 @@ def test_number_of_lines(NGC4945_continuum_rest_frame):
     sp_axis = NGC4945_continuum_rest_frame.spectral_axis
     g1 = models.Gaussian1D(0.6, 21200, 10)
     g2 = models.Gaussian1D(-0.3, 22000, 15)
+    
+    rng = np.random.default_rng(75)
+    
     y = (
         g1(sp_axis.value)
         + g2(sp_axis.value)
-        + np.random.normal(0.0, 0.03, sp_axis.shape)
+        + rng.normal(0.0, 0.03, sp_axis.shape)
     )
     y_tot = (y + 0.0001 * sp_axis.value + 1000) * u.adu
 
@@ -596,7 +602,7 @@ def test_number_of_lines(NGC4945_continuum_rest_frame):
     )
 
     positions = nd.line_spectrum(
-        snth_line_spectrum, 23000, 24000, 6, window=80
+        snth_line_spectrum, 23000, 24000, 5, window=80
     )[1]
 
     assert len(positions[0]) == 2
