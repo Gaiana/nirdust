@@ -79,6 +79,13 @@ def NGC4945_nuclear_with_lines():
 
 
 @pytest.fixture(scope="session")
+def NGC3998_sp_lower_resolution():
+    file_name = TEST_PATH / "ngc3998-sfin.fits"
+    spect = nd.read_spectrum(file_name, 1, z=0.00350)
+    return spect
+
+
+@pytest.fixture(scope="session")
 def snth_spectrum_1000(NGC4945_continuum_rest_frame):
 
     real_spectrum = NGC4945_continuum_rest_frame
@@ -699,3 +706,131 @@ def test_sp_correction_with_mask(
     dust = nd.sp_correction(clean_nuc_sp, clean_ext_sp)
 
     assert len(dust.flux) == 544
+
+
+def test_spectrum_resampling1():
+
+    g1 = models.Gaussian1D(0.6, 21200, 10)
+    g2 = models.Gaussian1D(-0.3, 22000, 15)
+
+    axis = np.arange(1500, 2500, 1) * u.Angstrom
+
+    rng = np.random.default_rng(75)
+
+    y = g1(axis.value) + g2(axis.value) + rng.normal(0.0, 0.03, axis.shape)
+    y_tot = (y + 0.0001 * axis.value + 1000) * u.adu
+
+    spec1d = su.Spectrum1D(y_tot, axis)
+    spectrum_length = len(axis)
+
+    snth_line_spectrum = NirdustSpectrum(
+        header=None,
+        z=0,
+        spectrum_length=spectrum_length,
+        spec1d=spec1d,
+        frequency_axis=None,
+    )
+
+    new_axis = np.arange(1500, 2500, 2) * u.Angstrom
+
+    new_flux = np.ones(len(new_axis)) * u.adu
+
+    n_spec1d = su.Spectrum1D(new_flux, new_axis)
+    n_spectrum_length = len(new_axis)
+
+    n_snth_line_spectrum = NirdustSpectrum(
+        header=None,
+        z=0,
+        spectrum_length=n_spectrum_length,
+        spec1d=n_spec1d,
+        frequency_axis=None,
+    )
+
+    f_sp, s_sp = nd.spectrum_resampling(
+        n_snth_line_spectrum, snth_line_spectrum
+    )
+
+    assert len(s_sp.flux) == 500
+
+
+def test_spectrum_resampling2():
+
+    g1 = models.Gaussian1D(0.6, 21200, 10)
+    g2 = models.Gaussian1D(-0.3, 22000, 15)
+
+    axis = np.arange(1500, 2500, 1) * u.Angstrom
+
+    rng = np.random.default_rng(75)
+
+    y = g1(axis.value) + g2(axis.value) + rng.normal(0.0, 0.03, axis.shape)
+    y_tot = (y + 0.0001 * axis.value + 1000) * u.adu
+
+    spec1d = su.Spectrum1D(y_tot, axis)
+    spectrum_length = len(axis)
+
+    snth_line_spectrum = NirdustSpectrum(
+        header=None,
+        z=0,
+        spectrum_length=spectrum_length,
+        spec1d=spec1d,
+        frequency_axis=None,
+    )
+
+    new_axis = np.arange(1500, 2500, 2) * u.Angstrom
+
+    new_flux = np.ones(len(new_axis)) * u.adu
+
+    n_spec1d = su.Spectrum1D(new_flux, new_axis)
+    n_spectrum_length = len(new_axis)
+
+    n_snth_line_spectrum = NirdustSpectrum(
+        header=None,
+        z=0,
+        spectrum_length=n_spectrum_length,
+        spec1d=n_spec1d,
+        frequency_axis=None,
+    )
+
+    f_sp, s_sp = nd.spectrum_resampling(
+        snth_line_spectrum, n_snth_line_spectrum
+    )
+
+    assert len(f_sp.flux) == 500
+
+
+@pytest.mark.xfail
+def test_fit_blackbody_with_resampling(
+    NGC4945_continuum_rest_frame, NGC3998_sp_lower_resolution
+):
+    real_spectrum = NGC4945_continuum_rest_frame
+    freq_axis = real_spectrum.frequency_axis
+    sinthetic_model = BlackBody(1000 * u.K)
+    sinthetic_flux = sinthetic_model(freq_axis)
+
+    spectrum_length = len(real_spectrum.flux)
+
+    spec1d = su.Spectrum1D(
+        flux=sinthetic_flux, spectral_axis=real_spectrum.spectral_axis
+    )
+    frequency_axis = spec1d.spectral_axis.to(u.Hz)
+
+    # the NirdustSpectrum object is instantiated
+
+    snth_blackbody = NirdustSpectrum(
+        header=None,
+        z=0,
+        spectrum_length=spectrum_length,
+        spec1d=spec1d,
+        frequency_axis=frequency_axis,
+    )
+
+    # resampling
+
+    f_sp, s_sp = nd.spectrum_resampling(
+        snth_blackbody, NGC3998_sp_lower_resolution
+    )
+
+    snth_bb_temp = (
+        f_sp.normalize().convert_to_frequency().fit_blackbody(1200).temperature
+    )
+    np.testing.assert_almost_equal(snth_bb_temp.value, 1000, decimal=7)

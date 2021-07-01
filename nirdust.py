@@ -43,6 +43,7 @@ import specutils.manipulation as sm
 from specutils.fitting import find_lines_threshold
 from specutils.fitting import fit_generic_continuum
 from specutils.fitting import fit_lines
+from specutils.manipulation import FluxConservingResampler
 from specutils.manipulation import noise_region_uncertainty
 from specutils.spectra import SpectralRegion, Spectrum1D
 
@@ -189,7 +190,7 @@ def normalized_blackbody_fitter(frequency, flux, T0):
 
 
 # ==============================================================================
-# CLASSES
+# NIRDUST_SPECTRUM CLASS
 # ==============================================================================
 
 
@@ -689,6 +690,90 @@ def read_spectrum(file_name, extension=None, z=0, **kwargs):
     single_spectrum = spectrum(flux, header, z, **kwargs)
 
     return single_spectrum
+
+
+# ==============================================================================
+# RESAMPLE SPECTRA TO MATCH SPECTRAL RESOLUTIONS
+# ==============================================================================
+
+
+def spectrum_resampling(first_sp, second_sp):
+    """Resample the higher resolution spectrum.
+    
+    Spectrum_resampling uses the spectral_axis of the lower resolution spectrum
+    to resample the higher resolution one. To do so this function uses the
+    FluxConservingResampler() class of 'Specutils'. The order of the input
+    spectra is arbitrary and the order in the output is the same as in the
+    input. Only the higher resolution spectrum will be modified, the lower
+    resolution spectrum will be unaltered. It is recomended to run
+    spectrum_resampling after 'cut_edges'.
+
+    Parameters
+    ----------
+    first_sp: NirdustSpectrum object
+
+    second_sp:NirdustSpectrum object
+
+    Return
+    ------
+    out: NirdustSpectrum, NirdusSpectrum
+
+    """
+    first_sp_dispersion = (
+        first_sp.spectral_range_[1] - first_sp.spectral_range_[0]
+    ) / first_sp.spectrum_length
+    second_sp_dispersion = (
+        second_sp.spectral_range_[1] - second_sp.spectral_range_[0]
+    ) / second_sp.spectrum_length
+
+    if first_sp_dispersion >= second_sp_dispersion:
+
+        input_spectra = second_sp.spec1d
+        resample_axis = first_sp.spectral_axis
+
+        instance_resample = FluxConservingResampler()
+        output_sp = instance_resample(input_spectra, resample_axis)
+
+        new_len = len(output_sp.flux)
+        resampled_freq_axis = output_sp.spectral_axis.to(u.Hz)
+
+        kwargs = attr.asdict(second_sp)
+        del kwargs["spectral_range_"]
+        kwargs.update(
+            spec1d=output_sp,
+            spectrum_length=new_len,
+            frequency_axis=resampled_freq_axis,
+        )
+
+        Nir_spec_output = NirdustSpectrum(**kwargs)
+
+        return first_sp, Nir_spec_output
+
+    elif first_sp_dispersion < second_sp_dispersion:
+
+        input_spectra = first_sp.spec1d
+        resample_axis = second_sp.spectral_axis
+
+        instance_resample = FluxConservingResampler()
+        output_sp = instance_resample(input_spectra, resample_axis)
+
+        new_len = len(output_sp.flux)
+        resampled_freq_axis = output_sp.spectral_axis.to(u.Hz)
+
+        kwargs = attr.asdict(first_sp)
+        del kwargs["spectral_range_"]
+        kwargs.update(
+            spec1d=output_sp,
+            spectrum_length=new_len,
+            frequency_axis=resampled_freq_axis,
+        )
+
+        Nir_spec_output = NirdustSpectrum(**kwargs)
+
+        return Nir_spec_output, second_sp
+
+    elif first_sp_dispersion == second_sp_dispersion:
+        print("No operation performed. Spectral resolutions are equal.")
 
 
 # ==============================================================================
