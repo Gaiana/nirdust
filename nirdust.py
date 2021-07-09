@@ -46,6 +46,7 @@ from specutils.manipulation import FluxConservingResampler
 from specutils.manipulation import noise_region_uncertainty
 from specutils.spectra import SpectralRegion, Spectrum1D
 
+import uttr
 
 # ==============================================================================
 # EXCEPTIONS
@@ -56,6 +57,19 @@ class HeaderKeywordError(KeyError):
     """Raised when header keyword not found."""
 
     pass
+
+
+# ==============================================================================
+# PRIVATE FUNCTIONS
+# ==============================================================================
+
+
+def _remove_internals(attrs_dict):
+    new_dict = attrs_dict.copy()
+    for k in attrs_dict.keys():
+        if k.endswith("_"):
+            del new_dict[k]
+    return new_dict
 
 
 # ==============================================================================
@@ -190,7 +204,7 @@ class NirdustSpectrum:
     z: float
         Redshift of the galaxy. Default is 0.
 
-    spectrum_length: int
+    spectral_length: int
         The number of items in the spectrum axis as in len() method.
 
     spec1d: specutils.Spectrum1D object
@@ -203,19 +217,25 @@ class NirdustSpectrum:
 
     """
 
-    header = attr.ib()
-    z = attr.ib()
-    spectrum_length = attr.ib()
-    spec1d = attr.ib()
-    frequency_axis = attr.ib()
-    spectral_range_ = attr.ib(init=False)
+    frequency_axis = uttr.ib(unit=u.Hz)
+    flux = attr.ib(converter=u.Quantity)
 
-    @spectral_range_.default
-    def _spectral_range_default(self):
-        return [
-            np.min(self.spec1d.spectral_axis),
-            np.max(self.spec1d.spectral_axis),
-        ]
+    z = attr.ib(default=None)
+    header = attr.ib(default=None)
+
+    spec1d_ = attr.ib(init=False)
+
+    arr_ = uttr.array_accessor()
+
+    @spec1d_.default
+    def _spec1d_default(self):
+        spectral_axis = self.frequency_axis.to(
+            u.AA, equivalencies=u.spectral()
+        )
+        return su.Spectrum1D(
+            flux=self.flux,
+            spectral_axis=spectral_axis,  # redshift=self.z,
+        )
 
     def __dir__(self):
         """List all the content of the NirdustSpectum and the internal \
@@ -223,7 +243,7 @@ class NirdustSpectrum:
 
         dir(x) <==> x.__dir__()
         """
-        return super().__dir__() + dir(self.spec1d)
+        return super().__dir__() + dir(self.spec1d_)
 
     def __repr__(self):
         """Representation of the NirdustSpectrum.
@@ -231,12 +251,12 @@ class NirdustSpectrum:
         repr(x) <==> x.__repr__()
 
         """
-        sprange = self.spectral_range_[0].value, self.spectral_range_[1].value
-        spunit = self.spec1d.spectral_axis.unit
+        sprange = self.spectral_range[0].value, self.spectral_range[1].value
+        spunit = self.spec1d_.spectral_axis.unit
 
         return (
             f"NirdustSpectrum(z={self.z}, "
-            f"spectrum_length={self.spectrum_length}, "
+            f"spectral_length={len(self.flux)}, "
             f"spectral_range=[{sprange[0]:.2f}-{sprange[1]:.2f}] {spunit})"
         )
 
@@ -252,7 +272,7 @@ class NirdustSpectrum:
         out: a
 
         """
-        return getattr(self.spec1d, a)
+        return getattr(self.spec1d_, a)
 
     def __getitem__(self, slice):
         """Define the method for getting a slice of a NirdustSpectrum object.
@@ -267,17 +287,29 @@ class NirdustSpectrum:
             Return a new instance of the class NirdustSpectrum sliced by the
             given indexes.
         """
-        spec1d = self.spec1d.__getitem__(slice)
-        frequency_axis = spec1d.spectral_axis.to(u.Hz)
+        spec1d = self.spec1d_.__getitem__(slice)
+        flux = spec1d.flux
+        frequency = spec1d.spectral_axis.to(u.Hz)
 
-        kwargs = attr.asdict(self)
-        del kwargs["spectral_range_"]
+        kwargs = _remove_internals(attr.asdict(self))
         kwargs.update(
-            spec1d=spec1d,
-            frequency_axis=frequency_axis,
+            flux=flux,
+            frequency_axis=frequency,
         )
-
         return NirdustSpectrum(**kwargs)
+
+    @property
+    def spectral_range(self):
+        """First and last values of spectral_axis."""
+        return [
+            np.min(self.spec1d_.spectral_axis),
+            np.max(self.spec1d_.spectral_axis),
+        ]
+
+    @property
+    def spectral_length(self):
+        """Total number of spectral data points."""
+        return len(self.flux)
 
     def mask_spectrum(self, line_intervals=None, mask=None):
         """Mask spectrum to remove spectral lines.
@@ -313,7 +345,7 @@ class NirdustSpectrum:
         elif line_intervals is not None:
 
             line_indexes = np.searchsorted(self.spectral_axis, line_intervals)
-            auto_mask = np.ones(self.spectrum_length, dtype=bool)
+            auto_mask = np.ones(self.spectral_length, dtype=bool)
 
             for i, j in line_indexes:
                 auto_mask[i : j + 1] = False  # noqa
@@ -324,9 +356,9 @@ class NirdustSpectrum:
 
         elif mask is not None:
 
-            if len(mask) != self.spectrum_length:
+            if len(mask) != self.spectral_length:
                 raise ValueError(
-                    "Mask length must be equal to 'spectrum_length'"
+                    "Mask length must be equal to 'spectral_length'"
                 )
 
             masked_spectrum = Spectrum1D(
@@ -334,13 +366,10 @@ class NirdustSpectrum:
             )
 
         cutted_freq_axis = masked_spectrum.spectral_axis.to(u.Hz)
-        new_len = len(masked_spectrum.spectral_axis)
 
-        kwargs = attr.asdict(self)
-        del kwargs["spectral_range_"]
+        kwargs = _remove_internals(attr.asdict(self))
         kwargs.update(
-            spec1d=masked_spectrum,
-            spectrum_length=new_len,
+            flux=masked_spectrum.flux,
             frequency_axis=cutted_freq_axis,
         )
 
@@ -363,15 +392,12 @@ class NirdustSpectrum:
             Return a new instance of class NirdustSpectrum cut in wavelength.
         """
         region = su.SpectralRegion(mini * u.AA, maxi * u.AA)
-        cutted_spec1d = sm.extract_region(self.spec1d, region)
+        cutted_spec1d = sm.extract_region(self.spec1d_, region)
         cutted_freq_axis = cutted_spec1d.spectral_axis.to(u.Hz)
-        new_len = len(cutted_spec1d.flux)
 
-        kwargs = attr.asdict(self)
-        del kwargs["spectral_range_"]
+        kwargs = _remove_internals(attr.asdict(self))
         kwargs.update(
-            spec1d=cutted_spec1d,
-            spectrum_length=new_len,
+            flux=cutted_spec1d.flux,
             frequency_axis=cutted_freq_axis,
         )
 
@@ -386,10 +412,9 @@ class NirdustSpectrum:
             New instance of the NirdustSpectrun class containing the spectrum
             with a frquency axis in units of Hz.
         """
-        new_axis = self.spec1d.spectral_axis.to(u.Hz)
+        new_axis = self.spec1d_.spectral_axis.to(u.Hz)
 
-        kwargs = attr.asdict(self)
-        del kwargs["spectral_range_"]
+        kwargs = _remove_internals(attr.asdict(self))
         kwargs.update(frequency_axis=new_axis)
 
         return NirdustSpectrum(**kwargs)
@@ -403,12 +428,10 @@ class NirdustSpectrum:
             New instance of the NirdustSpectrun class with the flux normalized
             to unity.
         """
-        normalized_flux = self.spec1d.flux / np.mean(self.spec1d.flux)
-        new_spec1d = su.Spectrum1D(normalized_flux, self.spec1d.spectral_axis)
+        normalized_flux = self.spec1d_.flux / np.mean(self.spec1d_.flux)
 
-        kwargs = attr.asdict(self)
-        del kwargs["spectral_range_"]
-        kwargs.update(spec1d=new_spec1d)
+        kwargs = _remove_internals(attr.asdict(self))
+        kwargs.update(flux=normalized_flux)
 
         return NirdustSpectrum(**kwargs)
 
@@ -584,12 +607,7 @@ def pix2wavelength(pix_arr, header, z=0):
     return wave_arr * scale_factor
 
 
-def spectrum(
-    flux,
-    header,
-    z=0,
-    **kwargs,
-):
+def spectrum(flux, header, z=0):
     """Instantiate a NirdustSpectrum object from FITS parameters.
 
     Parameters
@@ -609,27 +627,20 @@ def spectrum(
         Return a instance of the class NirdustSpectrum with the entered
         parameters.
     """
-    spectrum_length = len(flux)
-
     # unit should be the same as first_wavelength and dispersion_key, AA ?
-    pixel_axis = np.arange(spectrum_length)
+    pixel_axis = np.arange(len(flux))
     spectral_axis = pix2wavelength(pixel_axis, header, z) * u.AA
-
-    spec1d = su.Spectrum1D(
-        flux=flux * u.adu, spectral_axis=spectral_axis, **kwargs
-    )
-    frequency_axis = spec1d.spectral_axis.to(u.Hz)
+    frequency_axis = spectral_axis.to(u.Hz, equivalencies=u.spectral())
 
     return NirdustSpectrum(
-        header=header,
-        z=z,
-        spectrum_length=spectrum_length,
-        spec1d=spec1d,
+        flux=flux,
         frequency_axis=frequency_axis,
+        z=z,
+        header=header,
     )
 
 
-def read_spectrum(file_name, extension=None, z=0, **kwargs):
+def read_spectrum(file_name, extension=None, z=0):
     """Read a spectrum in FITS format and store it in a NirdustSpectrum object.
 
     Parameters
@@ -665,7 +676,7 @@ def read_spectrum(file_name, extension=None, z=0, **kwargs):
         flux = hdulist[extension].data
         header = hdulist[extension].header
 
-    single_spectrum = spectrum(flux, header, z, **kwargs)
+    single_spectrum = spectrum(flux, header, z)
 
     return single_spectrum
 
@@ -698,28 +709,25 @@ def spectrum_resampling(first_sp, second_sp):
 
     """
     first_sp_dispersion = (
-        first_sp.spectral_range_[1] - first_sp.spectral_range_[0]
-    ) / first_sp.spectrum_length
+        first_sp.spectral_range[1] - first_sp.spectral_range[0]
+    ) / first_sp.spectral_length
     second_sp_dispersion = (
-        second_sp.spectral_range_[1] - second_sp.spectral_range_[0]
-    ) / second_sp.spectrum_length
+        second_sp.spectral_range[1] - second_sp.spectral_range[0]
+    ) / second_sp.spectral_length
 
     if first_sp_dispersion >= second_sp_dispersion:
 
-        input_spectra = second_sp.spec1d
+        input_spectra = second_sp.spec1d_
         resample_axis = first_sp.spectral_axis
 
         instance_resample = FluxConservingResampler()
         output_sp = instance_resample(input_spectra, resample_axis)
 
-        new_len = len(output_sp.flux)
         resampled_freq_axis = output_sp.spectral_axis.to(u.Hz)
 
-        kwargs = attr.asdict(second_sp)
-        del kwargs["spectral_range_"]
+        kwargs = _remove_internals(attr.asdict(second_sp))
         kwargs.update(
-            spec1d=output_sp,
-            spectrum_length=new_len,
+            flux=output_sp.flux,
             frequency_axis=resampled_freq_axis,
         )
 
@@ -729,20 +737,17 @@ def spectrum_resampling(first_sp, second_sp):
 
     elif first_sp_dispersion < second_sp_dispersion:
 
-        input_spectra = first_sp.spec1d
+        input_spectra = first_sp.spec1d_
         resample_axis = second_sp.spectral_axis
 
         instance_resample = FluxConservingResampler()
         output_sp = instance_resample(input_spectra, resample_axis)
 
-        new_len = len(output_sp.flux)
         resampled_freq_axis = output_sp.spectral_axis.to(u.Hz)
 
-        kwargs = attr.asdict(first_sp)
-        del kwargs["spectral_range_"]
+        kwargs = _remove_internals(attr.asdict(first_sp))
         kwargs.update(
-            spec1d=output_sp,
-            spectrum_length=new_len,
+            flux=output_sp.flux,
             frequency_axis=resampled_freq_axis,
         )
 
@@ -807,9 +812,9 @@ def line_spectrum(
         returns an array with the quality of the fitting for each line.
 
     """
-    continuum_model = fit_generic_continuum(spectrum.spec1d)
-    continuum_fitted = continuum_model(spectrum.spec1d.spectral_axis)
-    new_flux = spectrum.spec1d - continuum_fitted
+    continuum_model = fit_generic_continuum(spectrum.spec1d_)
+    continuum_fitted = continuum_model(spectrum.spec1d_.spectral_axis)
+    new_flux = spectrum.spec1d_ - continuum_fitted
 
     noise_region_def = SpectralRegion(
         low_lim_ns * u.Angstrom, upper_lim_ns * u.Angstrom
@@ -921,37 +926,35 @@ def sp_correction(nuclear_spectrum, external_spectrum):
     normalized_nuc = nuclear_spectrum.normalize()
     normalized_ext = external_spectrum.normalize()
 
-    dif = len(normalized_nuc.spec1d.spectral_axis) - len(
-        normalized_ext.spec1d.spectral_axis
+    dif = len(normalized_nuc.spec1d_.spectral_axis) - len(
+        normalized_ext.spec1d_.spectral_axis
     )
 
     if dif == 0:
 
         flux_resta = (
-            normalized_nuc.spec1d.flux - normalized_ext.spec1d.flux
+            normalized_nuc.spec1d_.flux - normalized_ext.spec1d_.flux
         ) + 1
 
-        new_spectral_axis = nuclear_spectrum.spectral_axis
+        new_spectral_axis = nuclear_spectrum.spec1d_.spectral_axis
 
     elif dif < 0:
 
         new_ext = normalized_ext[-dif:]
-        flux_resta = (normalized_nuc.spec1d.flux - new_ext.spec1d.flux) + 1
+        flux_resta = (normalized_nuc.spec1d_.flux - new_ext.spec1d_.flux) + 1
 
-        new_spectral_axis = external_spectrum.spectral_axis[-dif:]
+        new_spectral_axis = external_spectrum.spec1d_.spectral_axis[-dif:]
 
     elif dif > 0:
 
         new_nuc = normalized_nuc[dif:]
-        flux_resta = (new_nuc.spec1d.flux - normalized_ext.spec1d.flux) + 1
-        new_spectral_axis = nuclear_spectrum.spectral_axis[dif:]
+        flux_resta = (new_nuc.spec1d_.flux - normalized_ext.spec1d_.flux) + 1
+        new_spectral_axis = nuclear_spectrum.spec1d_.spectral_axis[dif:]
 
-    substracted_1d_spectrum = su.Spectrum1D(flux_resta, new_spectral_axis)
-
-    new_freq_axis = substracted_1d_spectrum.spectral_axis.to(u.Hz)
-
-    kwargs = attr.asdict(normalized_nuc)
-    del kwargs["spectral_range_"]
-    kwargs.update(spec1d=substracted_1d_spectrum, frequency_axis=new_freq_axis)
+    kwargs = _remove_internals(attr.asdict(normalized_nuc))
+    kwargs.update(
+        flux=flux_resta,
+        frequency_axis=new_spectral_axis.to(u.Hz),
+    )
 
     return NirdustSpectrum(**kwargs)
