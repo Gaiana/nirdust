@@ -31,7 +31,6 @@ from astropy.modeling import fitting
 from astropy.modeling import models
 from astropy.wcs import WCS
 
-
 import attr
 
 import matplotlib.pyplot as plt
@@ -47,13 +46,14 @@ from specutils.manipulation import FluxConservingResampler
 from specutils.manipulation import noise_region_uncertainty
 from specutils.spectra import SpectralRegion, Spectrum1D
 
+
 # ==============================================================================
 # EXCEPTIONS
 # ==============================================================================
 
 
 class HeaderKeywordError(KeyError):
-    """Raised when eader keyword not found."""
+    """Raised when header keyword not found."""
 
     pass
 
@@ -113,21 +113,11 @@ class NormalizedBlackBody(Fittable1DModel):
             Blackbody spectrum.
 
         """
-        if not isinstance(temperature, u.Quantity):
-            in_temp = u.Quantity(temperature, u.K)
-        else:
-            in_temp = temperature
-
-        if not isinstance(nu, u.Quantity):
-            in_freq = u.Quantity(nu, u.Hz)
-        else:
-            in_freq = nu
-
         # Convert to units for calculations, also force double precision
         # This is just in case the input units differ from K or Hz
         with u.add_enabled_equivalencies(u.spectral() + u.temperature()):
-            freq = u.Quantity(in_freq, u.Hz, dtype=np.float64)
-            temp = u.Quantity(in_temp, u.K)
+            freq = u.Quantity(nu, u.Hz, dtype=np.float64)
+            temp = u.Quantity(temperature, u.K)
 
         log_boltz = const.h * freq / (const.k_B * temp)
         boltzm1 = np.expm1(log_boltz)
@@ -142,15 +132,6 @@ class NormalizedBlackBody(Fittable1DModel):
         if hasattr(temperature, "unit"):
             return intensity
         return intensity.value
-
-
-def _get_quantity_value(quantity):
-    """Check if object is an Astropy Quantity and return its value."""
-    if isinstance(quantity, u.Quantity):
-        value = quantity.value
-    else:
-        value = quantity
-    return value
 
 
 def normalized_blackbody_fitter(frequency, flux, T0):
@@ -177,10 +158,9 @@ def normalized_blackbody_fitter(frequency, flux, T0):
 
     """
     # LevMarLSQFitter does not support inputs with units
-    # if inputs have units we work with the stored value
-    freq_value = _get_quantity_value(frequency)
-    flux_value = _get_quantity_value(flux)
-    T0_value = _get_quantity_value(T0)
+    freq_value = u.Quantity(frequency, u.Hz).value
+    flux_value = u.Quantity(flux).value
+    T0_value = u.Quantity(T0, u.K).value
 
     bb_model = NormalizedBlackBody(temperature=T0_value)
     fitter = fitting.LevMarLSQFitter(calc_uncertainties=True)
@@ -467,9 +447,7 @@ class NirdustSpectrum:
 
 
 def _temperature_to_kelvin(temperature):
-    if isinstance(temperature, u.Quantity):
-        return temperature.to(u.K)
-    return temperature * u.K
+    return u.Quantity(temperature, u.K)
 
 
 @attr.s(frozen=True)
@@ -699,7 +677,7 @@ def read_spectrum(file_name, extension=None, z=0, **kwargs):
 
 def spectrum_resampling(first_sp, second_sp):
     """Resample the higher resolution spectrum.
-    
+
     Spectrum_resampling uses the spectral_axis of the lower resolution spectrum
     to resample the higher resolution one. To do so this function uses the
     FluxConservingResampler() class of 'Specutils'. The order of the input
