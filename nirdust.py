@@ -190,31 +190,31 @@ def normalized_blackbody_fitter(frequency, flux, T0):
 
 @attr.s(frozen=True, repr=False)
 class NirdustSpectrum:
-    """
-    Class containing a spectrum to operate with nirdust.
+    """Class containing a spectrum to operate with nirdust.
 
     Stores the spectrum in a Spectrum1D object and provides various methods
     for obtaining the dust component and perform blackbody fitting.
 
     Parameters
     ----------
-    header: FITS header
-        The header of the spectrum obtained from the fits file.
+    flux: `~numpy.ndarray`, or `~astropy.units.Quantity`
+        Spectral intensity.
 
-    z: float
+    frequency_axis: `~numpy.ndarray`, or `~astropy.units.Quantity`
+        Spectral axis in units of Hz.
+
+    z: float, optional
         Redshift of the galaxy. Default is 0.
 
-    spectral_length: int
-        The number of items in the spectrum axis as in len() method.
+    header: FITS header, optional
+        The header of the spectrum obtained from the fits file. It can also
+        be any metadata object of interest, like a dictionary.
 
-    spec1d: specutils.Spectrum1D object
+    Attributes
+    ----------
+    spec1d_: specutils.Spectrum1D object
         Contains the wavelength axis and the flux axis of the spectrum in
         unities of Å and ADU respectively.
-
-    frequency_axis: SpectralAxis object
-        Spectral axis in units of Hz
-
-
     """
 
     frequency_axis = uttr.ib(unit=u.Hz)
@@ -715,7 +715,7 @@ def spectrum_resampling(first_sp, second_sp):
         second_sp.spectral_range[1] - second_sp.spectral_range[0]
     ) / second_sp.spectral_length
 
-    if first_sp_dispersion >= second_sp_dispersion:
+    if first_sp_dispersion > second_sp_dispersion:
 
         input_spectra = second_sp.spec1d_
         resample_axis = first_sp.spectral_axis
@@ -755,8 +755,8 @@ def spectrum_resampling(first_sp, second_sp):
 
         return Nir_spec_output, second_sp
 
-    elif first_sp_dispersion == second_sp_dispersion:
-        print("No operation performed. Spectral resolutions are equal.")
+    # if they are equal, return unchanged
+    return first_sp, second_sp
 
 
 # ==============================================================================
