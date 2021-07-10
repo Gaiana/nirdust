@@ -27,8 +27,7 @@ from astropy import constants as const
 from astropy import units as u
 from astropy.io import fits
 from astropy.modeling import Fittable1DModel, Parameter
-from astropy.modeling import fitting
-from astropy.modeling import models
+from astropy.modeling import fitting, models
 from astropy.wcs import WCS
 
 import attr
@@ -811,6 +810,11 @@ def spectrum_resampling(
 # ==============================================================================
 
 
+def _make_window(center, delta):
+    """Create window array."""
+    return np.array([center - delta, center + delta])
+
+
 def line_spectrum(
     spectrum,
     low_lim_ns=20650,
@@ -859,74 +863,42 @@ def line_spectrum(
         returns an array with the quality of the fitting for each line.
 
     """
-    continuum_model = fit_generic_continuum(spectrum.spec1d_)
-    continuum_fitted = continuum_model(spectrum.spec1d_.spectral_axis)
-    new_flux = spectrum.spec1d_ - continuum_fitted
+    # values in correct units
+    low_lim_ns = u.Quantity(low_lim_ns, u.AA)
+    upper_lim_ns = u.Quantity(upper_lim_ns, u.AA)
+    window = u.Quantity(window, u.AA)
 
-    noise_region_def = SpectralRegion(
-        low_lim_ns * u.Angstrom, upper_lim_ns * u.Angstrom
+    # By defaults this fits a Chebyshev of order 3 to the flux
+    model = fit_generic_continuum(
+        spectrum.spec1d_, fitter=fitting.LinearLSQFitter()
     )
-    noise_reg_spectrum = noise_region_uncertainty(new_flux, noise_region_def)
+    continuum = model(spectrum.spec1d_.spectral_axis)
+    new_flux = spectrum.spec1d_ - continuum
 
+    noise_region_def = SpectralRegion(low_lim_ns, upper_lim_ns)
+    noise_reg_spectrum = noise_region_uncertainty(new_flux, noise_region_def)
     lines = find_lines_threshold(noise_reg_spectrum, noise_factor=noise_factor)
 
-    centers = lines["line_center"]
+    amp_type = {"emission": 1.0, "absorption": -1.0}
+    line_spectrum = np.zeros(len(new_flux.spectral_axis))
+    line_intervals = []
 
-    e_condition = lines["line_type"] == "emission"
-    a_condition = lines["line_type"] == "absorption"
+    for line in lines:
+        amp = amp_type[line["line_type"]]
+        center = line["line_center"].value
 
-    emission = centers[e_condition]
-    absorption = centers[a_condition]
-
-    len_e = len(emission)
-    len_a = len(absorption)
-
-    emi_spec = np.zeros(len(new_flux.spectral_axis))
-    interval_e = []
-    interval_a = []
-
-    for i in range(len_e):
-        gauss_model = models.Gaussian1D(amplitude=1, mean=emission[i])
-        gauss_fit = fit_lines(
-            new_flux, gauss_model, window=window * u.Angstrom
-        )
+        gauss_model = models.Gaussian1D(amplitude=amp, mean=center)
+        gauss_fit = fit_lines(new_flux, gauss_model, window=window)
         intensity = gauss_fit(new_flux.spectral_axis)
-        stddev = gauss_fit.stddev
-        interval_i = np.array(
-            [
-                emission[i].value - 3 * stddev,
-                emission[i].value + 3 * stddev,
-            ]
-        )
-        # listas se usen empty arrays
-        emi_spec = emi_spec + intensity
+        interval = _make_window(center, 3 * gauss_fit.stddev)
 
-        interval_e.append(interval_i)
+        line_spectrum += intensity.value
+        line_intervals.append(interval)
 
-    absorb_spec = np.zeros(len(new_flux.spectral_axis))
-
-    for i in range(len_a):
-        gauss_model = models.Gaussian1D(amplitude=-1, mean=absorption[i])
-        gauss_fit = fit_lines(
-            new_flux, gauss_model, window=window * u.Angstrom
-        )
-        intensity = gauss_fit(new_flux.spectral_axis)
-        stddev = gauss_fit.stddev
-        interval_i = np.array(
-            [
-                absorption[i].value - 3 * stddev,
-                absorption[i].value + 3 * stddev,
-            ]
-        )
-
-        absorb_spec = absorb_spec + intensity
-        interval_a.append(interval_i)
-
-    line_spectrum = (emi_spec + absorb_spec) * u.Angstrom
-    line_intervals = (interval_e + interval_a) * u.Angstrom
+    line_spectrum = u.Quantity(line_spectrum)
+    line_intervals = u.Quantity(line_intervals, u.AA)
 
     line_fitting_quality = 0.0
-
     return line_spectrum, line_intervals, line_fitting_quality
 
 
@@ -987,14 +959,18 @@ def sp_correction(nuclear_spectrum, external_spectrum):
 
     elif dif < 0:
 
-        new_ext = normalized_ext[-dif:]
+        new_ext = normalized_ext[
+            -dif:
+        ]  # Por que [dif:] y no [:dif] usar spectrum_resampling ?
         flux_resta = (normalized_nuc.spec1d_.flux - new_ext.spec1d_.flux) + 1
 
         new_spectral_axis = external_spectrum.spec1d_.spectral_axis[-dif:]
 
     elif dif > 0:
 
-        new_nuc = normalized_nuc[dif:]
+        new_nuc = normalized_nuc[
+            dif:
+        ]  # Por que [dif:] y no [:dif] usar spectrum_resampling
         flux_resta = (new_nuc.spec1d_.flux - normalized_ext.spec1d_.flux) + 1
         new_spectral_axis = nuclear_spectrum.spec1d_.spectral_axis[dif:]
 
