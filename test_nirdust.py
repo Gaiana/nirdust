@@ -611,14 +611,16 @@ def test_number_of_lines(NGC4945_continuum_rest_frame):
 
     assert len(positions[0]) == 2
 
+
 def test_spectral_dispersion(NGC4945_continuum_rest_frame):
 
     sp = NGC4945_continuum_rest_frame
 
     dispersion = sp.spectral_dispersion.value
-    expected = sp.header['CD1_1']
+    expected = sp.header["CD1_1"]
 
     np.testing.assert_almost_equal(dispersion, expected, decimal=14)
+
 
 def test_mask_spectrum_1(NGC4945_continuum_rest_frame):
 
@@ -699,7 +701,7 @@ def test_sp_correction_with_mask(
     assert len(dust.flux) == 544
 
 
-def test_spectrum_resampling1():
+def test_spectrum_resampling_downscale():
 
     rng = np.random.default_rng(75)
 
@@ -726,16 +728,26 @@ def test_spectrum_resampling1():
         frequency_axis=new_axis.to(u.Hz, equivalencies=u.spectral()),
         z=0,
     )
-    print(low_disp_sp.spectral_dispersion)
-    print(high_disp_sp.spectral_dispersion)
-    
-    print(len(low_disp_sp.flux), len(high_disp_sp.flux))
-    f_sp, s_sp = nd.spectrum_resampling(low_disp_sp, high_disp_sp)
-    print(len(f_sp.flux), len(s_sp.flux))
+
+    # check without cleaning nan values
+    f_sp, s_sp = nd.spectrum_resampling(
+        low_disp_sp, high_disp_sp, scaling="downscale", clean=False
+    )
+
+    assert len(f_sp.flux) == len(s_sp.flux)
     assert len(s_sp.flux) == 500
 
+    # check cleaning nan values.
+    # we know only 1 nan occurs for these spectrums
+    f_sp, s_sp = nd.spectrum_resampling(
+        low_disp_sp, high_disp_sp, scaling="downscale", clean=True
+    )
 
-def test_spectrum_resampling2():
+    assert len(f_sp.flux) == len(s_sp.flux)
+    assert len(s_sp.flux) == 499
+
+
+def test_spectrum_resampling_upscale():
 
     g1 = models.Gaussian1D(0.6, 21200, 10)
     g2 = models.Gaussian1D(-0.3, 22000, 15)
@@ -747,26 +759,43 @@ def test_spectrum_resampling2():
     y = g1(axis.value) + g2(axis.value) + rng.normal(0.0, 0.03, axis.shape)
     y_tot = (y + 0.0001 * axis.value + 1000) * u.adu
 
-    snth_line_spectrum = NirdustSpectrum(
+    low_disp_sp = NirdustSpectrum(
         flux=y_tot,
         frequency_axis=axis.to(u.Hz, equivalencies=u.spectral()),
         z=0,
     )
 
+    # same as axis but half the points, hence twice the dispersion
     new_axis = np.arange(1500, 2500, 2) * u.Angstrom
     new_flux = np.ones(len(new_axis)) * u.adu
 
-    n_snth_line_spectrum = NirdustSpectrum(
+    high_disp_sp = NirdustSpectrum(
         flux=new_flux,
         frequency_axis=new_axis.to(u.Hz, equivalencies=u.spectral()),
         z=0,
     )
 
+    # check without cleaning nan values
     f_sp, s_sp = nd.spectrum_resampling(
-        snth_line_spectrum, n_snth_line_spectrum
+        low_disp_sp, high_disp_sp, scaling="upscale", clean=False
     )
 
-    assert len(f_sp.flux) == 500
+    assert len(f_sp.flux) == len(s_sp.flux)
+    assert len(s_sp.flux) == 1000
+
+    # check cleaning nan values.
+    # we know only 1 nan occurs for these spectrums
+    f_sp, s_sp = nd.spectrum_resampling(
+        low_disp_sp, high_disp_sp, scaling="upscale", clean=True
+    )
+
+    assert len(f_sp.flux) == len(s_sp.flux)
+    assert len(s_sp.flux) == 999
+
+
+def test_spectrum_resampling_invalid_scaling():
+    with pytest.raises(ValueError):
+        nd.spectrum_resampling(None, None, scaling="equal")
 
 
 @pytest.mark.parametrize("true_temp", [500.0, 1000.0, 5000.0])
@@ -793,6 +822,10 @@ def test_fit_blackbody_with_resampling(
     )
 
     snth_bb_temp = (
-        f_sp.normalize().convert_to_frequency().fit_blackbody(2000.).temperature
+        f_sp.normalize()
+        .convert_to_frequency()
+        .fit_blackbody(2000.0)
+        .temperature
     )
-    np.testing.assert_almost_equal(snth_bb_temp.value, true_temp, decimal=8)
+
+    np.testing.assert_almost_equal(snth_bb_temp.value, true_temp, decimal=1)

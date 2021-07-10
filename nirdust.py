@@ -65,6 +65,12 @@ class HeaderKeywordError(KeyError):
 
 
 def _remove_internals(attrs_dict):
+    """Remove internal attributes of a class.
+
+    Used when the initialization attributes are required, but attrs.asdict(obj)
+    also returns internal attributes. The convention for internal attributes
+    here is one underscore.
+    """
     new_dict = attrs_dict.copy()
     for k in attrs_dict.keys():
         if k.endswith("_"):
@@ -685,31 +691,63 @@ def read_spectrum(file_name, extension=None, z=0):
 # RESAMPLE SPECTRA TO MATCH SPECTRAL RESOLUTIONS
 # ==============================================================================
 
-def _downscale(low_disp_sp, high_disp_sp):
 
-    input_spectra = high_disp_sp.spec1d_
-    resample_axis = low_disp_sp.spectral_axis
+def _rescale(sp, reference_sp):
+    """Resample a given spectrum to a reference spectrum.
 
-    resampler = FluxConservingResampler(extrapolation_treatment='nan_fill')
-    output_sp = resampler(input_spectra, resample_axis)
+    The first spectrum will be resampled to have the same spectral_axis as
+    the reference spectrum. The resampling algorithm is the specutils method
+    FluxConservingResampler.
 
-    resampled_freq_axis = output_sp.spectral_axis.to(u.Hz)
+    Notes
+    -----
+    nan values may occur at the edges where the resampler is forced
+    to extrapolate.
+    """
+    input_sp1d = sp.spec1d_
+    resample_axis = reference_sp.spectral_axis
 
-    kwargs = _remove_internals(attr.asdict(high_disp_sp))
+    resampler = FluxConservingResampler(extrapolation_treatment="nan_fill")
+    output_sp1d = resampler(input_sp1d, resample_axis)
+
+    resampled_freq_axis = output_sp1d.spectral_axis.to(u.Hz)
+
+    kwargs = _remove_internals(attr.asdict(sp))
     kwargs.update(
-        flux=output_sp.flux,
+        flux=output_sp1d.flux,
         frequency_axis=resampled_freq_axis,
     )
-    return low_disp_sp, NirdustSpectrum(**kwargs)
+    return NirdustSpectrum(**kwargs)
 
-def spectrum_resampling(first_sp, second_sp):
+
+def _clean_and_match(sp1, sp2):
+    """Clean nan values and apply the same mask to both spectrums."""
+    # nan values occur in the flux variable
+    # check for invalid values in both spectrums
+    mask = np.isfinite(sp1.flux) & np.isfinite(sp2.flux)
+
+    sp_list = []
+    for sp in [sp1, sp2]:
+        kw = _remove_internals(attr.asdict(sp))
+        kw.update(flux=sp.flux[mask], frequency_axis=sp.frequency_axis[mask])
+        sp_list.append(NirdustSpectrum(**kw))
+
+    return sp_list
+
+
+def spectrum_resampling(
+    first_sp,
+    second_sp,
+    scaling="downscale",
+    clean=True,
+):
     """Resample the higher resolution spectrum.
 
-    Spectrum_resampling uses the spectral_axis of the lower resolution spectrum
-    to resample the higher resolution one. To do so this function uses the
-    FluxConservingResampler() class of 'Specutils'. The order of the input
-    spectra is arbitrary and the order in the output is the same as in the
-    input. Only the higher resolution spectrum will be modified, the lower
+    Spectrum_resampling uses the spectral_axis of the lower resolution
+    spectrum to resample the higher resolution one. To do so this function
+    uses the FluxConservingResampler() class of 'Specutils'. The order of the
+    input spectra is arbitrary and the order in the output is the same as in
+    the input. Only the higher resolution spectrum will be modified, the lower
     resolution spectrum will be unaltered. It is recomended to run
     spectrum_resampling after 'cut_edges'.
 
@@ -719,18 +757,51 @@ def spectrum_resampling(first_sp, second_sp):
 
     second_sp: NirdustSpectrum object
 
+    scaling: string
+        If 'downscale' the higher resolution spectrum will be resampled to
+        match the lower resolution spectrum. If 'upscale' the lower resolution
+        spectrum.
+
+    clean: bool
+        Flag to indicate if the spectrums have to be cleaned by nan values
+        after the rescaling procedure. nan values occur at the edges of the
+        resampled spectrum when it is forced to extrapolate beyond the
+        spectral range of the reference spectrum.
+
     Return
     ------
     out: NirdustSpectrum, NirdustSpectrum
 
     """
+    if scaling.lower() not in ["downscale", "upscale"]:
+        raise ValueError(
+            "Unknown scaling mode. Must be 'downscale' or 'upscale'."
+        )
+
     first_disp = first_sp.spectral_dispersion
     second_disp = second_sp.spectral_dispersion
 
+    # Larger numerical dispersion means lower resolution!
     if first_disp > second_disp:
-        first_sp, second_sp = _downscale(first_sp, second_sp)
+        # Check type of rescaling
+        if scaling == "downscale":
+            second_sp = _rescale(second_sp, reference_sp=first_sp)
+        else:
+            first_sp = _rescale(first_sp, reference_sp=second_sp)
+
     elif first_disp < second_disp:
-        second_sp, first_sp = _downscale(second_sp, first_sp)
+        if scaling == "downscale":
+            first_sp = _rescale(first_sp, reference_sp=second_sp)
+        else:
+            second_sp = _rescale(second_sp, reference_sp=first_sp)
+
+    else:
+        # they have the same dispersion, is that equivalent
+        # to equal spectral_axis?
+        pass
+
+    if clean:
+        first_sp, second_sp = _clean_and_match(first_sp, second_sp)
 
     return first_sp, second_sp
 
@@ -888,10 +959,10 @@ def sp_correction(nuclear_spectrum, external_spectrum):
     Parameters
     ----------
     nuclear_spectrum: NirdustSpectrum object
-        Instance of NirdusSpectrum containing the nuclear spectrum.
+        Instance of NirdustSpectrum containing the nuclear spectrum.
 
     external_spectrum: NirdustSpectrum object
-        Instance of NirdusSpectrum containing the external spectrum.
+        Instance of NirdustSpectrum containing the external spectrum.
 
     Return
     ------
