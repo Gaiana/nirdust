@@ -611,6 +611,14 @@ def test_number_of_lines(NGC4945_continuum_rest_frame):
 
     assert len(positions[0]) == 2
 
+def test_spectral_dispersion(NGC4945_continuum_rest_frame):
+
+    sp = NGC4945_continuum_rest_frame
+
+    dispersion = sp.spectral_dispersion.value
+    expected = sp.header['CD1_1']
+
+    np.testing.assert_almost_equal(dispersion, expected, decimal=14)
 
 def test_mask_spectrum_1(NGC4945_continuum_rest_frame):
 
@@ -693,35 +701,37 @@ def test_sp_correction_with_mask(
 
 def test_spectrum_resampling1():
 
+    rng = np.random.default_rng(75)
+
     g1 = models.Gaussian1D(0.6, 21200, 10)
     g2 = models.Gaussian1D(-0.3, 22000, 15)
 
     axis = np.arange(1500, 2500, 1) * u.Angstrom
 
-    rng = np.random.default_rng(75)
-
     y = g1(axis.value) + g2(axis.value) + rng.normal(0.0, 0.03, axis.shape)
     y_tot = (y + 0.0001 * axis.value + 1000) * u.adu
 
-    snth_line_spectrum = NirdustSpectrum(
+    low_disp_sp = NirdustSpectrum(
         flux=y_tot,
         frequency_axis=axis.to(u.Hz, equivalencies=u.spectral()),
         z=0,
     )
 
+    # same as axis but half the points, hence twice the dispersion
     new_axis = np.arange(1500, 2500, 2) * u.Angstrom
     new_flux = np.ones(len(new_axis)) * u.adu
 
-    n_snth_line_spectrum = NirdustSpectrum(
+    high_disp_sp = NirdustSpectrum(
         flux=new_flux,
         frequency_axis=new_axis.to(u.Hz, equivalencies=u.spectral()),
         z=0,
     )
-
-    f_sp, s_sp = nd.spectrum_resampling(
-        n_snth_line_spectrum, snth_line_spectrum
-    )
-
+    print(low_disp_sp.spectral_dispersion)
+    print(high_disp_sp.spectral_dispersion)
+    
+    print(len(low_disp_sp.flux), len(high_disp_sp.flux))
+    f_sp, s_sp = nd.spectrum_resampling(low_disp_sp, high_disp_sp)
+    print(len(f_sp.flux), len(s_sp.flux))
     assert len(s_sp.flux) == 500
 
 
@@ -759,13 +769,15 @@ def test_spectrum_resampling2():
     assert len(f_sp.flux) == 500
 
 
-@pytest.mark.xfail
+@pytest.mark.parametrize("true_temp", [500.0, 1000.0, 5000.0])
 def test_fit_blackbody_with_resampling(
-    NGC4945_continuum_rest_frame, NGC3998_sp_lower_resolution
+    NGC4945_continuum_rest_frame,
+    NGC3998_sp_lower_resolution,
+    true_temp,
 ):
     real_spectrum = NGC4945_continuum_rest_frame
     freq_axis = real_spectrum.frequency_axis
-    sinthetic_model = BlackBody(1000 * u.K)
+    sinthetic_model = BlackBody(true_temp * u.K)
     sinthetic_flux = sinthetic_model(freq_axis)
 
     # the NirdustSpectrum object is instantiated
@@ -781,6 +793,6 @@ def test_fit_blackbody_with_resampling(
     )
 
     snth_bb_temp = (
-        f_sp.normalize().convert_to_frequency().fit_blackbody(1200).temperature
+        f_sp.normalize().convert_to_frequency().fit_blackbody(2000.).temperature
     )
-    np.testing.assert_almost_equal(snth_bb_temp.value, 1000, decimal=7)
+    np.testing.assert_almost_equal(snth_bb_temp.value, true_temp, decimal=8)

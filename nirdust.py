@@ -311,6 +311,12 @@ class NirdustSpectrum:
         """Total number of spectral data points."""
         return len(self.flux)
 
+    @property
+    def spectral_dispersion(self):
+        """Assume linearity to compute the dispersion."""
+        a, b = self.spectral_range
+        return (b - a) / (self.spectral_length - 1)
+
     def mask_spectrum(self, line_intervals=None, mask=None):
         """Mask spectrum to remove spectral lines.
 
@@ -372,7 +378,6 @@ class NirdustSpectrum:
             flux=masked_spectrum.flux,
             frequency_axis=cutted_freq_axis,
         )
-
         return NirdustSpectrum(**kwargs)
 
     def cut_edges(self, mini, maxi):
@@ -400,7 +405,6 @@ class NirdustSpectrum:
             flux=cutted_spec1d.flux,
             frequency_axis=cutted_freq_axis,
         )
-
         return NirdustSpectrum(**kwargs)
 
     def convert_to_frequency(self):
@@ -416,7 +420,6 @@ class NirdustSpectrum:
 
         kwargs = _remove_internals(attr.asdict(self))
         kwargs.update(frequency_axis=new_axis)
-
         return NirdustSpectrum(**kwargs)
 
     def normalize(self):
@@ -432,7 +435,6 @@ class NirdustSpectrum:
 
         kwargs = _remove_internals(attr.asdict(self))
         kwargs.update(flux=normalized_flux)
-
         return NirdustSpectrum(**kwargs)
 
     def fit_blackbody(self, T0):
@@ -676,15 +678,29 @@ def read_spectrum(file_name, extension=None, z=0):
         flux = hdulist[extension].data
         header = hdulist[extension].header
 
-    single_spectrum = spectrum(flux, header, z)
-
-    return single_spectrum
+    return spectrum(flux, header, z)
 
 
 # ==============================================================================
 # RESAMPLE SPECTRA TO MATCH SPECTRAL RESOLUTIONS
 # ==============================================================================
 
+def _downscale(low_disp_sp, high_disp_sp):
+
+    input_spectra = high_disp_sp.spec1d_
+    resample_axis = low_disp_sp.spectral_axis
+
+    resampler = FluxConservingResampler(extrapolation_treatment='nan_fill')
+    output_sp = resampler(input_spectra, resample_axis)
+
+    resampled_freq_axis = output_sp.spectral_axis.to(u.Hz)
+
+    kwargs = _remove_internals(attr.asdict(high_disp_sp))
+    kwargs.update(
+        flux=output_sp.flux,
+        frequency_axis=resampled_freq_axis,
+    )
+    return low_disp_sp, NirdustSpectrum(**kwargs)
 
 def spectrum_resampling(first_sp, second_sp):
     """Resample the higher resolution spectrum.
@@ -701,61 +717,21 @@ def spectrum_resampling(first_sp, second_sp):
     ----------
     first_sp: NirdustSpectrum object
 
-    second_sp:NirdustSpectrum object
+    second_sp: NirdustSpectrum object
 
     Return
     ------
-    out: NirdustSpectrum, NirdusSpectrum
+    out: NirdustSpectrum, NirdustSpectrum
 
     """
-    first_sp_dispersion = (
-        first_sp.spectral_range[1] - first_sp.spectral_range[0]
-    ) / first_sp.spectral_length
-    second_sp_dispersion = (
-        second_sp.spectral_range[1] - second_sp.spectral_range[0]
-    ) / second_sp.spectral_length
+    first_disp = first_sp.spectral_dispersion
+    second_disp = second_sp.spectral_dispersion
 
-    if first_sp_dispersion > second_sp_dispersion:
+    if first_disp > second_disp:
+        first_sp, second_sp = _downscale(first_sp, second_sp)
+    elif first_disp < second_disp:
+        second_sp, first_sp = _downscale(second_sp, first_sp)
 
-        input_spectra = second_sp.spec1d_
-        resample_axis = first_sp.spectral_axis
-
-        instance_resample = FluxConservingResampler()
-        output_sp = instance_resample(input_spectra, resample_axis)
-
-        resampled_freq_axis = output_sp.spectral_axis.to(u.Hz)
-
-        kwargs = _remove_internals(attr.asdict(second_sp))
-        kwargs.update(
-            flux=output_sp.flux,
-            frequency_axis=resampled_freq_axis,
-        )
-
-        Nir_spec_output = NirdustSpectrum(**kwargs)
-
-        return first_sp, Nir_spec_output
-
-    elif first_sp_dispersion < second_sp_dispersion:
-
-        input_spectra = first_sp.spec1d_
-        resample_axis = second_sp.spectral_axis
-
-        instance_resample = FluxConservingResampler()
-        output_sp = instance_resample(input_spectra, resample_axis)
-
-        resampled_freq_axis = output_sp.spectral_axis.to(u.Hz)
-
-        kwargs = _remove_internals(attr.asdict(first_sp))
-        kwargs.update(
-            flux=output_sp.flux,
-            frequency_axis=resampled_freq_axis,
-        )
-
-        Nir_spec_output = NirdustSpectrum(**kwargs)
-
-        return Nir_spec_output, second_sp
-
-    # if they are equal, return unchanged
     return first_sp, second_sp
 
 
