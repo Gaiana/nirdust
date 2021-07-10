@@ -799,10 +799,12 @@ def test_spectrum_resampling_invalid_scaling():
 
 
 @pytest.mark.parametrize("true_temp", [500.0, 1000.0, 5000.0])
+@pytest.mark.parametrize("scaling", ["downscale", "upscale"])
 def test_fit_blackbody_with_resampling(
     NGC4945_continuum_rest_frame,
     NGC3998_sp_lower_resolution,
     true_temp,
+    scaling,
 ):
     real_spectrum = NGC4945_continuum_rest_frame
     freq_axis = real_spectrum.frequency_axis
@@ -818,7 +820,7 @@ def test_fit_blackbody_with_resampling(
 
     # resampling
     f_sp, s_sp = nd.spectrum_resampling(
-        snth_blackbody, NGC3998_sp_lower_resolution
+        snth_blackbody, NGC3998_sp_lower_resolution, scaling=scaling
     )
 
     snth_bb_temp = (
