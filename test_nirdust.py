@@ -822,12 +822,43 @@ def test_fit_blackbody_with_resampling(
     f_sp, s_sp = nd.spectrum_resampling(
         snth_blackbody, NGC3998_sp_lower_resolution, scaling=scaling
     )
-
     snth_bb_temp = (
         f_sp.normalize()
         .convert_to_frequency()
         .fit_blackbody(2000.0)
         .temperature
     )
+    np.testing.assert_almost_equal(snth_bb_temp.value, true_temp, decimal=1)
 
+
+@pytest.mark.parametrize("true_temp", [500.0, 1000.0, 5000.0])
+@pytest.mark.parametrize("scaling", ["downscale", "upscale"])
+def test_fit_blackbody_with_resampling_in_inverse_order(
+    NGC4945_continuum_rest_frame,
+    NGC3998_sp_lower_resolution,
+    true_temp,
+    scaling,
+):
+    real_spectrum = NGC4945_continuum_rest_frame
+    freq_axis = real_spectrum.frequency_axis
+    sinthetic_model = BlackBody(true_temp * u.K)
+    sinthetic_flux = sinthetic_model(freq_axis)
+
+    # the NirdustSpectrum object is instantiated
+    snth_blackbody = NirdustSpectrum(
+        flux=sinthetic_flux,
+        frequency_axis=freq_axis,
+        z=0,
+    )
+
+    # resampling but inverting the input order than prevoius test
+    f_sp, s_sp = nd.spectrum_resampling(
+        NGC3998_sp_lower_resolution, snth_blackbody, scaling=scaling
+    )
+    snth_bb_temp = (
+        s_sp.normalize()
+        .convert_to_frequency()
+        .fit_blackbody(2000.0)
+        .temperature
+    )
     np.testing.assert_almost_equal(snth_bb_temp.value, true_temp, decimal=1)
