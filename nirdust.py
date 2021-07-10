@@ -63,18 +63,16 @@ class HeaderKeywordError(KeyError):
 # ==============================================================================
 
 
-def _remove_internals(attrs_dict):
-    """Remove internal attributes of a class.
+def _filter_internals(atribute, value):
+    """Filter internal attributes of a class.
 
     Used when the initialization attributes are required, but attrs.asdict(obj)
     also returns internal attributes. The convention for internal attributes
     here is one underscore.
     """
-    new_dict = attrs_dict.copy()
-    for k in attrs_dict.keys():
-        if k.endswith("_"):
-            del new_dict[k]
-    return new_dict
+    if atribute.name.endswith("_"):
+        return False
+    return True
 
 
 # ==============================================================================
@@ -296,7 +294,7 @@ class NirdustSpectrum:
         flux = spec1d.flux
         frequency = spec1d.spectral_axis.to(u.Hz)
 
-        kwargs = _remove_internals(attr.asdict(self))
+        kwargs = attr.asdict(self, filter=_filter_internals)
         kwargs.update(
             flux=flux,
             frequency_axis=frequency,
@@ -378,7 +376,7 @@ class NirdustSpectrum:
 
         cutted_freq_axis = masked_spectrum.spectral_axis.to(u.Hz)
 
-        kwargs = _remove_internals(attr.asdict(self))
+        kwargs = attr.asdict(self, filter=_filter_internals)
         kwargs.update(
             flux=masked_spectrum.flux,
             frequency_axis=cutted_freq_axis,
@@ -405,7 +403,7 @@ class NirdustSpectrum:
         cutted_spec1d = sm.extract_region(self.spec1d_, region)
         cutted_freq_axis = cutted_spec1d.spectral_axis.to(u.Hz)
 
-        kwargs = _remove_internals(attr.asdict(self))
+        kwargs = attr.asdict(self, filter=_filter_internals)
         kwargs.update(
             flux=cutted_spec1d.flux,
             frequency_axis=cutted_freq_axis,
@@ -423,7 +421,7 @@ class NirdustSpectrum:
         """
         new_axis = self.spec1d_.spectral_axis.to(u.Hz)
 
-        kwargs = _remove_internals(attr.asdict(self))
+        kwargs = attr.asdict(self, filter=_filter_internals)
         kwargs.update(frequency_axis=new_axis)
         return NirdustSpectrum(**kwargs)
 
@@ -438,7 +436,7 @@ class NirdustSpectrum:
         """
         normalized_flux = self.spec1d_.flux / np.mean(self.spec1d_.flux)
 
-        kwargs = _remove_internals(attr.asdict(self))
+        kwargs = attr.asdict(self, filter=_filter_internals)
         kwargs.update(flux=normalized_flux)
         return NirdustSpectrum(**kwargs)
 
@@ -711,7 +709,7 @@ def _rescale(sp, reference_sp):
 
     resampled_freq_axis = output_sp1d.spectral_axis.to(u.Hz)
 
-    kwargs = _remove_internals(attr.asdict(sp))
+    kwargs = attr.asdict(sp, filter=_filter_internals)
     kwargs.update(
         flux=output_sp1d.flux,
         frequency_axis=resampled_freq_axis,
@@ -727,7 +725,7 @@ def _clean_and_match(sp1, sp2):
 
     sp_list = []
     for sp in [sp1, sp2]:
-        kw = _remove_internals(attr.asdict(sp))
+        kw = attr.asdict(sp, filter=_filter_internals)
         kw.update(flux=sp.flux[mask], frequency_axis=sp.frequency_axis[mask])
         sp_list.append(NirdustSpectrum(**kw))
 
@@ -879,12 +877,12 @@ def line_spectrum(
     noise_reg_spectrum = noise_region_uncertainty(new_flux, noise_region_def)
     lines = find_lines_threshold(noise_reg_spectrum, noise_factor=noise_factor)
 
-    amp_type = {"emission": 1.0, "absorption": -1.0}
+    line_sign = {"emission": 1.0, "absorption": -1.0}
     line_spectrum = np.zeros(len(new_flux.spectral_axis))
     line_intervals = []
 
     for line in lines:
-        amp = amp_type[line["line_type"]]
+        amp = line_sign[line["line_type"]]
         center = line["line_center"].value
 
         gauss_model = models.Gaussian1D(amplitude=amp, mean=center)
@@ -974,7 +972,7 @@ def sp_correction(nuclear_spectrum, external_spectrum):
         flux_resta = (new_nuc.spec1d_.flux - normalized_ext.spec1d_.flux) + 1
         new_spectral_axis = nuclear_spectrum.spec1d_.spectral_axis[dif:]
 
-    kwargs = _remove_internals(attr.asdict(normalized_nuc))
+    kwargs = attr.asdict(normalized_nuc, filter=_filter_internals)
     kwargs.update(
         flux=flux_resta,
         frequency_axis=new_spectral_axis.to(u.Hz),
