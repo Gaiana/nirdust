@@ -760,7 +760,7 @@ def spectrum_resampling(
     scaling: string
         If 'downscale' the higher resolution spectrum will be resampled to
         match the lower resolution spectrum. If 'upscale' the lower resolution
-        spectrum.
+        spectrum will be resampled to match the higher resolution spectrum.
 
     clean: bool
         Flag to indicate if the spectrums have to be cleaned by nan values
