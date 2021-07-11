@@ -89,7 +89,7 @@ def NGC3998_sp_lower_resolution():
 def snth_spectrum_1000(NGC4945_continuum_rest_frame):
 
     real_spectrum = NGC4945_continuum_rest_frame
-    freq_axis = real_spectrum.frequency_axis
+    freq_axis = real_spectrum.spec1d_.spectral_axis.to(u.Hz)
     sinthetic_model = nd.NormalizedBlackBody(1000)
     sinthetic_flux = sinthetic_model(freq_axis.value)
 
@@ -105,11 +105,10 @@ def snth_spectrum_1000(NGC4945_continuum_rest_frame):
     spectral_axis = (
         first_wave + dispersion * np.arange(0, spectrum_length)
     ) * u.AA
-    frequency_axis = spectral_axis.to(u.Hz, equivalencies=u.spectral())
 
     return NirdustSpectrum(
         flux=noisy_model,
-        frequency_axis=frequency_axis,
+        spectral_axis=spectral_axis,
         z=0,
     )
 
@@ -125,7 +124,7 @@ def test_read_spectrum():
     obj1 = nd.read_spectrum(file_name)
     obj2 = nd.read_spectrum(file_name, extension=0)
     np.testing.assert_almost_equal(
-        obj1.frequency_axis.value, obj2.frequency_axis.value, decimal=10
+        obj1.spectral_axis.value, obj2.spectral_axis.value, decimal=10
     )
 
 
@@ -239,7 +238,7 @@ def test_redshift_correction(NGC4945_continuum):
 
 def test_convert_to_frequency(NGC4945_continuum):
     spectrum = NGC4945_continuum
-    freq = spectrum.convert_to_frequency().frequency_axis
+    freq = spectrum.convert_to_frequency().spectral_axis
     np.testing.assert_almost_equal(
         freq.value.mean(), 137313317328585.02, decimal=7
     )
@@ -312,9 +311,17 @@ def test_sp_correction_third_if(
 def test_NormalizedBlackBody_normalization(NGC4945_continuum):
     """Test NBB normalization by the mean"""
     n_black = nd.NormalizedBlackBody(1200 * u.K)
-    n_inst = n_black(NGC4945_continuum.frequency_axis.value)
+    n_inst = n_black(
+        NGC4945_continuum.spectral_axis.to_value(
+            u.Hz, equivalencies=u.spectral()
+        )
+    )
     a_blackbody = models.BlackBody(1200 * u.K)
-    a_instance = a_blackbody(NGC4945_continuum.frequency_axis)
+    a_instance = a_blackbody(
+        NGC4945_continuum.spectral_axis.to_value(
+            u.Hz, equivalencies=u.spectral()
+        )
+    )
     expected = a_instance / np.mean(a_instance)
     np.testing.assert_almost_equal(n_inst, expected.value, decimal=10)
 
@@ -340,17 +347,15 @@ def test_NormalizedBlackBody_evaluation_units():
     bb_T_with_units = nd.NormalizedBlackBody(1200 * u.K)
     freq_with_units = np.arange(1, 10) * u.Hz
     result_with_units = bb_T_with_units(freq_with_units)
-    assert isinstance(
-        result_with_units, u.Quantity
-    )  # only Quantity if T is Quantity
+    # only Quantity if T is Quantity
+    assert isinstance(result_with_units, u.Quantity)
     assert result_with_units.unit.is_unity()
 
     bb_T_with_no_units = nd.NormalizedBlackBody(1200)
     freq_with_no_units = np.arange(1, 10)
     result_with_no_units = bb_T_with_no_units(freq_with_no_units)
-    assert not isinstance(
-        result_with_no_units, u.Quantity
-    )  # only Quantity if T is Quantity
+    # only Quantity if T is Quantity
+    assert not isinstance(result_with_no_units, u.Quantity)
     np.testing.assert_almost_equal(
         result_with_no_units, result_with_units.value, decimal=10
     )
@@ -431,7 +436,7 @@ def test_NirdustResults_fitted_blackbody():
 
 
 def test_NirdustResults_freq_axis(NGC4945_continuum):
-    axis = NGC4945_continuum.frequency_axis
+    axis = NGC4945_continuum.spectral_axis.to(u.Hz, equivalencies=u.spectral())
     nr_inst = NirdustResults(
         20 * u.K,
         "Hyperion",
@@ -458,7 +463,9 @@ def test_NirdustResults_flux_axis(NGC4945_continuum):
 
 def test_fit_blackbody(NGC4945_continuum_rest_frame):
     real_spectrum = NGC4945_continuum_rest_frame
-    freq_axis = real_spectrum.frequency_axis
+    freq_axis = real_spectrum.spectral_axis.to(
+        u.Hz, equivalencies=u.spectral()
+    )
     sinthetic_model = BlackBody(1000 * u.K)
     sinthetic_flux = sinthetic_model(freq_axis)
 
@@ -469,11 +476,10 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
     spectral_axis = (
         first_wave + dispersion * np.arange(0, spectrum_length)
     ) * u.AA
-    frequency_axis = spectral_axis.to(u.Hz, equivalencies=u.spectral())
 
     snth_blackbody = NirdustSpectrum(
         flux=sinthetic_flux,
-        frequency_axis=frequency_axis,
+        spectral_axis=spectral_axis,
         z=0,
     )
 
@@ -561,7 +567,7 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
 
     snth_line_spectrum = NirdustSpectrum(
         flux=y_tot,
-        frequency_axis=sp_axis.to(u.Hz),
+        spectral_axis=sp_axis,
         z=0,
     )
 
@@ -601,7 +607,7 @@ def test_number_of_lines(NGC4945_continuum_rest_frame):
 
     snth_line_spectrum = NirdustSpectrum(
         flux=y_tot,
-        frequency_axis=sp_axis.to(u.Hz),
+        spectral_axis=sp_axis,
         z=0,
     )
 
@@ -715,7 +721,7 @@ def test_spectrum_resampling_downscale():
 
     low_disp_sp = NirdustSpectrum(
         flux=y_tot,
-        frequency_axis=axis.to(u.Hz, equivalencies=u.spectral()),
+        spectral_axis=axis,
         z=0,
     )
 
@@ -725,7 +731,7 @@ def test_spectrum_resampling_downscale():
 
     high_disp_sp = NirdustSpectrum(
         flux=new_flux,
-        frequency_axis=new_axis.to(u.Hz, equivalencies=u.spectral()),
+        spectral_axis=new_axis,
         z=0,
     )
 
@@ -761,7 +767,7 @@ def test_spectrum_resampling_upscale():
 
     low_disp_sp = NirdustSpectrum(
         flux=y_tot,
-        frequency_axis=axis.to(u.Hz, equivalencies=u.spectral()),
+        spectral_axis=axis,
         z=0,
     )
 
@@ -771,7 +777,7 @@ def test_spectrum_resampling_upscale():
 
     high_disp_sp = NirdustSpectrum(
         flux=new_flux,
-        frequency_axis=new_axis.to(u.Hz, equivalencies=u.spectral()),
+        spectral_axis=new_axis,
         z=0,
     )
 
@@ -814,7 +820,7 @@ def test_fit_blackbody_with_resampling(
     # the NirdustSpectrum object is instantiated
     snth_blackbody = NirdustSpectrum(
         flux=sinthetic_flux,
-        frequency_axis=freq_axis,
+        spectral_axis=real_spectrum.spectral_axis,
         z=0,
     )
 
@@ -847,7 +853,7 @@ def test_fit_blackbody_with_resampling_in_inverse_order(
     # the NirdustSpectrum object is instantiated
     snth_blackbody = NirdustSpectrum(
         flux=sinthetic_flux,
-        frequency_axis=freq_axis,
+        spectral_axis=real_spectrum.spectral_axis,
         z=0,
     )
 

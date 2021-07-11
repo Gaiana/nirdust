@@ -63,9 +63,9 @@ class HeaderKeywordError(KeyError):
 # ==============================================================================
 
 
-def _filter_internals(atribute, value):
+def _filter_internals(attribute, value):
     """Filter internal attributes of a class."""
-    return not (atribute.name.startswith("_") or atribute.name.endswith("_"))
+    return not (attribute.name.startswith("_") or attribute.name.endswith("_"))
 
 
 # ==============================================================================
@@ -213,7 +213,7 @@ class NirdustSpectrum:
         unities of Å and ADU respectively.
     """
 
-    frequency_axis = uttr.ib(unit=u.Hz)
+    spectral_axis = attr.ib(converter=u.Quantity)
     flux = attr.ib(converter=u.Quantity)
 
     z = attr.ib(default=None)
@@ -225,12 +225,9 @@ class NirdustSpectrum:
 
     @spec1d_.default
     def _spec1d_default(self):
-        spectral_axis = self.frequency_axis.to(
-            u.AA, equivalencies=u.spectral()
-        )
         return su.Spectrum1D(
             flux=self.flux,
-            spectral_axis=spectral_axis,  # redshift=self.z,
+            spectral_axis=self.spectral_axis,  # redshift=self.z,
         )
 
     def __dir__(self):
@@ -248,7 +245,7 @@ class NirdustSpectrum:
 
         """
         sprange = self.spectral_range[0].value, self.spectral_range[1].value
-        spunit = self.spec1d_.spectral_axis.unit
+        spunit = self.spectral_axis.unit
 
         return (
             f"NirdustSpectrum(z={self.z}, "
@@ -285,21 +282,26 @@ class NirdustSpectrum:
         """
         spec1d = self.spec1d_.__getitem__(slice)
         flux = spec1d.flux
-        frequency = spec1d.spectral_axis.to(u.Hz)
+        spectral_axis = spec1d.spectral_axis
 
         kwargs = attr.asdict(self, filter=_filter_internals)
         kwargs.update(
             flux=flux,
-            frequency_axis=frequency,
+            spectral_axis=spectral_axis,
         )
         return NirdustSpectrum(**kwargs)
+
+    @property
+    def frequency_axis(self):
+        """Frequency axis access."""
+        return self.spectral_axis.to(u.Hz, equivalencies=u.spectral())
 
     @property
     def spectral_range(self):
         """First and last values of spectral_axis."""
         return [
-            np.min(self.spec1d_.spectral_axis),
-            np.max(self.spec1d_.spectral_axis),
+            np.min(self.spectral_axis),
+            np.max(self.spectral_axis),
         ]
 
     @property
@@ -367,12 +369,10 @@ class NirdustSpectrum:
                 self.flux[mask], self.spectral_axis[mask]
             )
 
-        cutted_freq_axis = masked_spectrum.spectral_axis.to(u.Hz)
-
         kwargs = attr.asdict(self, filter=_filter_internals)
         kwargs.update(
             flux=masked_spectrum.flux,
-            frequency_axis=cutted_freq_axis,
+            spectral_axis=masked_spectrum.spectral_axis,
         )
         return NirdustSpectrum(**kwargs)
 
@@ -394,12 +394,11 @@ class NirdustSpectrum:
         """
         region = su.SpectralRegion(mini * u.AA, maxi * u.AA)
         cutted_spec1d = sm.extract_region(self.spec1d_, region)
-        cutted_freq_axis = cutted_spec1d.spectral_axis.to(u.Hz)
 
         kwargs = attr.asdict(self, filter=_filter_internals)
         kwargs.update(
             flux=cutted_spec1d.flux,
-            frequency_axis=cutted_freq_axis,
+            spectral_axis=cutted_spec1d.spectral_axis,
         )
         return NirdustSpectrum(**kwargs)
 
@@ -412,10 +411,10 @@ class NirdustSpectrum:
             New instance of the NirdustSpectrun class containing the spectrum
             with a frquency axis in units of Hz.
         """
-        new_axis = self.spec1d_.spectral_axis.to(u.Hz)
+        new_axis = self.spectral_axis.to(u.Hz, equivalencies=u.spectral())
 
         kwargs = attr.asdict(self, filter=_filter_internals)
-        kwargs.update(frequency_axis=new_axis)
+        kwargs.update(spectral_axis=new_axis)
         return NirdustSpectrum(**kwargs)
 
     def normalize(self):
@@ -427,7 +426,7 @@ class NirdustSpectrum:
             New instance of the NirdustSpectrun class with the flux normalized
             to unity.
         """
-        normalized_flux = self.spec1d_.flux / np.mean(self.spec1d_.flux)
+        normalized_flux = self.flux / np.mean(self.flux)
 
         kwargs = attr.asdict(self, filter=_filter_internals)
         kwargs.update(flux=normalized_flux)
@@ -448,7 +447,7 @@ class NirdustSpectrum:
             the blackbody fitting.
         """
         model, fit_info = normalized_blackbody_fitter(
-            self.frequency_axis, self.flux, T0
+            self.spectral_axis, self.flux, T0
         )
 
         storage = NirdustResults(
@@ -456,7 +455,7 @@ class NirdustSpectrum:
             info=fit_info,
             uncertainty=model.temperature.std,
             fitted_blackbody=model,
-            freq_axis=self.frequency_axis,
+            freq_axis=self.spectral_axis,
             flux_axis=self.flux,
         )
         return storage
@@ -628,11 +627,10 @@ def spectrum(flux, header, z=0):
     # unit should be the same as first_wavelength and dispersion_key, AA ?
     pixel_axis = np.arange(len(flux))
     spectral_axis = pix2wavelength(pixel_axis, header, z) * u.AA
-    frequency_axis = spectral_axis.to(u.Hz, equivalencies=u.spectral())
 
     return NirdustSpectrum(
         flux=flux,
-        frequency_axis=frequency_axis,
+        spectral_axis=spectral_axis,
         z=z,
         header=header,
     )
@@ -700,12 +698,10 @@ def _rescale(sp, reference_sp):
     resampler = FluxConservingResampler(extrapolation_treatment="nan_fill")
     output_sp1d = resampler(input_sp1d, resample_axis)
 
-    resampled_freq_axis = output_sp1d.spectral_axis.to(u.Hz)
-
     kwargs = attr.asdict(sp, filter=_filter_internals)
     kwargs.update(
         flux=output_sp1d.flux,
-        frequency_axis=resampled_freq_axis,
+        spectral_axis=output_sp1d.spectral_axis,
     )
     return NirdustSpectrum(**kwargs)
 
@@ -719,7 +715,7 @@ def _clean_and_match(sp1, sp2):
     sp_list = []
     for sp in [sp1, sp2]:
         kw = attr.asdict(sp, filter=_filter_internals)
-        kw.update(flux=sp.flux[mask], frequency_axis=sp.frequency_axis[mask])
+        kw.update(flux=sp.flux[mask], spectral_axis=sp.spectral_axis[mask])
         sp_list.append(NirdustSpectrum(**kw))
 
     return sp_list
@@ -863,7 +859,7 @@ def line_spectrum(
     model = fit_generic_continuum(
         spectrum.spec1d_, fitter=fitting.LinearLSQFitter()
     )
-    continuum = model(spectrum.spec1d_.spectral_axis)
+    continuum = model(spectrum.spectral_axis)
     new_flux = spectrum.spec1d_ - continuum
 
     noise_region_def = SpectralRegion(low_lim_ns, upper_lim_ns)
@@ -964,7 +960,7 @@ def sp_correction(nuclear_spectrum, external_spectrum):
     kwargs = attr.asdict(normalized_nuc, filter=_filter_internals)
     kwargs.update(
         flux=flux_resta,
-        frequency_axis=new_spectral_axis.to(u.Hz),
+        spectral_axis=new_spectral_axis,
     )
 
     return NirdustSpectrum(**kwargs)
