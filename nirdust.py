@@ -64,15 +64,8 @@ class HeaderKeywordError(KeyError):
 
 
 def _filter_internals(atribute, value):
-    """Filter internal attributes of a class.
-
-    Used when the initialization attributes are required, but attrs.asdict(obj)
-    also returns internal attributes. The convention for internal attributes
-    here is one underscore.
-    """
-    if atribute.name.endswith("_"):
-        return False
-    return True
+    """Filter internal attributes of a class."""
+    return not (atribute.name.startswith("_") or atribute.name.endswith("_"))
 
 
 # ==============================================================================
@@ -956,19 +949,15 @@ def sp_correction(nuclear_spectrum, external_spectrum):
         new_spectral_axis = nuclear_spectrum.spec1d_.spectral_axis
 
     elif dif < 0:
-
-        new_ext = normalized_ext[
-            -dif:
-        ]  # Por que [dif:] y no [:dif] usar spectrum_resampling ?
+        # Por que [dif:] y no [:dif] usar spectrum_resampling ?
+        new_ext = normalized_ext[-dif:]
         flux_resta = (normalized_nuc.spec1d_.flux - new_ext.spec1d_.flux) + 1
 
         new_spectral_axis = external_spectrum.spec1d_.spectral_axis[-dif:]
 
     elif dif > 0:
-
-        new_nuc = normalized_nuc[
-            dif:
-        ]  # Por que [dif:] y no [:dif] usar spectrum_resampling
+        # Por que [dif:] y no [:dif] usar spectrum_resampling
+        new_nuc = normalized_nuc[dif:]
         flux_resta = (new_nuc.spec1d_.flux - normalized_ext.spec1d_.flux) + 1
         new_spectral_axis = nuclear_spectrum.spec1d_.spectral_axis[dif:]
 
