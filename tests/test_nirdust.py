@@ -36,11 +36,11 @@ import specutils as su
 # ==============================================================================
 
 
-def test_read_spectrum(test_data_path):
+def test_read_fits(test_data_path):
     # read with no extension and wrong keyword
     file_name = test_data_path("external_spectrum_200pc_N4945.fits")
-    obj1 = nd.read_spectrum(file_name)
-    obj2 = nd.read_spectrum(file_name, extension=0)
+    obj1 = nd.read_fits(file_name)
+    obj2 = nd.read_fits(file_name, extension=0)
     np.testing.assert_almost_equal(
         obj1.spectral_axis.value, obj2.spectral_axis.value, decimal=10
     )
@@ -77,7 +77,7 @@ def test_infer_science_extension_MEF_multiple_spectrum(test_data_path):
     np.testing.assert_array_equal(ext_candidates, np.array([1, 3]))
 
 
-def test_read_spectrum_MEF_single_spectrum(test_data_path):
+def test_read_fits_MEF_single_spectrum(test_data_path):
     # fits with multiple extensions
     file_name = test_data_path("external_spectrum_200pc_N4945.fits")
     with fits.open(file_name) as hdul:
@@ -92,11 +92,11 @@ def test_read_spectrum_MEF_single_spectrum(test_data_path):
     hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3])
 
     with patch("astropy.io.fits.open", return_value=hdul):
-        obj = nd.read_spectrum("imaginary_file.fits")
+        obj = nd.read_fits("imaginary_file.fits")
         assert isinstance(obj, nd.NirdustSpectrum)
 
 
-def test_read_spectrum_MEF_multiple_spectrum(test_data_path):
+def test_read_fits_MEF_multiple_spectrum(test_data_path):
     # fits with multiple extensions
     file_name = test_data_path("external_spectrum_200pc_N4945.fits")
     with fits.open(file_name) as hdul:
@@ -113,10 +113,10 @@ def test_read_spectrum_MEF_multiple_spectrum(test_data_path):
         with pytest.raises(nd.HeaderKeywordError):
             # Default is extension=None. this tries to detect
             # the data extension, if there are many the error is raised
-            nd.read_spectrum("imaginary_file.fits")
+            nd.read_fits("imaginary_file.fits")
 
         # If the extension is specified it should work ok
-        obj = nd.read_spectrum("imaginary_file.fits", extension=2)
+        obj = nd.read_fits("imaginary_file.fits", extension=2)
         assert isinstance(obj, nd.NirdustSpectrum)
 
 
@@ -140,7 +140,7 @@ def test_wav_axis(NGC4945_continuum):
 def test_calibration(test_data_path):
     with pytest.raises(ValueError):
         path = test_data_path("no-calibrated_spectrum.fits")
-        nd.read_spectrum(path, 0, 0)
+        nd.read_fits(path, 0, 0)
 
 
 def test_redshift_correction(NGC4945_continuum):
@@ -424,7 +424,7 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
 def test_nplot(fig_test, fig_ref, test_data_path):
     spectrum_path = test_data_path("cont03.fits")
     spectrum = (
-        nd.read_spectrum(spectrum_path, 0, z=0.00188)
+        nd.read_fits(spectrum_path, 0, z=0.00188)
         .cut_edges(19500, 22900)
         .normalize()
     )
@@ -455,7 +455,7 @@ def test_nplot(fig_test, fig_ref, test_data_path):
 def test_nplot_default_axis(fig_test, fig_ref, test_data_path):
     spectrum_path = test_data_path("cont03.fits")
     spectrum = (
-        nd.read_spectrum(spectrum_path, 0, z=0.00188)
+        nd.read_fits(spectrum_path, 0, z=0.00188)
         .cut_edges(19500, 22900)
         .normalize()
     )

@@ -47,56 +47,56 @@ def test_data_path():
 @pytest.fixture(scope="session")
 def NGC4945_continuum(test_data_path):
     file_name = test_data_path("cont03.fits")
-    spect = nd.read_spectrum(file_name, 0, z=0.00188)
+    spect = nd.read_fits(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_continuum_rest_frame(test_data_path):
     file_name = test_data_path("cont03.fits")
-    spect = nd.read_spectrum(file_name, 0, z=0)
+    spect = nd.read_fits(file_name, 0, z=0)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_external_continuum_400pc(test_data_path):
     file_name = test_data_path("external_spectrum_400pc_N4945.fits")
-    spect = nd.read_spectrum(file_name, 0, z=0.00188)
+    spect = nd.read_fits(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_external_continuum_200pc(test_data_path):
     file_name = test_data_path("external_spectrum_200pc_N4945.fits")
-    spect = nd.read_spectrum(file_name, 0, z=0.00188)
+    spect = nd.read_fits(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_external_with_lines_200pc(test_data_path):
     file_name = test_data_path("External_with_lines.fits")
-    spect = nd.read_spectrum(file_name, 0, z=0.00188)
+    spect = nd.read_fits(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC4945_nuclear_with_lines(test_data_path):
     file_name = test_data_path("NuclearNGC4945.fits")
-    spect = nd.read_spectrum(file_name, 0, z=0.00188)
+    spect = nd.read_fits(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
 def NGC3998_sp_lower_resolution(test_data_path):
     file_name = test_data_path("ngc3998-sfin.fits")
-    spect = nd.read_spectrum(file_name, 1, z=0.00350)
+    spect = nd.read_fits(file_name, 1, z=0.00350)
     return spect
 
 
 @pytest.fixture(scope="session")
 def continuum01(test_data_path):
     file_name = test_data_path("cont01.fits")
-    return nd.read_spectrum(file_name, 0, z=0.00188)
+    return nd.read_fits(file_name, 0, z=0.00188)
 
 
 @pytest.fixture(scope="session")
