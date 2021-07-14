@@ -1,9 +1,16 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+# This file is part of the
+#   NirDust Project (https://github.com/Gaiana/nirdust)
+# Copyright (c) 2020, 2021 Gaia Gaspar, Jose Alacoria
+# License: MIT
+#   Full Text: https://github.com/Gaiana/nirdust/LICENSE
+
 # ==============================================================================
 # IMPORTS
 # ==============================================================================
 
-import os
-import pathlib
 from unittest.mock import patch
 
 from astropy import units as u
@@ -23,104 +30,15 @@ import pytest
 
 import specutils as su
 
-# ==============================================================================
-# CONSTANTS
-# ==============================================================================
-
-PATH = os.path.abspath(os.path.dirname(__file__))
-
-TEST_PATH = pathlib.Path(PATH) / "test_data"
-
-# ==============================================================================
-# FIXTURES
-# ==============================================================================
-
-
-@pytest.fixture(scope="session")
-def NGC4945_continuum():
-    file_name = TEST_PATH / "cont03.fits"
-    spect = nd.read_spectrum(file_name, 0, z=0.00188)
-    return spect
-
-
-@pytest.fixture(scope="session")
-def NGC4945_continuum_rest_frame():
-    file_name = TEST_PATH / "cont03.fits"
-    spect = nd.read_spectrum(file_name, 0, z=0)
-    return spect
-
-
-@pytest.fixture(scope="session")
-def NGC4945_external_continuum_400pc():
-    file_name = TEST_PATH / "external_spectrum_400pc_N4945.fits"
-    spect = nd.read_spectrum(file_name, 0, z=0.00188)
-    return spect
-
-
-@pytest.fixture(scope="session")
-def NGC4945_external_continuum_200pc():
-    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
-    spect = nd.read_spectrum(file_name, 0, z=0.00188)
-    return spect
-
-
-@pytest.fixture(scope="session")
-def NGC4945_external_with_lines_200pc():
-    file_name = TEST_PATH / "External_with_lines.fits"
-    spect = nd.read_spectrum(file_name, 0, z=0.00188)
-    return spect
-
-
-@pytest.fixture(scope="session")
-def NGC4945_nuclear_with_lines():
-    file_name = TEST_PATH / "NuclearNGC4945.fits"
-    spect = nd.read_spectrum(file_name, 0, z=0.00188)
-    return spect
-
-
-@pytest.fixture(scope="session")
-def NGC3998_sp_lower_resolution():
-    file_name = TEST_PATH / "ngc3998-sfin.fits"
-    spect = nd.read_spectrum(file_name, 1, z=0.00350)
-    return spect
-
-
-@pytest.fixture(scope="session")
-def snth_spectrum_1000(NGC4945_continuum_rest_frame):
-
-    real_spectrum = NGC4945_continuum_rest_frame
-    freq_axis = real_spectrum.spec1d_.spectral_axis.to(u.Hz)
-    sinthetic_model = nd.NormalizedBlackBody(1000)
-    sinthetic_flux = sinthetic_model(freq_axis.value)
-
-    mu, sigma = 0, 0.1
-    nd_random = np.random.default_rng(50)
-    gaussian_noise = nd_random.normal(mu, sigma, len(freq_axis))
-    noisy_model = sinthetic_flux * (1 * u.adu + gaussian_noise * u.adu)
-
-    dispersion = 3.51714285129581
-    first_wave = 18940.578099674
-
-    spectrum_length = len(real_spectrum.flux)
-    spectral_axis = (
-        first_wave + dispersion * np.arange(0, spectrum_length)
-    ) * u.AA
-
-    return NirdustSpectrum(
-        flux=noisy_model,
-        spectral_axis=spectral_axis,
-        z=0,
-    )
-
 
 # ==============================================================================
 # TESTS
 # ==============================================================================
 
 
-def test_read_spectrum():
+def test_read_spectrum(test_data_path):
     # read with no extension and wrong keyword
-    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    file_name = test_data_path("external_spectrum_200pc_N4945.fits")
     obj1 = nd.read_spectrum(file_name)
     obj2 = nd.read_spectrum(file_name, extension=0)
     np.testing.assert_almost_equal(
@@ -128,25 +46,22 @@ def test_read_spectrum():
     )
 
 
-def test_spectrum_repr():
-    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
-    obj1 = nd.read_spectrum(file_name)
-    result = repr(obj1)
-    expected = "NirdustSpectrum(z=0, spectral_length=1751, spectral_range=[18940.65-25095.62] Angstrom)"  # noqa
+def test_spectrum_repr(NGC4945_external_continuum_200pc):
+    result = repr(NGC4945_external_continuum_200pc)
+    expected = "NirdustSpectrum(z=0.00188, spectral_length=1751, spectral_range=[18905.11-25048.53] Angstrom)"  # noqa
     assert result == expected
 
 
-def test_spectrum_dir():
-    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
-    obj1 = nd.read_spectrum(file_name)
+def test_spectrum_dir(NGC4945_external_continuum_200pc):
+    obj1 = NGC4945_external_continuum_200pc
     result = dir(obj1)
     expected = dir(obj1.spec1d_)
     assert not set(expected).difference(result)
 
 
-def test_infer_science_extension_MEF_multiple_spectrum():
+def test_infer_science_extension_MEF_multiple_spectrum(test_data_path):
     # fits with multiple extensions
-    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    file_name = test_data_path("external_spectrum_200pc_N4945.fits")
     with fits.open(file_name) as hdul:
         data = hdul[0].data
         header = hdul[0].header
@@ -162,9 +77,9 @@ def test_infer_science_extension_MEF_multiple_spectrum():
     np.testing.assert_array_equal(ext_candidates, np.array([1, 3]))
 
 
-def test_read_spectrum_MEF_single_spectrum():
+def test_read_spectrum_MEF_single_spectrum(test_data_path):
     # fits with multiple extensions
-    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    file_name = test_data_path("external_spectrum_200pc_N4945.fits")
     with fits.open(file_name) as hdul:
         data = hdul[0].data
         header = hdul[0].header
@@ -181,9 +96,9 @@ def test_read_spectrum_MEF_single_spectrum():
         assert isinstance(obj, nd.NirdustSpectrum)
 
 
-def test_read_spectrum_MEF_multiple_spectrum():
+def test_read_spectrum_MEF_multiple_spectrum(test_data_path):
     # fits with multiple extensions
-    file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
+    file_name = test_data_path("external_spectrum_200pc_N4945.fits")
     with fits.open(file_name) as hdul:
         data = hdul[0].data
         header = hdul[0].header
@@ -222,9 +137,9 @@ def test_wav_axis(NGC4945_continuum):
     assert spectrum.header["CTYPE1"] == "LINEAR"
 
 
-def test_calibration():
+def test_calibration(test_data_path):
     with pytest.raises(ValueError):
-        path = TEST_PATH / "no-calibrated_spectrum.fits"
+        path = test_data_path("no-calibrated_spectrum.fits")
         nd.read_spectrum(path, 0, 0)
 
 
@@ -283,11 +198,9 @@ def test_sp_correction(NGC4945_continuum, NGC4945_external_continuum_400pc):
 
 
 def test_sp_correction_second_if(
-    NGC4945_continuum, NGC4945_external_continuum_200pc
+    NGC4945_external_continuum_200pc, continuum01
 ):
-    spectrum = nd.read_spectrum(
-        TEST_PATH / "cont01.fits", 0, z=0.00188
-    ).cut_edges(19600, 22900)
+    spectrum = continuum01.cut_edges(19600, 22900)
     external_spectrum = NGC4945_external_continuum_200pc.cut_edges(
         19600, 22900
     )
@@ -296,13 +209,9 @@ def test_sp_correction_second_if(
     assert len(prepared.spectral_axis) == expected_len
 
 
-def test_sp_correction_third_if(
-    NGC4945_continuum, NGC4945_external_continuum_200pc
-):
+def test_sp_correction_third_if(NGC4945_external_continuum_200pc, continuum01):
     spectrum = NGC4945_external_continuum_200pc.cut_edges(19600, 22900)
-    external_spectrum = nd.read_spectrum(
-        TEST_PATH / "cont01.fits", 0, z=0.00188
-    ).cut_edges(19600, 22900)
+    external_spectrum = continuum01.cut_edges(19600, 22900)
     prepared = nd.sp_correction(spectrum, external_spectrum)
     expected_len = len(external_spectrum.spectral_axis)
     assert len(prepared.spectral_axis) == expected_len
@@ -502,10 +411,10 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
 
 
 @check_figures_equal(extensions=["png"])
-def test_nplot(fig_test, fig_ref):
-
+def test_nplot(fig_test, fig_ref, test_data_path):
+    spectrum_path = test_data_path("cont03.fits")
     spectrum = (
-        nd.read_spectrum(TEST_PATH / "cont03.fits", 0, z=0.00188)
+        nd.read_spectrum(spectrum_path, 0, z=0.00188)
         .cut_edges(19500, 22900)
         .normalize()
     )
@@ -532,8 +441,8 @@ def test_nplot(fig_test, fig_ref):
     ax_ref.legend()
 
 
-def test_pix2wavelength():
-    file_name = TEST_PATH / "external_spectrum_400pc_N4945.fits"
+def test_pix2wavelength(test_data_path):
+    file_name = test_data_path("external_spectrum_400pc_N4945.fits")
 
     with fits.open(file_name) as hdul:
         header = hdul[0].header
