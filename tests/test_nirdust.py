@@ -161,7 +161,17 @@ def test_convert_to_frequency(NGC4945_continuum):
 
 def test_getattr(NGC4945_continuum):
     spectrum = NGC4945_continuum
-    np.testing.assert_array_equal(spectrum.spec1d_.flux, spectrum.flux)
+
+    # primero tiramos el dir original a spectrum y a spec1d
+    original_dir = dir(super(type(spectrum), spectrum))
+    spec1d_dir = dir(spectrum.spec1d_)
+
+    # garantizamos que redshift no este oculto por un atributo de spectum
+    # y que si este en spectrum.spect1d_
+    assert "redshift" not in original_dir and "redshift" in spec1d_dir
+
+    # ahora si probamos el funcionamiento
+    np.testing.assert_array_equal(spectrum.spec1d_.redshift, spectrum.redshift)
 
 
 def test_slice(NGC4945_continuum):
@@ -410,7 +420,7 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
     np.testing.assert_almost_equal(snth_bb_temp.value, 1000, decimal=7)
 
 
-@check_figures_equal(extensions=["png"])
+@check_figures_equal()
 def test_nplot(fig_test, fig_ref, test_data_path):
     spectrum_path = test_data_path("cont03.fits")
     spectrum = (
@@ -431,6 +441,38 @@ def test_nplot(fig_test, fig_ref, test_data_path):
 
     ax_test = fig_test.subplots()
     fit_results.nplot(ax=ax_test)
+
+    ax_ref = fig_ref.subplots()
+
+    ax_ref.plot(freq_axis, flux, color="firebrick", label="continuum")
+    ax_ref.plot(freq_axis, instanstella, color="navy", label="model")
+    ax_ref.set_xlabel("Frequency [Hz]")
+    ax_ref.set_ylabel("Normalized Energy [arbitrary units]")
+    ax_ref.legend()
+
+
+@check_figures_equal()
+def test_nplot_default_axis(fig_test, fig_ref, test_data_path):
+    spectrum_path = test_data_path("cont03.fits")
+    spectrum = (
+        nd.read_spectrum(spectrum_path, 0, z=0.00188)
+        .cut_edges(19500, 22900)
+        .normalize()
+    )
+
+    freq_axis = spectrum.frequency_axis
+    flux = spectrum.flux
+
+    stella = nd.NormalizedBlackBody(1100)
+    instanstella = stella(freq_axis.value)
+
+    fit_results = NirdustResults(
+        1100, "Claire Dunphy", 71, stella, freq_axis, flux
+    )
+
+    ax_test = fig_test.subplots()
+    with patch("matplotlib.pyplot.gca", return_value=ax_test):
+        fit_results.nplot()
 
     ax_ref = fig_ref.subplots()
 
