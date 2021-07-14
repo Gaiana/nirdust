@@ -128,7 +128,7 @@ def test_read_spectrum():
     )
 
 
-def test_spectrum_dir():
+def test_spectrum_repr():
     file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
     obj1 = nd.read_spectrum(file_name)
     result = repr(obj1)
@@ -136,7 +136,7 @@ def test_spectrum_dir():
     assert result == expected
 
 
-def test_spectrum_repr():
+def test_spectrum_dir():
     file_name = TEST_PATH / "external_spectrum_200pc_N4945.fits"
     obj1 = nd.read_spectrum(file_name)
     result = dir(obj1)
