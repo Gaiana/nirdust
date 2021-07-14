@@ -23,11 +23,13 @@ accretion disk.
 # ==============================================================================
 # IMPORTS
 # ==============================================================================
+from typing import Mapping
 from astropy import constants as const
 from astropy import units as u
 from astropy.io import fits
 from astropy.modeling import Fittable1DModel, Parameter
 from astropy.modeling import fitting, models
+from astropy.table import Table
 from astropy.wcs import WCS
 
 import attr
@@ -182,6 +184,34 @@ def normalized_blackbody_fitter(frequency, flux, T0):
 # ==============================================================================
 # NIRDUST_SPECTRUM CLASS
 # ==============================================================================
+@attr.s(frozen=True, slots=True, repr=False)
+class _NDSpectrumMetadata(Mapping):
+    """Convenience Wrapper around a mapping type."""
+
+    _md = attr.ib(validator=attr.validators.instance_of(Mapping))
+
+    def __getitem__(self, k):
+        """x.__getitem__(y) <==> x[y]."""
+        return self._md[k]
+
+    def __getattr__(self, a):
+        """x.__getattr__(y) <==> x.y."""
+        try:
+            return self[a]
+        except KeyError:
+            raise AttributeError(a)
+
+    def __iter__(self):
+        """x.__iter__() <==> iter(x)."""
+        return iter(self._md)
+
+    def __len__(self):
+        """x.__len__() <==> len(x)."""
+        return len(self._md)
+
+    def __repr__(self):
+        """x.__repr__() <==> repr(x)."""
+        return repr(set(self._md))
 
 
 @attr.s(frozen=True, repr=False)
@@ -202,9 +232,11 @@ class NirdustSpectrum:
     z: float, optional
         Redshift of the galaxy. Default is 0.
 
-    header: FITS header, optional
-        The header of the spectrum obtained from the fits file. It can also
-        be any metadata object of interest, like a dictionary.
+    metadata: mapping, optional
+        Any dict like object. This is a good place to store the header
+        of the fist file or any arbitrary mapping. Internally NirdustSpectrum
+        wraps the object inside a convenient metadata object usefull to
+        access the keys as attributes.
 
     Attributes
     ----------
@@ -217,7 +249,7 @@ class NirdustSpectrum:
     flux = attr.ib(converter=u.Quantity)
 
     z = attr.ib(default=None)
-    header = attr.ib(default=None)
+    metadata = attr.ib(factory=dict, converter=_NDSpectrumMetadata)
 
     spec1d_ = attr.ib(init=False)
 
@@ -627,12 +659,11 @@ def spectrum(flux, header, z=0):
     # unit should be the same as first_wavelength and dispersion_key, AA ?
     pixel_axis = np.arange(len(flux))
     spectral_axis = pix2wavelength(pixel_axis, header, z) * u.AA
-
     return NirdustSpectrum(
         flux=flux,
         spectral_axis=spectral_axis,
         z=z,
-        header=header,
+        metadata=header,
     )
 
 
@@ -673,6 +704,14 @@ def read_fits(file_name, extension=None, z=0):
         header = hdulist[extension].header
 
     return spectrum(flux, header, z)
+
+
+def read_table(
+    file_name, wavelength_column=0, flux_column=1, format="ascii", **kwargs
+):
+    table = Table.read(file_name, format=format)
+    wavelength = table.columns[wavelength_column]
+    flux = table.columns[flux_column]
 
 
 # ==============================================================================

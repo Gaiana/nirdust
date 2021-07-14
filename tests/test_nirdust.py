@@ -125,16 +125,17 @@ def test_match(NGC4945_continuum):
     assert spectrum.spectral_axis.shape == spectrum.flux.shape
 
 
-def test_header(NGC4945_continuum):
+def test_fits_header(NGC4945_continuum):
     spectrum = NGC4945_continuum
-    assert isinstance(spectrum.header["EXPTIME"], (float, int))
-    assert spectrum.header["EXPTIME"] >= 0.0
+    assert isinstance(spectrum.metadata["EXPTIME"], (float, int))
+    assert spectrum.metadata["EXPTIME"] >= 0.0
+    assert spectrum.metadata["EXPTIME"] == spectrum.metadata.EXPTIME
 
 
 def test_wav_axis(NGC4945_continuum):
     spectrum = NGC4945_continuum
-    assert spectrum.header["CRVAL1"] >= 0.0
-    assert spectrum.header["CTYPE1"] == "LINEAR"
+    assert spectrum.metadata.CRVAL1 >= 0.0
+    assert spectrum.metadata.CTYPE1 == "LINEAR"
 
 
 def test_calibration(test_data_path):
@@ -147,7 +148,7 @@ def test_redshift_correction(NGC4945_continuum):
     spectrum = NGC4945_continuum
     assert (
         spectrum.spectral_axis[0]
-        == (spectrum.header["CRVAL1"] / (1 + 0.00188)) * u.AA
+        == (spectrum.metadata.CRVAL1 / (1 + 0.00188)) * u.AA
     )
 
 
@@ -574,7 +575,7 @@ def test_spectral_dispersion(NGC4945_continuum_rest_frame):
     sp = NGC4945_continuum_rest_frame
 
     dispersion = sp.spectral_dispersion.value
-    expected = sp.header["CD1_1"]
+    expected = sp.metadata.CD1_1
 
     np.testing.assert_almost_equal(dispersion, expected, decimal=14)
 
