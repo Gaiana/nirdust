@@ -687,7 +687,7 @@ def test_spectrum_resampling_downscale():
     )
 
     # check without cleaning nan values
-    f_sp, s_sp = nd.spectrum_resampling(
+    f_sp, s_sp = nd.match_spectral_axes(
         low_disp_sp, high_disp_sp, scaling="downscale", clean=False
     )
 
@@ -696,7 +696,7 @@ def test_spectrum_resampling_downscale():
 
     # check cleaning nan values.
     # we know only 1 nan occurs for these spectrums
-    f_sp, s_sp = nd.spectrum_resampling(
+    f_sp, s_sp = nd.match_spectral_axes(
         low_disp_sp, high_disp_sp, scaling="downscale", clean=True
     )
 
@@ -733,7 +733,7 @@ def test_spectrum_resampling_upscale():
     )
 
     # check without cleaning nan values
-    f_sp, s_sp = nd.spectrum_resampling(
+    f_sp, s_sp = nd.match_spectral_axes(
         low_disp_sp, high_disp_sp, scaling="upscale", clean=False
     )
 
@@ -742,7 +742,7 @@ def test_spectrum_resampling_upscale():
 
     # check cleaning nan values.
     # we know only 1 nan occurs for these spectrums
-    f_sp, s_sp = nd.spectrum_resampling(
+    f_sp, s_sp = nd.match_spectral_axes(
         low_disp_sp, high_disp_sp, scaling="upscale", clean=True
     )
 
@@ -752,7 +752,11 @@ def test_spectrum_resampling_upscale():
 
 def test_spectrum_resampling_invalid_scaling():
     with pytest.raises(ValueError):
-        nd.spectrum_resampling(None, None, scaling="equal")
+        nd.match_spectral_axes(
+            None,
+            None,
+            scaling="equal",
+        )
 
 
 @pytest.mark.parametrize("true_temp", [500.0, 1000.0, 5000.0])
@@ -776,7 +780,7 @@ def test_fit_blackbody_with_resampling(
     )
 
     # resampling
-    f_sp, s_sp = nd.spectrum_resampling(
+    f_sp, s_sp = nd.match_spectral_axes(
         snth_blackbody, NGC3998_sp_lower_resolution, scaling=scaling
     )
     snth_bb_temp = (
@@ -809,7 +813,7 @@ def test_fit_blackbody_with_resampling_in_inverse_order(
     )
 
     # resampling but inverting the input order than prevoius test
-    f_sp, s_sp = nd.spectrum_resampling(
+    f_sp, s_sp = nd.match_spectral_axes(
         NGC3998_sp_lower_resolution, snth_blackbody, scaling=scaling
     )
     snth_bb_temp = (
@@ -819,3 +823,28 @@ def test_fit_blackbody_with_resampling_in_inverse_order(
         .temperature
     )
     np.testing.assert_almost_equal(snth_bb_temp.value, true_temp, decimal=1)
+
+
+def test_match_spectral_axes_first_if(NGC4945_continuum_rest_frame):
+    #tests the case where the first spectrum is the largest (no resampling)
+    
+    first_sp = NGC4945_continuum_rest_frame
+    second_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
+    
+    new_first_sp, new_second_sp = nd.match_spectral_axes(first_sp, second_sp)
+    
+    assert new_first_sp.spectral_length == new_second_sp.spectral_length
+
+
+def test_match_spectral_axes_second_if(NGC4945_continuum_rest_frame):
+    #tests the case where the second spectrum is the largest (no resampling)
+    
+    first_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
+    second_sp = NGC4945_continuum_rest_frame
+    
+    new_first_sp, new_second_sp = nd.match_spectral_axes(first_sp, second_sp)
+    
+    assert new_first_sp.spectral_length == new_second_sp.spectral_length
+
+
+
