@@ -309,6 +309,11 @@ class NirdustSpectrum:
             spectral_axis=spectral_axis,
         )
         return NirdustSpectrum(**kwargs)
+        
+        
+    def __len__(self):
+        """x.__len__() <==> len(x)."""
+        return len(self.flux)
 
     @property
     def frequency_axis(self):
