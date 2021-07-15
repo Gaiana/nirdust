@@ -189,6 +189,11 @@ def test_slice(NGC4945_continuum):
     )
 
 
+def test_len(NGC4945_continuum):
+    sp = NGC4945_continuum
+    assert len(sp) == len(sp.spectral_axis)
+
+
 def test_cut_edges(NGC4945_continuum):
     spectrum = NGC4945_continuum
     region = su.SpectralRegion(20000 * u.AA, 23000 * u.AA)
@@ -237,7 +242,39 @@ def test_sp_correction_third_if(NGC4945_external_continuum_200pc, continuum01):
     prepared = core.sp_correction(spectrum, external_spectrum)
     expected_len = len(external_spectrum.spectral_axis)
     assert len(prepared.spectral_axis) == expected_len
+    
+    
+def test_sp_correction_different_length(
+    NGC4945_continuum, NGC4945_external_continuum_400pc
+):
+    spectrum = NGC4945_continuum.cut_edges(19600, 22900)
+    external_spectrum = NGC4945_external_continuum_400pc.cut_edges(
+        19600, 22500
+    )
 
+    matched_1, matched_2 = core.match_spectral_axes(spectrum, external_spectrum)
+
+    prepared = core.sp_correction(matched_1, matched_2)
+
+    assert len(prepared.flux) == len(prepared.spectral_axis)      
+
+
+def test_sp_correction_with_mask(
+    NGC4945_nuclear_with_lines, NGC4945_external_with_lines_200pc
+):
+
+    nuclear_sp = NGC4945_nuclear_with_lines.cut_edges(20000, 22500)
+    external_sp = NGC4945_external_with_lines_200pc.cut_edges(20000, 22500)
+
+    w1 = core.line_spectrum(nuclear_sp, 20800, 21050, 5, window=80)[1]
+    w2 = core.line_spectrum(external_sp, 20800, 21050, 5, window=80)[1]
+
+    clean_nuc_sp = nuclear_sp.mask_spectrum(w1)
+    clean_ext_sp = external_sp.mask_spectrum(w2)
+
+    dust = core.sp_correction(clean_nuc_sp, clean_ext_sp)
+
+    assert len(dust.flux) == 544
 
 # =============================================================================
 # NORMALIZEDBLACKBODY
@@ -648,22 +685,10 @@ def test_mask_spectrum_5(NGC4945_continuum_rest_frame):
         spectrum.mask_spectrum(mask=mask)
 
 
-def test_sp_correction_with_mask(
-    NGC4945_nuclear_with_lines, NGC4945_external_with_lines_200pc
-):
+#===============================================================================
+# MATCH SPECTRAL AXES
+# =============================================================================
 
-    nuclear_sp = NGC4945_nuclear_with_lines.cut_edges(20000, 22500)
-    external_sp = NGC4945_external_with_lines_200pc.cut_edges(20000, 22500)
-
-    w1 = core.line_spectrum(nuclear_sp, 20800, 21050, 5, window=80)[1]
-    w2 = core.line_spectrum(external_sp, 20800, 21050, 5, window=80)[1]
-
-    clean_nuc_sp = nuclear_sp.mask_spectrum(w1)
-    clean_ext_sp = external_sp.mask_spectrum(w2)
-
-    dust = core.sp_correction(clean_nuc_sp, clean_ext_sp)
-
-    assert len(dust.flux) == 544
 
 
 def test_spectrum_resampling_downscale():
