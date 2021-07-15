@@ -192,6 +192,14 @@ def test_slice(NGC4945_continuum):
 def test_len(NGC4945_continuum):
     sp = NGC4945_continuum
     assert len(sp) == len(sp.spectral_axis)
+    
+def test_unit():
+    a = np.arange(0,100,1)*u.Angstrom
+    f = np.arange(0,200,2)*u.adu
+    
+    sp = core.NirdustSpectrum(a,f)
+    
+    assert sp.unit == "adu",  "Angstrom"     
 
 
 def test_cut_edges(NGC4945_continuum):

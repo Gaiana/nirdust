@@ -314,7 +314,7 @@ class NirdustSpectrum:
     def __len__(self):
         """x.__len__() <==> len(x)."""
         return len(self.flux)
-
+        
     @property
     def frequency_axis(self):
         """Frequency axis access."""
@@ -327,7 +327,7 @@ class NirdustSpectrum:
             np.min(self.spectral_axis),
             np.max(self.spectral_axis),
         ]
-
+    #quitar esto ahora que esta el len()???
     @property
     def spectral_length(self):
         """Total number of spectral data points."""
