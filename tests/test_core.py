@@ -223,27 +223,7 @@ def test_sp_correction(NGC4945_continuum, NGC4945_external_continuum_400pc):
     expected_len = len(spectrum.flux)
     assert len(prepared.flux) == expected_len
 
-
-def test_sp_correction_second_if(
-    NGC4945_external_continuum_200pc, continuum01
-):
-    spectrum = continuum01.cut_edges(19600, 22900)
-    external_spectrum = NGC4945_external_continuum_200pc.cut_edges(
-        19600, 22900
-    )
-    prepared = core.sp_correction(spectrum, external_spectrum)
-    expected_len = len(spectrum.spectral_axis)
-    assert len(prepared.spectral_axis) == expected_len
-
-
-def test_sp_correction_third_if(NGC4945_external_continuum_200pc, continuum01):
-    spectrum = NGC4945_external_continuum_200pc.cut_edges(19600, 22900)
-    external_spectrum = continuum01.cut_edges(19600, 22900)
-    prepared = core.sp_correction(spectrum, external_spectrum)
-    expected_len = len(external_spectrum.spectral_axis)
-    assert len(prepared.spectral_axis) == expected_len
-    
-    
+   
 def test_sp_correction_different_length(
     NGC4945_continuum, NGC4945_external_continuum_400pc
 ):
@@ -272,7 +252,9 @@ def test_sp_correction_with_mask(
     clean_nuc_sp = nuclear_sp.mask_spectrum(w1)
     clean_ext_sp = external_sp.mask_spectrum(w2)
 
-    dust = core.sp_correction(clean_nuc_sp, clean_ext_sp)
+    match_nuc , match_ext = core.match_spectral_axes(clean_nuc_sp, clean_ext_sp)
+
+    dust = core.sp_correction(match_nuc, match_ext)
 
     assert len(dust.flux) == 544
 
