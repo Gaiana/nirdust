@@ -23,7 +23,9 @@ accretion disk.
 # ==============================================================================
 # IMPORTS
 # ==============================================================================
-from typing import Mapping
+
+from collections.abc import Mapping
+
 from astropy import constants as const
 from astropy import units as u
 from astropy.io import fits
