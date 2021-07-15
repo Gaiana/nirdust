@@ -14,15 +14,11 @@
 from unittest.mock import patch
 
 from astropy import units as u
-from astropy.io import fits
 from astropy.modeling import models
 from astropy.modeling.models import BlackBody
 
 from matplotlib.testing.decorators import check_figures_equal
 
-import nirdust as nd
-from nirdust import NirdustResults
-from nirdust import NirdustSpectrum
 from nirdust import core
 
 import numpy as np
@@ -123,26 +119,6 @@ def test_metadata_dir_fits_header(header_of):
 # =============================================================================
 
 
-def test_read_fits(mk_datapath):
-    # read with no extension and wrong keyword
-    file_name = mk_datapath("external_spectrum_200pc_N4945.fits")
-    obj1 = nd.read_fits(file_name)
-    obj2 = nd.read_fits(file_name, extension=0)
-    np.testing.assert_almost_equal(
-        obj1.spectral_axis.value, obj2.spectral_axis.value, decimal=10
-    )
-
-
-def test_read_table(mk_datapath):
-    file_name1 = mk_datapath("NGC4945_nuclear.txt")
-    file_name2 = mk_datapath("NGC4945_nuclear_noheader.txt")
-    obj1 = nd.read_table(file_name1)
-    obj2 = nd.read_table(file_name2)
-    np.testing.assert_almost_equal(
-        obj1.spectral_axis.value, obj2.spectral_axis.value, decimal=10
-    )
-
-
 def test_spectrum_repr(NGC4945_external_continuum_200pc):
     result = repr(NGC4945_external_continuum_200pc)
     expected = "NirdustSpectrum(z=0.00188, spectral_length=1751, spectral_range=[18905.11-25048.53] Angstrom)"  # noqa
@@ -154,67 +130,6 @@ def test_spectrum_dir(NGC4945_external_continuum_200pc):
     result = dir(obj1)
     expected = dir(obj1.spec1d_)
     assert not set(expected).difference(result)
-
-
-def test_infer_science_extension_MEF_multiple_spectrum(mk_datapath):
-    # fits with multiple extensions
-    file_name = mk_datapath("external_spectrum_200pc_N4945.fits")
-    with fits.open(file_name) as hdul:
-        data = hdul[0].data
-        header = hdul[0].header
-
-    hdu0 = fits.PrimaryHDU()
-    hdu1 = fits.ImageHDU(data=data.copy(), header=header.copy())
-    hdu2 = fits.ImageHDU(data=data.copy(), header=None)
-    hdu3 = fits.ImageHDU(data=data.copy(), header=header.copy())
-    hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3])
-
-    ext_candidates = nd.infer_fits_science_extension(hdul)
-    assert len(ext_candidates) == 2
-    np.testing.assert_array_equal(ext_candidates, np.array([1, 3]))
-
-
-def test_read_fits_MEF_single_spectrum(mk_datapath):
-    # fits with multiple extensions
-    file_name = mk_datapath("external_spectrum_200pc_N4945.fits")
-    with fits.open(file_name) as hdul:
-        data = hdul[0].data
-        header = hdul[0].header
-
-    # only one header with relevant keywords
-    hdu0 = fits.PrimaryHDU()
-    hdu1 = fits.ImageHDU(data=None)
-    hdu2 = fits.ImageHDU(data=data.copy(), header=header.copy())
-    hdu3 = fits.ImageHDU(data=None)
-    hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3])
-
-    with patch("astropy.io.fits.open", return_value=hdul):
-        obj = nd.read_fits("imaginary_file.fits")
-        assert isinstance(obj, nd.NirdustSpectrum)
-
-
-def test_read_fits_MEF_multiple_spectrum(mk_datapath):
-    # fits with multiple extensions
-    file_name = mk_datapath("external_spectrum_200pc_N4945.fits")
-    with fits.open(file_name) as hdul:
-        data = hdul[0].data
-        header = hdul[0].header
-
-    hdu0 = fits.PrimaryHDU()
-    hdu1 = fits.ImageHDU(data=data.copy(), header=header.copy())
-    hdu2 = fits.ImageHDU(data=data.copy(), header=header.copy())
-    hdu3 = fits.ImageHDU(data=data.copy(), header=header.copy())
-    hdul = fits.HDUList([hdu0, hdu1, hdu2, hdu3])
-
-    with patch("astropy.io.fits.open", return_value=hdul):
-        with pytest.raises(nd.HeaderKeywordError):
-            # Default is extension=None. this tries to detect
-            # the data extension, if there are many the error is raised
-            nd.read_fits("imaginary_file.fits")
-
-        # If the extension is specified it should work ok
-        obj = nd.read_fits("imaginary_file.fits", extension=2)
-        assert isinstance(obj, nd.NirdustSpectrum)
 
 
 def test_match(NGC4945_continuum):
@@ -233,12 +148,6 @@ def test_wav_axis(NGC4945_continuum):
     spectrum = NGC4945_continuum
     assert spectrum.metadata.CRVAL1 >= 0.0
     assert spectrum.metadata.CTYPE1 == "LINEAR"
-
-
-def test_calibration(mk_datapath):
-    with pytest.raises(ValueError):
-        path = mk_datapath("no-calibrated_spectrum.fits")
-        nd.read_fits(path, 0, 0)
 
 
 def test_redshift_correction(NGC4945_continuum):
@@ -300,7 +209,7 @@ def test_sp_correction(NGC4945_continuum, NGC4945_external_continuum_400pc):
     external_spectrum = NGC4945_external_continuum_400pc.cut_edges(
         19600, 22900
     )
-    prepared = nd.sp_correction(spectrum, external_spectrum)
+    prepared = core.sp_correction(spectrum, external_spectrum)
     expected_len = len(spectrum.flux)
     assert len(prepared.flux) == expected_len
 
@@ -312,7 +221,7 @@ def test_sp_correction_second_if(
     external_spectrum = NGC4945_external_continuum_200pc.cut_edges(
         19600, 22900
     )
-    prepared = nd.sp_correction(spectrum, external_spectrum)
+    prepared = core.sp_correction(spectrum, external_spectrum)
     expected_len = len(spectrum.spectral_axis)
     assert len(prepared.spectral_axis) == expected_len
 
@@ -320,14 +229,14 @@ def test_sp_correction_second_if(
 def test_sp_correction_third_if(NGC4945_external_continuum_200pc, continuum01):
     spectrum = NGC4945_external_continuum_200pc.cut_edges(19600, 22900)
     external_spectrum = continuum01.cut_edges(19600, 22900)
-    prepared = nd.sp_correction(spectrum, external_spectrum)
+    prepared = core.sp_correction(spectrum, external_spectrum)
     expected_len = len(external_spectrum.spectral_axis)
     assert len(prepared.spectral_axis) == expected_len
 
 
 def test_NormalizedBlackBody_normalization(NGC4945_continuum):
     """Test NBB normalization by the mean"""
-    n_black = nd.NormalizedBlackBody(1200 * u.K)
+    n_black = core.NormalizedBlackBody(1200 * u.K)
     n_inst = n_black(
         NGC4945_continuum.spectral_axis.to_value(
             u.Hz, equivalencies=u.spectral()
@@ -345,30 +254,30 @@ def test_NormalizedBlackBody_normalization(NGC4945_continuum):
 
 def test_NormalizedBlackBody_T_proxy():
     """Test consistency of NBB temperature proxy"""
-    bb = nd.NormalizedBlackBody(1200 * u.K)
+    bb = core.NormalizedBlackBody(1200 * u.K)
     assert bb.T.value == bb.temperature.value
     assert bb.T.unit == bb.temperature.unit
 
 
 def test_NormalizedBlackBody_initialization_units():
     """Test NBB T unit at instantiation"""
-    bb_with_units = nd.NormalizedBlackBody(1200 * u.K)
+    bb_with_units = core.NormalizedBlackBody(1200 * u.K)
     assert bb_with_units.T.unit is u.K
 
-    bb_with_no_units = nd.NormalizedBlackBody(1200)
+    bb_with_no_units = core.NormalizedBlackBody(1200)
     assert bb_with_no_units.T.unit is None
 
 
 def test_NormalizedBlackBody_evaluation_units():
     """Test NBB T and freq units at evaluation"""
-    bb_T_with_units = nd.NormalizedBlackBody(1200 * u.K)
+    bb_T_with_units = core.NormalizedBlackBody(1200 * u.K)
     freq_with_units = np.arange(1, 10) * u.Hz
     result_with_units = bb_T_with_units(freq_with_units)
     # only Quantity if T is Quantity
     assert isinstance(result_with_units, u.Quantity)
     assert result_with_units.unit.is_unity()
 
-    bb_T_with_no_units = nd.NormalizedBlackBody(1200)
+    bb_T_with_no_units = core.NormalizedBlackBody(1200)
     freq_with_no_units = np.arange(1, 10)
     result_with_no_units = bb_T_with_no_units(freq_with_no_units)
     # only Quantity if T is Quantity
@@ -395,7 +304,7 @@ def test_normalized_blackbody_fitter(T_kelvin, noise_tolerance):
     noisy_flux = flux * (1 + gaussian_noise)
 
     normalized_flux = noisy_flux / np.mean(noisy_flux)
-    fitted_model, fit_info = nd.normalized_blackbody_fitter(
+    fitted_model, fit_info = core.normalized_blackbody_fitter(
         freq, normalized_flux, T0=900
     )
 
@@ -405,7 +314,7 @@ def test_normalized_blackbody_fitter(T_kelvin, noise_tolerance):
 
 
 def test_NirdustResults_temperature():
-    nr_inst = NirdustResults(
+    nr_inst = core.NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -417,7 +326,7 @@ def test_NirdustResults_temperature():
 
 
 def test_NirdustResults_info():
-    nr_inst = NirdustResults(
+    nr_inst = core.NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -429,7 +338,7 @@ def test_NirdustResults_info():
 
 
 def test_NirdustResults_uncertainty():
-    nr_inst = NirdustResults(
+    nr_inst = core.NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -441,7 +350,7 @@ def test_NirdustResults_uncertainty():
 
 
 def test_NirdustResults_fitted_blackbody():
-    nr_inst = NirdustResults(
+    nr_inst = core.NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -454,7 +363,7 @@ def test_NirdustResults_fitted_blackbody():
 
 def test_NirdustResults_freq_axis(NGC4945_continuum):
     axis = NGC4945_continuum.spectral_axis.to(u.Hz, equivalencies=u.spectral())
-    nr_inst = NirdustResults(
+    nr_inst = core.NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -467,7 +376,7 @@ def test_NirdustResults_freq_axis(NGC4945_continuum):
 
 def test_NirdustResults_flux_axis(NGC4945_continuum):
     fluxx = NGC4945_continuum.flux
-    nr_inst = NirdustResults(
+    nr_inst = core.NirdustResults(
         20 * u.K,
         "Hyperion",
         2356.89,
@@ -494,7 +403,7 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
         first_wave + dispersion * np.arange(0, spectrum_length)
     ) * u.AA
 
-    snth_blackbody = NirdustSpectrum(
+    snth_blackbody = core.NirdustSpectrum(
         flux=sinthetic_flux,
         spectral_axis=spectral_axis,
         z=0,
@@ -519,21 +428,17 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
 
 
 @check_figures_equal()
-def test_nplot(fig_test, fig_ref, mk_datapath):
-    spectrum_path = mk_datapath("cont03.fits")
-    spectrum = (
-        nd.read_fits(spectrum_path, 0, z=0.00188)
-        .cut_edges(19500, 22900)
-        .normalize()
-    )
+def test_nplot(fig_test, fig_ref, NGC4945_continuum):
+
+    spectrum = NGC4945_continuum.cut_edges(19500, 22900).normalize()
 
     freq_axis = spectrum.frequency_axis
     flux = spectrum.flux
 
-    stella = nd.NormalizedBlackBody(1100)
+    stella = core.NormalizedBlackBody(1100)
     instanstella = stella(freq_axis.value)
 
-    fit_results = NirdustResults(
+    fit_results = core.NirdustResults(
         1100, "Claire Dunphy", 71, stella, freq_axis, flux
     )
 
@@ -550,21 +455,16 @@ def test_nplot(fig_test, fig_ref, mk_datapath):
 
 
 @check_figures_equal()
-def test_nplot_default_axis(fig_test, fig_ref, mk_datapath):
-    spectrum_path = mk_datapath("cont03.fits")
-    spectrum = (
-        nd.read_fits(spectrum_path, 0, z=0.00188)
-        .cut_edges(19500, 22900)
-        .normalize()
-    )
+def test_nplot_default_axis(fig_test, fig_ref, NGC4945_continuum):
+    spectrum = NGC4945_continuum.cut_edges(19500, 22900).normalize()
 
     freq_axis = spectrum.frequency_axis
     flux = spectrum.flux
 
-    stella = nd.NormalizedBlackBody(1100)
+    stella = core.NormalizedBlackBody(1100)
     instanstella = stella(freq_axis.value)
 
-    fit_results = NirdustResults(
+    fit_results = core.NirdustResults(
         1100, "Claire Dunphy", 71, stella, freq_axis, flux
     )
 
@@ -579,24 +479,6 @@ def test_nplot_default_axis(fig_test, fig_ref, mk_datapath):
     ax_ref.set_xlabel("Frequency [Hz]")
     ax_ref.set_ylabel("Normalized Energy [arbitrary units]")
     ax_ref.legend()
-
-
-def test_pix2wavelength(mk_datapath):
-    file_name = mk_datapath("external_spectrum_400pc_N4945.fits")
-
-    with fits.open(file_name) as hdul:
-        header = hdul[0].header
-
-    pix_0_wav = header["CRVAL1"]
-    pix_disp = header["CD1_1"]
-
-    pix_array = np.arange(50.0)
-    z = 0.1
-
-    expected = (pix_0_wav + pix_disp * pix_array) / (1 + z)
-    result = nd.pix2wavelength(pix_array, header, z)
-
-    np.testing.assert_almost_equal(result, expected, decimal=10)
 
 
 def test_line_spectrum(NGC4945_continuum_rest_frame):
@@ -614,7 +496,7 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
     )
     y_tot = (y + 0.0001 * sp_axis.value + 1000) * u.adu
 
-    snth_line_spectrum = NirdustSpectrum(
+    snth_line_spectrum = core.NirdustSpectrum(
         flux=y_tot,
         spectral_axis=sp_axis,
         z=0,
@@ -630,7 +512,7 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
         * u.Angstrom
     )
 
-    positions = nd.line_spectrum(
+    positions = core.line_spectrum(
         snth_line_spectrum, 23000, 24000, 5, window=80
     )[1]
 
@@ -654,13 +536,13 @@ def test_number_of_lines(NGC4945_continuum_rest_frame):
     )
     y_tot = (y + 0.0001 * sp_axis.value + 1000) * u.adu
 
-    snth_line_spectrum = NirdustSpectrum(
+    snth_line_spectrum = core.NirdustSpectrum(
         flux=y_tot,
         spectral_axis=sp_axis,
         z=0,
     )
 
-    positions = nd.line_spectrum(
+    positions = core.line_spectrum(
         snth_line_spectrum, 23000, 24000, 5, window=80
     )[1]
 
@@ -745,13 +627,13 @@ def test_sp_correction_with_mask(
     nuclear_sp = NGC4945_nuclear_with_lines.cut_edges(20000, 22500)
     external_sp = NGC4945_external_with_lines_200pc.cut_edges(20000, 22500)
 
-    w1 = nd.line_spectrum(nuclear_sp, 20800, 21050, 5, window=80)[1]
-    w2 = nd.line_spectrum(external_sp, 20800, 21050, 5, window=80)[1]
+    w1 = core.line_spectrum(nuclear_sp, 20800, 21050, 5, window=80)[1]
+    w2 = core.line_spectrum(external_sp, 20800, 21050, 5, window=80)[1]
 
     clean_nuc_sp = nuclear_sp.mask_spectrum(w1)
     clean_ext_sp = external_sp.mask_spectrum(w2)
 
-    dust = nd.sp_correction(clean_nuc_sp, clean_ext_sp)
+    dust = core.sp_correction(clean_nuc_sp, clean_ext_sp)
 
     assert len(dust.flux) == 544
 
@@ -768,7 +650,7 @@ def test_spectrum_resampling_downscale():
     y = g1(axis.value) + g2(axis.value) + rng.normal(0.0, 0.03, axis.shape)
     y_tot = (y + 0.0001 * axis.value + 1000) * u.adu
 
-    low_disp_sp = NirdustSpectrum(
+    low_disp_sp = core.NirdustSpectrum(
         flux=y_tot,
         spectral_axis=axis,
         z=0,
@@ -778,14 +660,14 @@ def test_spectrum_resampling_downscale():
     new_axis = np.arange(1500, 2500, 2) * u.Angstrom
     new_flux = np.ones(len(new_axis)) * u.adu
 
-    high_disp_sp = NirdustSpectrum(
+    high_disp_sp = core.NirdustSpectrum(
         flux=new_flux,
         spectral_axis=new_axis,
         z=0,
     )
 
     # check without cleaning nan values
-    f_sp, s_sp = nd.match_spectral_axes(
+    f_sp, s_sp = core.match_spectral_axes(
         low_disp_sp, high_disp_sp, scaling="downscale", clean=False
     )
 
@@ -794,7 +676,7 @@ def test_spectrum_resampling_downscale():
 
     # check cleaning nan values.
     # we know only 1 nan occurs for these spectrums
-    f_sp, s_sp = nd.match_spectral_axes(
+    f_sp, s_sp = core.match_spectral_axes(
         low_disp_sp, high_disp_sp, scaling="downscale", clean=True
     )
 
@@ -814,7 +696,7 @@ def test_spectrum_resampling_upscale():
     y = g1(axis.value) + g2(axis.value) + rng.normal(0.0, 0.03, axis.shape)
     y_tot = (y + 0.0001 * axis.value + 1000) * u.adu
 
-    low_disp_sp = NirdustSpectrum(
+    low_disp_sp = core.NirdustSpectrum(
         flux=y_tot,
         spectral_axis=axis,
         z=0,
@@ -824,14 +706,14 @@ def test_spectrum_resampling_upscale():
     new_axis = np.arange(1500, 2500, 2) * u.Angstrom
     new_flux = np.ones(len(new_axis)) * u.adu
 
-    high_disp_sp = NirdustSpectrum(
+    high_disp_sp = core.NirdustSpectrum(
         flux=new_flux,
         spectral_axis=new_axis,
         z=0,
     )
 
     # check without cleaning nan values
-    f_sp, s_sp = nd.match_spectral_axes(
+    f_sp, s_sp = core.match_spectral_axes(
         low_disp_sp, high_disp_sp, scaling="upscale", clean=False
     )
 
@@ -840,7 +722,7 @@ def test_spectrum_resampling_upscale():
 
     # check cleaning nan values.
     # we know only 1 nan occurs for these spectrums
-    f_sp, s_sp = nd.match_spectral_axes(
+    f_sp, s_sp = core.match_spectral_axes(
         low_disp_sp, high_disp_sp, scaling="upscale", clean=True
     )
 
@@ -850,7 +732,7 @@ def test_spectrum_resampling_upscale():
 
 def test_spectrum_resampling_invalid_scaling():
     with pytest.raises(ValueError):
-        nd.match_spectral_axes(
+        core.match_spectral_axes(
             None,
             None,
             scaling="equal",
@@ -870,15 +752,15 @@ def test_fit_blackbody_with_resampling(
     sinthetic_model = BlackBody(true_temp * u.K)
     sinthetic_flux = sinthetic_model(freq_axis)
 
-    # the NirdustSpectrum object is instantiated
-    snth_blackbody = NirdustSpectrum(
+    # the core.NirdustSpectrum object is instantiated
+    snth_blackbody = core.NirdustSpectrum(
         flux=sinthetic_flux,
         spectral_axis=real_spectrum.spectral_axis,
         z=0,
     )
 
     # resampling
-    f_sp, s_sp = nd.match_spectral_axes(
+    f_sp, s_sp = core.match_spectral_axes(
         snth_blackbody, NGC3998_sp_lower_resolution, scaling=scaling
     )
     snth_bb_temp = (
@@ -903,15 +785,15 @@ def test_fit_blackbody_with_resampling_in_inverse_order(
     sinthetic_model = BlackBody(true_temp * u.K)
     sinthetic_flux = sinthetic_model(freq_axis)
 
-    # the NirdustSpectrum object is instantiated
-    snth_blackbody = NirdustSpectrum(
+    # the core.NirdustSpectrum object is instantiated
+    snth_blackbody = core.NirdustSpectrum(
         flux=sinthetic_flux,
         spectral_axis=real_spectrum.spectral_axis,
         z=0,
     )
 
     # resampling but inverting the input order than prevoius test
-    f_sp, s_sp = nd.match_spectral_axes(
+    f_sp, s_sp = core.match_spectral_axes(
         NGC3998_sp_lower_resolution, snth_blackbody, scaling=scaling
     )
     snth_bb_temp = (
@@ -924,25 +806,22 @@ def test_fit_blackbody_with_resampling_in_inverse_order(
 
 
 def test_match_spectral_axes_first_if(NGC4945_continuum_rest_frame):
-    #tests the case where the first spectrum is the largest (no resampling)
+    # tests the case where the first spectrum is the largest (no resampling)
 
     first_sp = NGC4945_continuum_rest_frame
     second_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
 
-    new_first_sp, new_second_sp = nd.match_spectral_axes(first_sp, second_sp)
+    new_first_sp, new_second_sp = core.match_spectral_axes(first_sp, second_sp)
 
     assert new_first_sp.spectral_length == new_second_sp.spectral_length
 
 
 def test_match_spectral_axes_second_if(NGC4945_continuum_rest_frame):
-    #tests the case where the second spectrum is the largest (no resampling)
+    # tests the case where the second spectrum is the largest (no resampling)
 
     first_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
     second_sp = NGC4945_continuum_rest_frame
 
-    new_first_sp, new_second_sp = nd.match_spectral_axes(first_sp, second_sp)
+    new_first_sp, new_second_sp = core.match_spectral_axes(first_sp, second_sp)
 
     assert new_first_sp.spectral_length == new_second_sp.spectral_length
-
-
-
