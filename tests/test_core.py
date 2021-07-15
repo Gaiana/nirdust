@@ -204,6 +204,11 @@ def test_nomrmalize(NGC4945_continuum):
     assert mean == 1.0
 
 
+# =============================================================================
+# SP_CORRECTIONS
+# =============================================================================
+
+
 def test_sp_correction(NGC4945_continuum, NGC4945_external_continuum_400pc):
     spectrum = NGC4945_continuum.cut_edges(19600, 22900)
     external_spectrum = NGC4945_external_continuum_400pc.cut_edges(
@@ -232,6 +237,11 @@ def test_sp_correction_third_if(NGC4945_external_continuum_200pc, continuum01):
     prepared = core.sp_correction(spectrum, external_spectrum)
     expected_len = len(external_spectrum.spectral_axis)
     assert len(prepared.spectral_axis) == expected_len
+
+
+# =============================================================================
+# NORMALIZEDBLACKBODY
+# =============================================================================
 
 
 def test_NormalizedBlackBody_normalization(NGC4945_continuum):
@@ -313,6 +323,11 @@ def test_normalized_blackbody_fitter(T_kelvin, noise_tolerance):
     )
 
 
+# =============================================================================
+# NIRDUST RESULT
+# =============================================================================
+
+
 def test_NirdustResults_temperature():
     nr_inst = core.NirdustResults(
         20 * u.K,
@@ -387,6 +402,11 @@ def test_NirdustResults_flux_axis(NGC4945_continuum):
     assert len(nr_inst.flux_axis) == len(fluxx)
 
 
+# =============================================================================
+# FIT BLACK BODY
+# =============================================================================
+
+
 def test_fit_blackbody(NGC4945_continuum_rest_frame):
     real_spectrum = NGC4945_continuum_rest_frame
     freq_axis = real_spectrum.spectral_axis.to(
@@ -425,6 +445,9 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
         .temperature
     )
     np.testing.assert_almost_equal(snth_bb_temp.value, 1000, decimal=7)
+
+
+# PLOT
 
 
 @check_figures_equal()
@@ -479,6 +502,11 @@ def test_nplot_default_axis(fig_test, fig_ref, NGC4945_continuum):
     ax_ref.set_xlabel("Frequency [Hz]")
     ax_ref.set_ylabel("Normalized Energy [arbitrary units]")
     ax_ref.legend()
+
+
+# =============================================================================
+# LINE SPECTRUM
+# =============================================================================
 
 
 def test_line_spectrum(NGC4945_continuum_rest_frame):
