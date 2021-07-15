@@ -211,7 +211,11 @@ class _NDSpectrumMetadata(Mapping):
 
     def __repr__(self):
         """x.__repr__() <==> repr(x)."""
-        return repr(set(self._md))
+        return f"metadata({repr(set(self._md))})"
+
+    def __dir__(self):
+        """x.__dir__() <==> dir(x)."""
+        return super().__dir__() + list(self._md)
 
 
 @attr.s(frozen=True, repr=False)
@@ -248,7 +252,7 @@ class NirdustSpectrum:
     spectral_axis = attr.ib(converter=u.Quantity)
     flux = attr.ib(converter=u.Quantity)
 
-    z = attr.ib(default=None)
+    z = attr.ib(default=0)
     metadata = attr.ib(factory=dict, converter=_NDSpectrumMetadata)
 
     spec1d_ = attr.ib(init=False)
@@ -713,6 +717,22 @@ def read_table(
     wavelength = table.columns[wavelength_column]
     flux = table.columns[flux_column]
 
+    spectral_axis = wavelength * u.AA
+
+    metadata = {
+        "file_name": file_name,
+        "wavelength_column": wavelength_column,
+        "flux_column": flux_column,
+        "format": format,
+    }
+    metadata.update(kwargs)
+
+    return NirdustSpectrum(
+        flux=flux,
+        spectral_axis=spectral_axis,
+        metadata=metadata,
+    )
+
 
 # ==============================================================================
 # RESAMPLE SPECTRA TO MATCH SPECTRAL RESOLUTIONS
@@ -798,7 +818,8 @@ def spectrum_resampling(
     out: NirdustSpectrum, NirdustSpectrum
 
     """
-    if scaling.lower() not in ["downscale", "upscale"]:
+    scaling = scaling.lower()
+    if scaling not in ["downscale", "upscale"]:
         raise ValueError(
             "Unknown scaling mode. Must be 'downscale' or 'upscale'."
         )

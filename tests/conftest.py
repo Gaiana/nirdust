@@ -15,6 +15,7 @@ import os
 import pathlib
 
 from astropy import units as u
+from astropy.io import fits
 
 import nirdust as nd
 
@@ -40,6 +41,16 @@ TEST_DATA_PATH = pathlib.Path(PATH) / "data"
 def test_data_path():
     def make(filename):
         return TEST_DATA_PATH / filename
+
+    return make
+
+
+@pytest.fixture(scope="session")
+def header_of(test_data_path):
+    def make(filename):
+        file_name = test_data_path(filename)
+        with fits.open(file_name) as hdul:
+            return hdul[0].header
 
     return make
 

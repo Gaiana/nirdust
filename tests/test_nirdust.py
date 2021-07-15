@@ -7,9 +7,9 @@
 # License: MIT
 #   Full Text: https://github.com/Gaiana/nirdust/LICENSE
 
-# ==============================================================================
+# =============================================================================
 # IMPORTS
-# ==============================================================================
+# =============================================================================
 
 from unittest.mock import patch
 
@@ -30,10 +30,96 @@ import pytest
 
 import specutils as su
 
+# =============================================================================
+# TEST METADATA
+# =============================================================================
 
-# ==============================================================================
+
+def test_metadata_creation():
+    md = nd._NDSpectrumMetadata({"alfa": 1})
+    assert md["alfa"] == md.alfa == 1
+    assert len(md) == 1
+
+
+def test_metadata_creation_empty():
+    md = nd._NDSpectrumMetadata({})
+    assert len(md) == 0
+
+
+def test_metadata_key_notfound():
+    md = nd._NDSpectrumMetadata({"alfa": 1})
+    assert md["alfa"] == md.alfa == 1
+    with pytest.raises(KeyError):
+        md["bravo"]
+
+
+def test_metadata_attribute_notfound():
+    md = nd._NDSpectrumMetadata({"alfa": 1})
+    assert md["alfa"] == md.alfa == 1
+    with pytest.raises(AttributeError):
+        md.bravo
+
+
+def test_metadata_iter():
+    md = nd._NDSpectrumMetadata({"alfa": 1})
+    assert list(iter(md)) == ["alfa"]
+
+
+def test_metadata_repr():
+    md = nd._NDSpectrumMetadata({"alfa": 1})
+    assert repr(md) == "metadata({'alfa'})"
+
+
+def test_metadata_dir():
+    md = nd._NDSpectrumMetadata({"alfa": 1})
+    assert "alfa" in dir(md)
+
+
+def test_metadata_creation_fitst_header_fits_header(header_of):
+    header = header_of("external_spectrum_200pc_N4945.fits")
+    md = nd._NDSpectrumMetadata(header)
+    assert md["AMPDAC21"] == md.AMPDAC21 == 180.0
+    assert len(md) == len(header)
+
+
+def test_metadata_key_notfound_fits_header(header_of):
+    header = header_of("external_spectrum_200pc_N4945.fits")
+    md = nd._NDSpectrumMetadata(header)
+    assert md["AMPDAC21"] == md.AMPDAC21 == 180.0
+    with pytest.raises(KeyError):
+        md["bravo"]
+
+
+def test_metadata_attribute_notfound_fits_header(header_of):
+    header = header_of("external_spectrum_200pc_N4945.fits")
+    md = nd._NDSpectrumMetadata(header)
+    assert md["AMPDAC21"] == md.AMPDAC21 == 180.0
+    with pytest.raises(AttributeError):
+        md.bravo
+
+
+def test_metadata_iter_fits_header(header_of):
+    header = header_of("external_spectrum_200pc_N4945.fits")
+    md = nd._NDSpectrumMetadata(header)
+    assert list(iter(md)) == list(iter(header))
+
+
+def test_metadata_repr_fits_header(header_of):
+    header = header_of("external_spectrum_200pc_N4945.fits")
+    md = nd._NDSpectrumMetadata(header)
+    assert repr(md) == f"metadata({set(header)})"
+
+
+def test_metadata_dir_fits_header(header_of):
+    header = header_of("external_spectrum_200pc_N4945.fits")
+    md = nd._NDSpectrumMetadata(header)
+    for elem in header:
+        assert elem in dir(md)
+
+
+# =============================================================================
 # TESTS
-# ==============================================================================
+# =============================================================================
 
 
 def test_read_fits(test_data_path):
@@ -41,6 +127,16 @@ def test_read_fits(test_data_path):
     file_name = test_data_path("external_spectrum_200pc_N4945.fits")
     obj1 = nd.read_fits(file_name)
     obj2 = nd.read_fits(file_name, extension=0)
+    np.testing.assert_almost_equal(
+        obj1.spectral_axis.value, obj2.spectral_axis.value, decimal=10
+    )
+
+
+def test_read_table(test_data_path):
+    file_name1 = test_data_path("NGC4945_nuclear.txt")
+    file_name2 = test_data_path("NGC4945_nuclear_noheader.txt")
+    obj1 = nd.read_table(file_name1)
+    obj2 = nd.read_table(file_name2)
     np.testing.assert_almost_equal(
         obj1.spectral_axis.value, obj2.spectral_axis.value, decimal=10
     )
