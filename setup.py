@@ -67,7 +67,10 @@ def do_setup():
         author=["Gaia Gaspar", "Jose Alacoria"],
         author_email="gaiagaspar@gmail.com",
         url="https://github.com/Gaiana/nirdust",
-        py_modules=["nirdust", "ez_setup"],
+        py_modules=["ez_setup"],
+        packages=[
+            "nirdust",
+        ],
         license="MIT",
         keywords=["nirdust", "dust", "AGN", "NIR", "temperatures"],
         classifiers=[

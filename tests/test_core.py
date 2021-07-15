@@ -23,6 +23,7 @@ from matplotlib.testing.decorators import check_figures_equal
 import nirdust as nd
 from nirdust import NirdustResults
 from nirdust import NirdustSpectrum
+from nirdust import core
 
 import numpy as np
 
@@ -36,55 +37,55 @@ import specutils as su
 
 
 def test_metadata_creation():
-    md = nd._NDSpectrumMetadata({"alfa": 1})
+    md = core._NDSpectrumMetadata({"alfa": 1})
     assert md["alfa"] == md.alfa == 1
     assert len(md) == 1
 
 
 def test_metadata_creation_empty():
-    md = nd._NDSpectrumMetadata({})
+    md = core._NDSpectrumMetadata({})
     assert len(md) == 0
 
 
 def test_metadata_key_notfound():
-    md = nd._NDSpectrumMetadata({"alfa": 1})
+    md = core._NDSpectrumMetadata({"alfa": 1})
     assert md["alfa"] == md.alfa == 1
     with pytest.raises(KeyError):
         md["bravo"]
 
 
 def test_metadata_attribute_notfound():
-    md = nd._NDSpectrumMetadata({"alfa": 1})
+    md = core._NDSpectrumMetadata({"alfa": 1})
     assert md["alfa"] == md.alfa == 1
     with pytest.raises(AttributeError):
         md.bravo
 
 
 def test_metadata_iter():
-    md = nd._NDSpectrumMetadata({"alfa": 1})
+    md = core._NDSpectrumMetadata({"alfa": 1})
     assert list(iter(md)) == ["alfa"]
 
 
 def test_metadata_repr():
-    md = nd._NDSpectrumMetadata({"alfa": 1})
+    md = core._NDSpectrumMetadata({"alfa": 1})
     assert repr(md) == "metadata({'alfa'})"
 
 
 def test_metadata_dir():
-    md = nd._NDSpectrumMetadata({"alfa": 1})
+    md = core._NDSpectrumMetadata({"alfa": 1})
     assert "alfa" in dir(md)
 
 
 def test_metadata_creation_fitst_header_fits_header(header_of):
     header = header_of("external_spectrum_200pc_N4945.fits")
-    md = nd._NDSpectrumMetadata(header)
+    md = core._NDSpectrumMetadata(header)
     assert md["AMPDAC21"] == md.AMPDAC21 == 180.0
     assert len(md) == len(header)
 
 
 def test_metadata_key_notfound_fits_header(header_of):
     header = header_of("external_spectrum_200pc_N4945.fits")
-    md = nd._NDSpectrumMetadata(header)
+    md = core._NDSpectrumMetadata(header)
     assert md["AMPDAC21"] == md.AMPDAC21 == 180.0
     with pytest.raises(KeyError):
         md["bravo"]
@@ -92,7 +93,7 @@ def test_metadata_key_notfound_fits_header(header_of):
 
 def test_metadata_attribute_notfound_fits_header(header_of):
     header = header_of("external_spectrum_200pc_N4945.fits")
-    md = nd._NDSpectrumMetadata(header)
+    md = core._NDSpectrumMetadata(header)
     assert md["AMPDAC21"] == md.AMPDAC21 == 180.0
     with pytest.raises(AttributeError):
         md.bravo
@@ -100,19 +101,19 @@ def test_metadata_attribute_notfound_fits_header(header_of):
 
 def test_metadata_iter_fits_header(header_of):
     header = header_of("external_spectrum_200pc_N4945.fits")
-    md = nd._NDSpectrumMetadata(header)
+    md = core._NDSpectrumMetadata(header)
     assert list(iter(md)) == list(iter(header))
 
 
 def test_metadata_repr_fits_header(header_of):
     header = header_of("external_spectrum_200pc_N4945.fits")
-    md = nd._NDSpectrumMetadata(header)
+    md = core._NDSpectrumMetadata(header)
     assert repr(md) == f"metadata({set(header)})"
 
 
 def test_metadata_dir_fits_header(header_of):
     header = header_of("external_spectrum_200pc_N4945.fits")
-    md = nd._NDSpectrumMetadata(header)
+    md = core._NDSpectrumMetadata(header)
     for elem in header:
         assert elem in dir(md)
 
@@ -122,9 +123,9 @@ def test_metadata_dir_fits_header(header_of):
 # =============================================================================
 
 
-def test_read_fits(test_data_path):
+def test_read_fits(mk_datapath):
     # read with no extension and wrong keyword
-    file_name = test_data_path("external_spectrum_200pc_N4945.fits")
+    file_name = mk_datapath("external_spectrum_200pc_N4945.fits")
     obj1 = nd.read_fits(file_name)
     obj2 = nd.read_fits(file_name, extension=0)
     np.testing.assert_almost_equal(
@@ -132,9 +133,9 @@ def test_read_fits(test_data_path):
     )
 
 
-def test_read_table(test_data_path):
-    file_name1 = test_data_path("NGC4945_nuclear.txt")
-    file_name2 = test_data_path("NGC4945_nuclear_noheader.txt")
+def test_read_table(mk_datapath):
+    file_name1 = mk_datapath("NGC4945_nuclear.txt")
+    file_name2 = mk_datapath("NGC4945_nuclear_noheader.txt")
     obj1 = nd.read_table(file_name1)
     obj2 = nd.read_table(file_name2)
     np.testing.assert_almost_equal(
@@ -155,9 +156,9 @@ def test_spectrum_dir(NGC4945_external_continuum_200pc):
     assert not set(expected).difference(result)
 
 
-def test_infer_science_extension_MEF_multiple_spectrum(test_data_path):
+def test_infer_science_extension_MEF_multiple_spectrum(mk_datapath):
     # fits with multiple extensions
-    file_name = test_data_path("external_spectrum_200pc_N4945.fits")
+    file_name = mk_datapath("external_spectrum_200pc_N4945.fits")
     with fits.open(file_name) as hdul:
         data = hdul[0].data
         header = hdul[0].header
@@ -173,9 +174,9 @@ def test_infer_science_extension_MEF_multiple_spectrum(test_data_path):
     np.testing.assert_array_equal(ext_candidates, np.array([1, 3]))
 
 
-def test_read_fits_MEF_single_spectrum(test_data_path):
+def test_read_fits_MEF_single_spectrum(mk_datapath):
     # fits with multiple extensions
-    file_name = test_data_path("external_spectrum_200pc_N4945.fits")
+    file_name = mk_datapath("external_spectrum_200pc_N4945.fits")
     with fits.open(file_name) as hdul:
         data = hdul[0].data
         header = hdul[0].header
@@ -192,9 +193,9 @@ def test_read_fits_MEF_single_spectrum(test_data_path):
         assert isinstance(obj, nd.NirdustSpectrum)
 
 
-def test_read_fits_MEF_multiple_spectrum(test_data_path):
+def test_read_fits_MEF_multiple_spectrum(mk_datapath):
     # fits with multiple extensions
-    file_name = test_data_path("external_spectrum_200pc_N4945.fits")
+    file_name = mk_datapath("external_spectrum_200pc_N4945.fits")
     with fits.open(file_name) as hdul:
         data = hdul[0].data
         header = hdul[0].header
@@ -234,9 +235,9 @@ def test_wav_axis(NGC4945_continuum):
     assert spectrum.metadata.CTYPE1 == "LINEAR"
 
 
-def test_calibration(test_data_path):
+def test_calibration(mk_datapath):
     with pytest.raises(ValueError):
-        path = test_data_path("no-calibrated_spectrum.fits")
+        path = mk_datapath("no-calibrated_spectrum.fits")
         nd.read_fits(path, 0, 0)
 
 
@@ -518,8 +519,8 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
 
 
 @check_figures_equal()
-def test_nplot(fig_test, fig_ref, test_data_path):
-    spectrum_path = test_data_path("cont03.fits")
+def test_nplot(fig_test, fig_ref, mk_datapath):
+    spectrum_path = mk_datapath("cont03.fits")
     spectrum = (
         nd.read_fits(spectrum_path, 0, z=0.00188)
         .cut_edges(19500, 22900)
@@ -549,8 +550,8 @@ def test_nplot(fig_test, fig_ref, test_data_path):
 
 
 @check_figures_equal()
-def test_nplot_default_axis(fig_test, fig_ref, test_data_path):
-    spectrum_path = test_data_path("cont03.fits")
+def test_nplot_default_axis(fig_test, fig_ref, mk_datapath):
+    spectrum_path = mk_datapath("cont03.fits")
     spectrum = (
         nd.read_fits(spectrum_path, 0, z=0.00188)
         .cut_edges(19500, 22900)
@@ -580,8 +581,8 @@ def test_nplot_default_axis(fig_test, fig_ref, test_data_path):
     ax_ref.legend()
 
 
-def test_pix2wavelength(test_data_path):
-    file_name = test_data_path("external_spectrum_400pc_N4945.fits")
+def test_pix2wavelength(mk_datapath):
+    file_name = mk_datapath("external_spectrum_400pc_N4945.fits")
 
     with fits.open(file_name) as hdul:
         header = hdul[0].header
@@ -924,23 +925,23 @@ def test_fit_blackbody_with_resampling_in_inverse_order(
 
 def test_match_spectral_axes_first_if(NGC4945_continuum_rest_frame):
     #tests the case where the first spectrum is the largest (no resampling)
-    
+
     first_sp = NGC4945_continuum_rest_frame
     second_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
-    
+
     new_first_sp, new_second_sp = nd.match_spectral_axes(first_sp, second_sp)
-    
+
     assert new_first_sp.spectral_length == new_second_sp.spectral_length
 
 
 def test_match_spectral_axes_second_if(NGC4945_continuum_rest_frame):
     #tests the case where the second spectrum is the largest (no resampling)
-    
+
     first_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
     second_sp = NGC4945_continuum_rest_frame
-    
+
     new_first_sp, new_second_sp = nd.match_spectral_axes(first_sp, second_sp)
-    
+
     assert new_first_sp.spectral_length == new_second_sp.spectral_length
 
 

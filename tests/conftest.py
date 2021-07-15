@@ -38,7 +38,7 @@ TEST_DATA_PATH = pathlib.Path(PATH) / "data"
 
 
 @pytest.fixture(scope="session")
-def test_data_path():
+def mk_datapath():
     def make(filename):
         return TEST_DATA_PATH / filename
 
@@ -46,9 +46,9 @@ def test_data_path():
 
 
 @pytest.fixture(scope="session")
-def header_of(test_data_path):
+def header_of(mk_datapath):
     def make(filename):
-        file_name = test_data_path(filename)
+        file_name = mk_datapath(filename)
         with fits.open(file_name) as hdul:
             return hdul[0].header
 
@@ -56,57 +56,57 @@ def header_of(test_data_path):
 
 
 @pytest.fixture(scope="session")
-def NGC4945_continuum(test_data_path):
-    file_name = test_data_path("cont03.fits")
+def NGC4945_continuum(mk_datapath):
+    file_name = mk_datapath("cont03.fits")
     spect = nd.read_fits(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
-def NGC4945_continuum_rest_frame(test_data_path):
-    file_name = test_data_path("cont03.fits")
+def NGC4945_continuum_rest_frame(mk_datapath):
+    file_name = mk_datapath("cont03.fits")
     spect = nd.read_fits(file_name, 0, z=0)
     return spect
 
 
 @pytest.fixture(scope="session")
-def NGC4945_external_continuum_400pc(test_data_path):
-    file_name = test_data_path("external_spectrum_400pc_N4945.fits")
+def NGC4945_external_continuum_400pc(mk_datapath):
+    file_name = mk_datapath("external_spectrum_400pc_N4945.fits")
     spect = nd.read_fits(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
-def NGC4945_external_continuum_200pc(test_data_path):
-    file_name = test_data_path("external_spectrum_200pc_N4945.fits")
+def NGC4945_external_continuum_200pc(mk_datapath):
+    file_name = mk_datapath("external_spectrum_200pc_N4945.fits")
     spect = nd.read_fits(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
-def NGC4945_external_with_lines_200pc(test_data_path):
-    file_name = test_data_path("External_with_lines.fits")
+def NGC4945_external_with_lines_200pc(mk_datapath):
+    file_name = mk_datapath("External_with_lines.fits")
     spect = nd.read_fits(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
-def NGC4945_nuclear_with_lines(test_data_path):
-    file_name = test_data_path("NuclearNGC4945.fits")
+def NGC4945_nuclear_with_lines(mk_datapath):
+    file_name = mk_datapath("NuclearNGC4945.fits")
     spect = nd.read_fits(file_name, 0, z=0.00188)
     return spect
 
 
 @pytest.fixture(scope="session")
-def NGC3998_sp_lower_resolution(test_data_path):
-    file_name = test_data_path("ngc3998-sfin.fits")
+def NGC3998_sp_lower_resolution(mk_datapath):
+    file_name = mk_datapath("ngc3998-sfin.fits")
     spect = nd.read_fits(file_name, 1, z=0.00350)
     return spect
 
 
 @pytest.fixture(scope="session")
-def continuum01(test_data_path):
-    file_name = test_data_path("cont01.fits")
+def continuum01(mk_datapath):
+    file_name = mk_datapath("cont01.fits")
     return nd.read_fits(file_name, 0, z=0.00188)
 
 
