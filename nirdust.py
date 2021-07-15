@@ -782,9 +782,10 @@ def _clean_and_match(sp1, sp2):
     return sp_list
 
 
-def spectrum_resampling(
+def match_spectral_axes(
     first_sp,
     second_sp,
+    treshold = 0.1,
     scaling="downscale",
     clean=True,
 ):
@@ -829,29 +830,57 @@ def spectrum_resampling(
     first_disp = first_sp.spectral_dispersion
     second_disp = second_sp.spectral_dispersion
 
-    # Larger numerical dispersion means lower resolution!
-    if first_disp > second_disp:
-        # Check type of rescaling
-        if scaling == "downscale":
-            second_sp = _rescale(second_sp, reference_sp=first_sp)
+    dispersion_difference = (first_disp - second_disp).value
+
+    if np.abs(dispersion_difference) <= treshold:
+        
+        first_range = first_sp.spectral_range
+        second_range = second_sp.spectral_range
+        
+        if first_range[0] > second_range[0]:
+            first_wav = first_range[0]
+        
+        else: 
+            first_wav = second_range[0]
+            
+        if first_range[1] < second_range[1]:  
+            last_wav = first_range[1]
+            
+        else:     
+            last_wav = second_range[1]
+            
+        new_first_sp = first_sp.cut_edges(first_wav.value, last_wav.value)
+        new_second_sp = second_sp.cut_edges(first_wav.value, last_wav.value)
+        
+        return new_first_sp, new_second_sp
+    
+    
+    if np.abs(dispersion_difference) > treshold:
+
+
+        # Larger numerical dispersion means lower resolution!
+        if dispersion_difference > 0:
+            # Check type of rescaling
+            if scaling == "downscale":
+                second_sp = _rescale(second_sp, reference_sp=first_sp)
+            else:
+                first_sp = _rescale(first_sp, reference_sp=second_sp)
+
+        elif dispersion_difference < 0:
+            if scaling == "downscale":
+                first_sp = _rescale(first_sp, reference_sp=second_sp)
+            else:
+                second_sp = _rescale(second_sp, reference_sp=first_sp)
+
         else:
-            first_sp = _rescale(first_sp, reference_sp=second_sp)
+            # they have the same dispersion, is that equivalent
+            # to equal spectral_axis?
+            pass
 
-    elif first_disp < second_disp:
-        if scaling == "downscale":
-            first_sp = _rescale(first_sp, reference_sp=second_sp)
-        else:
-            second_sp = _rescale(second_sp, reference_sp=first_sp)
+        if clean:
+            first_sp, second_sp = _clean_and_match(first_sp, second_sp)
 
-    else:
-        # they have the same dispersion, is that equivalent
-        # to equal spectral_axis?
-        pass
-
-    if clean:
-        first_sp, second_sp = _clean_and_match(first_sp, second_sp)
-
-    return first_sp, second_sp
+        return first_sp, second_sp
 
 
 # ==============================================================================
