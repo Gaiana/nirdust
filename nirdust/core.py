@@ -620,7 +620,6 @@ def _clean_and_match(sp1, sp2):
 def match_spectral_axes(
     first_sp,
     second_sp,
-    treshold=0.1,
     scaling="downscale",
     clean=True,
 ):
@@ -667,53 +666,29 @@ def match_spectral_axes(
 
     dispersion_difference = (first_disp - second_disp).value
 
-    if np.abs(dispersion_difference) <= treshold:
-
-        first_range = first_sp.spectral_range
-        second_range = second_sp.spectral_range
-
-        if first_range[0] > second_range[0]:
-            first_wav = first_range[0]
-
+    # Larger numerical dispersion means lower resolution!
+    if dispersion_difference > 0:
+        # Check type of rescaling
+        if scaling == "downscale":
+            second_sp = _rescale(second_sp, reference_sp=first_sp)
         else:
-            first_wav = second_range[0]
+            first_sp = _rescale(first_sp, reference_sp=second_sp)
 
-        if first_range[1] < second_range[1]:
-            last_wav = first_range[1]
-
+    elif dispersion_difference < 0:
+        if scaling == "downscale":
+            first_sp = _rescale(first_sp, reference_sp=second_sp)
         else:
-            last_wav = second_range[1]
+            second_sp = _rescale(second_sp, reference_sp=first_sp)
 
-        new_first_sp = first_sp.cut_edges(first_wav.value, last_wav.value)
-        new_second_sp = second_sp.cut_edges(first_wav.value, last_wav.value)
+    else:
+        # they have the same dispersion, is that equivalent
+        # to equal spectral_axis?
+        pass
 
-        return new_first_sp, new_second_sp
+    if clean:
+        first_sp, second_sp = _clean_and_match(first_sp, second_sp)
 
-    if np.abs(dispersion_difference) > treshold:
-
-        # Larger numerical dispersion means lower resolution!
-        if dispersion_difference > 0:
-            # Check type of rescaling
-            if scaling == "downscale":
-                second_sp = _rescale(second_sp, reference_sp=first_sp)
-            else:
-                first_sp = _rescale(first_sp, reference_sp=second_sp)
-
-        elif dispersion_difference < 0:
-            if scaling == "downscale":
-                first_sp = _rescale(first_sp, reference_sp=second_sp)
-            else:
-                second_sp = _rescale(second_sp, reference_sp=first_sp)
-
-        else:
-            # they have the same dispersion, is that equivalent
-            # to equal spectral_axis?
-            pass
-
-        if clean:
-            first_sp, second_sp = _clean_and_match(first_sp, second_sp)
-
-        return first_sp, second_sp
+    return first_sp, second_sp
 
 
 # ==============================================================================
@@ -856,30 +831,11 @@ def sp_correction(nuclear_spectrum, external_spectrum):
     normalized_nuc = nuclear_spectrum.normalize()
     normalized_ext = external_spectrum.normalize()
 
-    dif = len(normalized_nuc.spec1d_.spectral_axis) - len(
-        normalized_ext.spec1d_.spectral_axis
-    )
+    flux_resta = (
+        normalized_nuc.spec1d_.flux - normalized_ext.spec1d_.flux
+    ) + 1
 
-    if dif == 0:
-
-        flux_resta = (
-            normalized_nuc.spec1d_.flux - normalized_ext.spec1d_.flux
-        ) + 1
-
-        new_spectral_axis = nuclear_spectrum.spec1d_.spectral_axis
-
-    elif dif < 0:
-        # Por que [dif:] y no [:dif] usar spectrum_resampling ?
-        new_ext = normalized_ext[-dif:]
-        flux_resta = (normalized_nuc.spec1d_.flux - new_ext.spec1d_.flux) + 1
-
-        new_spectral_axis = external_spectrum.spec1d_.spectral_axis[-dif:]
-
-    elif dif > 0:
-        # Por que [dif:] y no [:dif] usar spectrum_resampling
-        new_nuc = normalized_nuc[dif:]
-        flux_resta = (new_nuc.spec1d_.flux - normalized_ext.spec1d_.flux) + 1
-        new_spectral_axis = nuclear_spectrum.spec1d_.spectral_axis[dif:]
+    new_spectral_axis = nuclear_spectrum.spec1d_.spectral_axis
 
     kwargs = attr.asdict(normalized_nuc, filter=_filter_internals)
     kwargs.update(
