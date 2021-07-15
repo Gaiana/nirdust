@@ -11,7 +11,7 @@
 # DOCS
 # =============================================================================
 
-"""Nirdust Input/Output"""
+"""Nirdust Input/Output."""
 
 
 # =============================================================================
@@ -175,6 +175,29 @@ def read_fits(file_name, extension=None, z=0):
 def read_table(
     file_name, wavelength_column=0, flux_column=1, format="ascii", **kwargs
 ):
+    """Read a spectrum from a table and store it in a NirdustSpectrum object.
+
+    The table must contain two columns for the wavelength and the
+    intensity/flux, the column number can be specified by parameters.  It is
+    assumed that the unit of the wavelength axis is Angstroms.
+
+    Parameters
+    ----------
+    file_name: str
+        Path to where the fits file is stored.
+
+    wavelength_column: int
+        The positional number of the wavelengh column. Default is 0.
+
+    flux_column: int
+        The positional number of the intensity/flux column. Default is 1.
+
+
+    Return
+    ------
+    out: NirsdustSpectrum object
+        Returns an instance of the class NirdustSpectrum.
+    """
     table = Table.read(file_name, format=format)
     wavelength = table.columns[wavelength_column]
     flux = table.columns[flux_column]

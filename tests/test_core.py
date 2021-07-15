@@ -192,14 +192,15 @@ def test_slice(NGC4945_continuum):
 def test_len(NGC4945_continuum):
     sp = NGC4945_continuum
     assert len(sp) == len(sp.spectral_axis)
-    
+
+
 def test_unit():
-    a = np.arange(0,100,1)*u.Angstrom
-    f = np.arange(0,200,2)*u.adu
-    
-    sp = core.NirdustSpectrum(a,f)
-    
-    assert sp.unit == "adu",  "Angstrom"     
+    a = np.arange(0, 100, 1) * u.Angstrom
+    f = np.arange(0, 200, 2) * u.adu
+
+    sp = core.NirdustSpectrum(a, f)
+
+    assert sp.unit == "adu", "Angstrom"
 
 
 def test_cut_edges(NGC4945_continuum):
@@ -231,7 +232,7 @@ def test_dust_component(NGC4945_continuum, NGC4945_external_continuum_400pc):
     expected_len = len(spectrum.flux)
     assert len(prepared.flux) == expected_len
 
-   
+
 def test_dust_component_different_length(
     NGC4945_continuum, NGC4945_external_continuum_400pc
 ):
@@ -240,11 +241,13 @@ def test_dust_component_different_length(
         19600, 22500
     )
 
-    matched_1, matched_2 = core.match_spectral_axes(spectrum, external_spectrum)
+    matched_1, matched_2 = core.match_spectral_axes(
+        spectrum, external_spectrum
+    )
 
     prepared = core.dust_component(matched_1, matched_2)
 
-    assert len(prepared.flux) == len(prepared.spectral_axis)      
+    assert len(prepared.flux) == len(prepared.spectral_axis)
 
 
 def test_dust_component_with_mask(
@@ -260,11 +263,12 @@ def test_dust_component_with_mask(
     clean_nuc_sp = nuclear_sp.mask_spectrum(w1)
     clean_ext_sp = external_sp.mask_spectrum(w2)
 
-    match_nuc , match_ext = core.match_spectral_axes(clean_nuc_sp, clean_ext_sp)
+    match_nuc, match_ext = core.match_spectral_axes(clean_nuc_sp, clean_ext_sp)
 
     dust = core.dust_component(match_nuc, match_ext)
 
     assert len(dust.flux) == 544
+
 
 # =============================================================================
 # NORMALIZEDBLACKBODY
@@ -675,10 +679,9 @@ def test_mask_spectrum_5(NGC4945_continuum_rest_frame):
         spectrum.mask_spectrum(mask=mask)
 
 
-#===============================================================================
+# ===============================================================================
 # MATCH SPECTRAL AXES
 # =============================================================================
-
 
 
 def test_spectrum_resampling_downscale():
