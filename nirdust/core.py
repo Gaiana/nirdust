@@ -789,12 +789,12 @@ def line_spectrum(
 
 
 # ==============================================================================
-# PREPARE SPECTRA FOR FITTING
+# ISOLATE THE DUST COMPONENT
 # ==============================================================================
 
 
-def sp_correction(nuclear_spectrum, external_spectrum):
-    """Stellar Population substraction.
+def dust_component(nuclear_spectrum, external_spectrum):
+    """Isolate the dust component via stellar population substraction.
 
     The spectral continuum of Type 2 Seyfert galaxies in the K band
     (19.-2.5 $mu$m) is composed by the stellar population component and the
