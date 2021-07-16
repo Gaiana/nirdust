@@ -173,7 +173,12 @@ def read_fits(file_name, extension=None, z=0):
 
 
 def read_table(
-    file_name, wavelength_column=0, flux_column=1, format="ascii", **kwargs
+    file_name,
+    wavelength_column=0,
+    flux_column=1,
+    format="ascii",
+    z=0,
+    **kwargs,
 ):
     """Read a spectrum from a table and store it in a NirdustSpectrum object.
 
@@ -192,13 +197,15 @@ def read_table(
     flux_column: int
         The positional number of the intensity/flux column. Default is 1.
 
+    kwargs:
+        Se pasa directo a ``astropy.table.Table.read``.
 
     Return
     ------
     out: NirsdustSpectrum object
         Returns an instance of the class NirdustSpectrum.
     """
-    table = Table.read(file_name, format=format)
+    table = Table.read(file_name, format=format, **kwargs)
     wavelength = table.columns[wavelength_column]
     flux = table.columns[flux_column]
 
@@ -215,5 +222,6 @@ def read_table(
     return NirdustSpectrum(
         flux=flux,
         spectral_axis=spectral_axis,
+        z=z,
         metadata=metadata,
     )

@@ -513,7 +513,7 @@ class NirdustResults:
         from the infodict dictionary it returns. See the scipy.optimize.leastsq
         documentation for details on the meaning of these values.
 
-    uncertainty:  scalar
+    uncertainty: scalar
         The uncertainty in the temparture fit as calculed by LevMarLSQFitter.
 
     fitted_blackbody: model
@@ -630,7 +630,7 @@ def match_spectral_axes(
     uses the FluxConservingResampler() class of 'Specutils'. The order of the
     input spectra is arbitrary and the order in the output is the same as in
     the input. Only the higher resolution spectrum will be modified, the lower
-    resolution spectrum will be unaltered. It is recomended to run
+    resolution spectrum will be unaltered. It is recommended to run
     spectrum_resampling after 'cut_edges'.
 
     Parameters
