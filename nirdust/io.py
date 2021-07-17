@@ -216,6 +216,7 @@ def read_table(
         "wavelength_column": wavelength_column,
         "flux_column": flux_column,
         "format": format,
+        "z": z,
     }
     metadata.update(kwargs)
 
