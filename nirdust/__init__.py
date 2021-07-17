@@ -25,3 +25,4 @@ accretion disk.
 
 from .core import *  # noqa
 from .io import *  # noqa
+from .bbody import *  # noqa
