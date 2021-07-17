@@ -11,30 +11,24 @@
 # DOCS
 # ==============================================================================
 
-"""Core functionalities for nirdust."""
+"""Collection of preprocessing utilities."""
 
 
 # ==============================================================================
 # IMPORTS
 # ==============================================================================
 
-from collections.abc import Mapping
-
 from astropy import units as u
 from astropy.modeling import fitting, models
 
-import attr
-
 import numpy as np
 
-import specutils as su
-import specutils.manipulation as sm
 from specutils.fitting import find_lines_threshold
 from specutils.fitting import fit_generic_continuum
 from specutils.fitting import fit_lines
 from specutils.manipulation import FluxConservingResampler
 from specutils.manipulation import noise_region_uncertainty
-from specutils.spectra import SpectralRegion, Spectrum1D
+from specutils.spectra import SpectralRegion
 
 from . import core
 

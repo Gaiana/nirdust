@@ -14,15 +14,12 @@
 
 from astropy import units as u
 from astropy.modeling import models
-from astropy.modeling.models import BlackBody
 
 from nirdust import core, preprocessing
 
 import numpy as np
 
 import pytest
-
-import specutils as su
 
 
 # =============================================================================
@@ -331,81 +328,15 @@ def test_spectrum_resampling_invalid_scaling():
         )
 
 
-@pytest.mark.parametrize("true_temp", [500.0, 1000.0, 5000.0])
-@pytest.mark.parametrize("scaling", ["downscale", "upscale"])
-@pytest.mark.xfail
-def test_fit_blackbody_with_resampling(
-    NGC4945_continuum_rest_frame,
-    NGC3998_sp_lower_resolution,
-    true_temp,
-    scaling,
-):
-    real_spectrum = NGC4945_continuum_rest_frame
-    freq_axis = real_spectrum.frequency_axis
-    sinthetic_model = BlackBody(true_temp * u.K)
-    sinthetic_flux = sinthetic_model(freq_axis)
-
-    # the core.NirdustSpectrum object is instantiated
-    snth_blackbody = core.NirdustSpectrum(
-        flux=sinthetic_flux,
-        spectral_axis=real_spectrum.spectral_axis,
-        z=0,
-    )
-
-    # resampling
-    f_sp, s_sp = preprocessing.match_spectral_axes(
-        snth_blackbody, NGC3998_sp_lower_resolution, scaling=scaling
-    )
-    snth_bb_temp = (
-        f_sp.normalize()
-        .convert_to_frequency()
-        .fit_blackbody(2000.0)
-        .temperature
-    )
-    np.testing.assert_almost_equal(snth_bb_temp.value, true_temp, decimal=1)
-
-
-@pytest.mark.parametrize("true_temp", [500.0, 1000.0, 5000.0])
-@pytest.mark.parametrize("scaling", ["downscale", "upscale"])
-@pytest.mark.xfail
-def test_fit_blackbody_with_resampling_in_inverse_order(
-    NGC4945_continuum_rest_frame,
-    NGC3998_sp_lower_resolution,
-    true_temp,
-    scaling,
-):
-    real_spectrum = NGC4945_continuum_rest_frame
-    freq_axis = real_spectrum.frequency_axis
-    sinthetic_model = BlackBody(true_temp * u.K)
-    sinthetic_flux = sinthetic_model(freq_axis)
-
-    # the core.NirdustSpectrum object is instantiated
-    snth_blackbody = core.NirdustSpectrum(
-        flux=sinthetic_flux,
-        spectral_axis=real_spectrum.spectral_axis,
-        z=0,
-    )
-
-    # resampling but inverting the input order than prevoius test
-    f_sp, s_sp = preprocessing.match_spectral_axes(
-        NGC3998_sp_lower_resolution, snth_blackbody, scaling=scaling
-    )
-    snth_bb_temp = (
-        s_sp.normalize()
-        .convert_to_frequency()
-        .fit_blackbody(2000.0)
-        .temperature
-    )
-    np.testing.assert_almost_equal(snth_bb_temp.value, true_temp, decimal=1)
-
-
 def test_match_spectral_axes_first_if(NGC4945_continuum_rest_frame):
     # tests the case where the first spectrum is the largest (no resampling)
 
     first_sp = NGC4945_continuum_rest_frame
     second_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
 
-    new_first_sp, new_second_sp = preprocessing.match_spectral_axes(first_sp, second_sp)
+    new_first_sp, new_second_sp = preprocessing.match_spectral_axes(
+        first_sp, second_sp
+    )
 
     assert new_first_sp.spectral_length == new_second_sp.spectral_length
 
@@ -416,6 +347,8 @@ def test_match_spectral_axes_second_if(NGC4945_continuum_rest_frame):
     first_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
     second_sp = NGC4945_continuum_rest_frame
 
-    new_first_sp, new_second_sp = preprocessing.match_spectral_axes(first_sp, second_sp)
+    new_first_sp, new_second_sp = preprocessing.match_spectral_axes(
+        first_sp, second_sp
+    )
 
     assert new_first_sp.spectral_length == new_second_sp.spectral_length

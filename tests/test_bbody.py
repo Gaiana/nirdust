@@ -19,7 +19,7 @@ from astropy.modeling.models import BlackBody
 
 from matplotlib.testing.decorators import check_figures_equal
 
-from nirdust import bbody, core
+from nirdust import bbody, core, preprocessing
 
 import numpy as np
 
@@ -227,6 +227,68 @@ def test_fit_blackbody(NGC4945_continuum_rest_frame):
     ).temperature
 
     np.testing.assert_almost_equal(snth_bb_temp.value, 1000, decimal=7)
+
+
+@pytest.mark.parametrize("true_temp", [500.0, 1000.0, 5000.0])
+@pytest.mark.parametrize("scaling", ["downscale", "upscale"])
+def test_fit_blackbody_with_resampling(
+    NGC4945_continuum_rest_frame,
+    NGC3998_sp_lower_resolution,
+    true_temp,
+    scaling,
+):
+    real_spectrum = NGC4945_continuum_rest_frame
+    freq_axis = real_spectrum.frequency_axis
+    sinthetic_model = BlackBody(true_temp * u.K)
+    sinthetic_flux = sinthetic_model(freq_axis)
+
+    # the core.NirdustSpectrum object is instantiated
+    snth_blackbody = core.NirdustSpectrum(
+        flux=sinthetic_flux,
+        spectral_axis=real_spectrum.spectral_axis,
+        z=0,
+    )
+
+    # resampling
+    f_sp, s_sp = preprocessing.match_spectral_axes(
+        snth_blackbody, NGC3998_sp_lower_resolution, scaling=scaling
+    )
+    snth_bb_temp = bbody.fit_blackbody(
+        f_sp.normalize().convert_to_frequency(), 2000.0
+    ).temperature
+
+    np.testing.assert_almost_equal(snth_bb_temp.value, true_temp, decimal=1)
+
+
+@pytest.mark.parametrize("true_temp", [500.0, 1000.0, 5000.0])
+@pytest.mark.parametrize("scaling", ["downscale", "upscale"])
+def test_fit_blackbody_with_resampling_in_inverse_order(
+    NGC4945_continuum_rest_frame,
+    NGC3998_sp_lower_resolution,
+    true_temp,
+    scaling,
+):
+    real_spectrum = NGC4945_continuum_rest_frame
+    freq_axis = real_spectrum.frequency_axis
+    sinthetic_model = BlackBody(true_temp * u.K)
+    sinthetic_flux = sinthetic_model(freq_axis)
+
+    # the core.NirdustSpectrum object is instantiated
+    snth_blackbody = core.NirdustSpectrum(
+        flux=sinthetic_flux,
+        spectral_axis=real_spectrum.spectral_axis,
+        z=0,
+    )
+
+    # resampling but inverting the input order than prevoius test
+    _, s_sp = preprocessing.match_spectral_axes(
+        NGC3998_sp_lower_resolution, snth_blackbody, scaling=scaling
+    )
+    snth_bb_temp = bbody.fit_blackbody(
+        s_sp.normalize().convert_to_frequency(), 2000.0
+    ).temperature
+
+    np.testing.assert_almost_equal(snth_bb_temp.value, true_temp, decimal=1)
 
 
 # =============================================================================

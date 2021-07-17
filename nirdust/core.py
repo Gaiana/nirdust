@@ -21,7 +21,6 @@
 from collections.abc import Mapping
 
 from astropy import units as u
-from astropy.modeling import fitting, models
 
 import attr
 

@@ -11,10 +11,7 @@
 # IMPORTS
 # =============================================================================
 
-
 from astropy import units as u
-from astropy.modeling import models
-from astropy.modeling.models import BlackBody
 
 from nirdust import core
 
@@ -23,6 +20,7 @@ import numpy as np
 import pytest
 
 import specutils as su
+
 
 # =============================================================================
 # TEST METADATA
