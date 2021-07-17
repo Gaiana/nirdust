@@ -13,6 +13,8 @@
 
 from astropy import units as u
 
+import attr
+
 from nirdust import core
 
 import numpy as np
@@ -20,6 +22,24 @@ import numpy as np
 import pytest
 
 import specutils as su
+
+# =============================================================================
+# PUBLIC MEMBER AS DICT
+# =============================================================================
+
+
+def test_public_member_asdict():
+    @attr.s
+    class Foo:
+        a = attr.ib()
+        _b = attr.ib()
+
+    foo = Foo(a=1, b=12)
+    asdict = core.public_members_asdict(foo)
+
+    assert foo.a == 1
+    assert foo._b == 12
+    assert asdict == {"a": 1}
 
 
 # =============================================================================
