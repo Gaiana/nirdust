@@ -32,7 +32,7 @@ copyright = '2021, Gaia Gaspar & Jose Alacoria'
 author = 'Gaia Gaspar & Jose Alacoria'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.1'
+release = nirdust.__version__
 
 
 # -- General configuration ---------------------------------------------------
