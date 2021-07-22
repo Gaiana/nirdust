@@ -124,8 +124,6 @@ class NirdustSpectrum:
 
     spec1d_ = attr.ib(init=False)
 
-    arr_ = uttr.array_accessor()
-
     @spec1d_.default
     def _spec1d_default(self):
         return su.Spectrum1D(

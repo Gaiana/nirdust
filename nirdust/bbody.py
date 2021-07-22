@@ -21,8 +21,7 @@
 
 from astropy import constants as const
 from astropy import units as u
-from astropy.modeling import Fittable1DModel, Parameter
-from astropy.modeling import fitting
+from astropy.modeling.models import BlackBody
 
 import attr
 
@@ -30,81 +29,75 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
-
-# ==============================================================================
-# CLASSES
-# ==============================================================================
+import emcee
 
 
-class NormalizedBlackBody(Fittable1DModel):
+def blackbody(nu, temperature, scale):
     """Normalized blackbody model.
-
     This class is similar to the BlackBody model provided by Astropy except
     that the 'scale' parameter is eliminated, i.e. is allways equal to 1.
-
     The normalization is performed by dividing the blackbody flux by its
     numerical mean. The result is a dimensionless Quantity.
-
     Parameters
     ----------
     temperature: float, `~numpy.ndarray`, or `~astropy.units.Quantity`
         Temperature of the blackbody.
-
     Notes
     -----
     The Astropy BlackBody model can not be used directly to obtain a
     normalized black body since the 'scale' parameter is not known a priori.
     The scaling value (the mean in this case) directly depends on the
     black body value.
-
     """
 
-    # We parametrize this model with a temperature.
-    temperature = Parameter(default=None, min=0)
+    # Convert to units for calculations, also force double precision
+    with u.add_enabled_equivalencies(u.spectral() + u.temperature()):
+        freq = u.Quantity(nu, u.Hz, dtype=np.float64)
+        temp = u.Quantity(temperature, u.K)
 
-    @property
-    def T(self):
-        """Proxy for temperature."""
-        return self.temperature
+    # check the units of scale and setup the output units
+    bb_unit = u.erg / (u.cm ** 2 * u.s * u.Hz * u.sr)  # default unit
+    # use the scale that was used at initialization for determining
+    # the units to return to support returning the right units when
+    # fitting where units are stripped
+    if hasattr(scale, "unit") and scale.unit is not None:
+        # check that the units on scale are covertable to surface
+        # brightness units
+        if not scale.unit.is_equivalent(bb_unit, u.spectral_density(nu)):
+            raise ValueError(
+                f"scale units not surface brightness: {scale.unit}"
+            )
+        # use the scale passed to get the value for scaling
+        if hasattr(scale, "unit"):
+            mult_scale = scale.value
+        else:
+            mult_scale = scale
+        bb_unit = scale.unit
+    else:
+        mult_scale = scale
 
-    def evaluate(self, nu, temperature):
-        """Evaluate the model.
+    # Check if input values are physically possible
+    if np.any(temp < 0):
+        raise ValueError(f"Temperature should be positive: {temp}")
 
-        Parameters
-        ----------
-        nu : float, `~numpy.ndarray`, or `~astropy.units.Quantity`
-            Frequency at which to compute the blackbody. If no units are given,
-            this defaults to Hz.
+    log_boltz = const.h * freq / (const.k_B * temp)
+    boltzm1 = np.expm1(log_boltz)
 
-        temperature : float, `~numpy.ndarray`, or `~astropy.units.Quantity`
-            Temperature of the blackbody. If no units are given, this defaults
-            to Kelvin.
+    # Calculate blackbody flux
+    bb_nu = 2.0 * const.h * freq ** 3 / (const.c ** 2 * boltzm1) / u.sr
+    y = mult_scale * bb_nu.to(bb_unit, u.spectral_density(freq))
 
-        Returns
-        -------
-        intensity : number or ndarray
-            Blackbody spectrum.
+    # If the temperature parameter has no unit, we should return a unitless
+    # value. This occurs for instance during fitting, since we drop the
+    # units temporarily.
+    if hasattr(temperature, "unit"):
+        return y
+    return y.value
 
-        """
-        # Convert to units for calculations, also force double precision
-        # This is just in case the input units differ from K or Hz
-        with u.add_enabled_equivalencies(u.spectral() + u.temperature()):
-            freq = u.Quantity(nu, u.Hz, dtype=np.float64)
-            temp = u.Quantity(temperature, u.K)
 
-        log_boltz = const.h * freq / (const.k_B * temp)
-        boltzm1 = np.expm1(log_boltz)
-
-        # Calculate blackbody flux and normalize with the mean
-        bb = 2.0 * const.h * freq ** 3 / (const.c ** 2 * boltzm1) / u.sr
-        intensity = bb / np.mean(bb)
-
-        # If the temperature parameter has no unit, we should return a unitless
-        # value. This occurs for instance during fitting, since we drop the
-        # units temporarily.
-        if hasattr(temperature, "unit"):
-            return intensity
-        return intensity.value
+# ==============================================================================
+# CLASSES
+# ==============================================================================
 
 
 @attr.s(frozen=True)
@@ -184,72 +177,135 @@ class NirdustResults:
         return ax
 
 
-# =============================================================================
-# FUNCTIONS
-# =============================================================================
+# ==============================================================================
+# EMCEE FUNCTIONS
+# ==============================================================================
 
+# probability of the data given the model
+def gaussian_log_likelihood(theta, nu, total_flux, external_flux, stddev):
+    T, logscale = theta
+    scale = 10 ** logscale
 
-def normalized_blackbody_fitter(frequency, flux, T0):
-    """Fits a Normalized Blackbody model to spectrum.
+    # calculate the model
+    B = blackbody(nu, T, scale)
+    fB = B.mean()
+    fO = total_flux.mean()
+    fX = external_flux.mean()
+    data = total_flux - external_flux * (fO - fB) / fX
 
-    The fitting is performed by using the LevMarLSQFitter class from Astropy.
+    diff = data - B
+    if stddev is None:
+        stddev = np.full_like(nu, diff.std(ddof=1))
 
-    Parameters
-    ----------
-    frequency: `~numpy.ndarray`, or `~astropy.units.Quantity`
-        Spectral axis in units of Hz.
-
-    flux: `~numpy.ndarray`, or `~astropy.units.Quantity`
-        Normalized intensity.
-
-    T0: float
-        Initial temperature for the fitting procedure.
-
-    Return
-    ------
-    out: tuple
-        Best fitted model and a dictionary containing the parameters of the
-        best fitted model.
-
-    """
-    # LevMarLSQFitter does not support inputs with units
-    freq_value = u.Quantity(frequency, u.Hz).value
-    flux_value = u.Quantity(flux).value
-    T0_value = u.Quantity(T0, u.K).value
-
-    bb_model = NormalizedBlackBody(temperature=T0_value)
-    fitter = fitting.LevMarLSQFitter(calc_uncertainties=True)
-    fitted_model = fitter(bb_model, freq_value, flux_value)
-
-    return fitted_model, fitter.fit_info
-
-
-def fit_blackbody(spectra, T0):
-    """Call blackbody_fitter and store results in a NirdustResults object.
-
-    Parameters
-    ----------
-    spectra:
-
-    T0: float or `~astropy.units.Quantity`
-        Initial temperature for the fit in Kelvin.
-
-    Returns
-    -------
-    out: NirdustResults object
-        An instance of the NirdustResults class that holds the resuslts of
-        the blackbody fitting.
-    """
-    model, fit_info = normalized_blackbody_fitter(
-        spectra.spectral_axis, spectra.flux, T0
+    loglike = np.sum(
+        -0.5 * np.log(2.0 * np.pi)
+        - np.log(stddev)
+        - diff ** 2 / (2.0 * stddev ** 2)
     )
+    return loglike
 
-    storage = NirdustResults(
-        temperature=model.temperature,
-        info=fit_info,
-        uncertainty=model.temperature.std,
-        fitted_blackbody=model,
-        freq_axis=spectra.spectral_axis,
-        flux_axis=spectra.flux,
+
+# uninformative prior
+def log_likelihood_prior(theta):
+    T, logscale = theta
+
+    Tok = 1 < T < 2500
+    logscaleok = -2 <= logscale < 12
+
+    if Tok and logscaleok:
+        return 0.0
+    else:
+        return -np.inf
+
+
+# posterior probability
+def log_probability(theta, nu, total_flux, external_flux, stddev):
+    lp = log_likelihood_prior(theta)
+    if not np.isfinite(lp):
+        return -np.inf
+    else:
+        return lp + gaussian_log_likelihood(
+            theta, nu, total_flux, external_flux, stddev
+        )
+
+
+# ==============================================================================
+# FITTER CLASS
+# ==============================================================================
+
+
+def _percentiles(chain, per):
+    values = map(
+        lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
+        zip(*np.percentile(chain, per, axis=0)),
     )
-    return storage
+    return list(values)
+
+
+@attr.s
+class NirdustFitter:
+
+    total = attr.ib()
+    external = attr.ib()
+    nwalkers = attr.ib(default=11)
+    nthreads = attr.ib(default=1)
+    seed = attr.ib(default=None)
+    ndim_ = attr.ib(init=False, default=2)
+
+    def __attrs_post_init__(self):
+        fargs = (
+            self.total.frequency_axis.value,
+            self.total.flux.value,
+            self.external.flux.value,
+            None,
+        )
+        self.sampler = emcee.EnsembleSampler(
+            self.nwalkers,
+            self.ndim_,
+            log_probability,
+            args=fargs,
+            threads=self.nthreads,
+        )
+
+    def run(self, initial_state=None, nsteps=1000):
+
+        if initial_state is None:
+            initial_state = [1000.0, 8.0]
+        elif isinstance(initial_state, emcee.State):
+            return self.sampler.run_mcmc(initial_state, nsteps)
+        elif len(initial_state) != 2:
+            raise ValueError("Invalid initial state.")
+
+        rng = np.random.default_rng(seed=self.seed)
+        p0 = rng.random((self.nwalkers, self.ndim_))
+        p0[:, 0] += initial_state[0]
+        p0[:, 1] += initial_state[1]
+        return self.sampler.run_mcmc(p0, nsteps)
+
+    def get_chain(self, discard=0):
+        return self.sampler.get_chain(discard=discard)
+
+    def get_best_fit(self, chain=None):
+        if chain is None:
+            chain = self.get_chain()
+        fit = map(
+            lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
+            zip(
+                *np.percentile(
+                    chain.reshape((-1, self.ndim_)), [16, 50, 84], axis=0
+                )
+            ),
+        )
+        return list(fit)
+
+    def plot_chain(self, chain=None, ax=None):
+        if chain is None:
+            chain = self.get_chain()
+
+        if ax is None:
+            fig, ax = plt.subplots(2, 1, sharex=True, figsize=(8, 6))
+        ax[0].plot(chain[:, :, 0], color="k", alpha=0.4)
+        ax[0].set_ylabel("T")
+        ax[1].plot(chain[:, :, 1], color="k", alpha=0.4)
+        ax[1].set_ylabel("log(scale)")
+        return ax
