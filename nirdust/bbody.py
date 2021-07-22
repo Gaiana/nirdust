@@ -282,12 +282,11 @@ class NirdustFitter:
         p0[:, 1] += initial_state[1]
         return self.sampler.run_mcmc(p0, nsteps)
 
-    def get_chain(self, discard=0):
+    def chain(self, discard=0):
         return self.sampler.get_chain(discard=discard)
 
-    def get_best_fit(self, chain=None):
-        if chain is None:
-            chain = self.get_chain()
+    def best_fit(self, discard=0):
+        chain = self.chain(discard=discard)
         fit = map(
             lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
             zip(
@@ -298,12 +297,12 @@ class NirdustFitter:
         )
         return list(fit)
 
-    def plot_chain(self, chain=None, ax=None):
-        if chain is None:
-            chain = self.get_chain()
+    def plot_chain(self, discard=0, ax=None):
+        chain = self.chain(discard=discard)
 
         if ax is None:
-            fig, ax = plt.subplots(2, 1, sharex=True, figsize=(8, 6))
+            _, ax = plt.subplots(2, 1, sharex=True, figsize=(8, 6))
+
         ax[0].plot(chain[:, :, 0], color="k", alpha=0.4)
         ax[0].set_ylabel("T")
         ax[1].plot(chain[:, :, 1], color="k", alpha=0.4)
