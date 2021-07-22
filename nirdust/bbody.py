@@ -268,12 +268,12 @@ class NirdustFitter:
             threads=self.nthreads,
         )
 
-    def run(self, initial_state=None, nsteps=1000):
+    def run(self, initial_state=None, steps=1000):
 
         if initial_state is None:
             initial_state = [1000.0, 8.0]
         elif isinstance(initial_state, emcee.State):
-            return self.sampler.run_mcmc(initial_state, nsteps)
+            return self.sampler.run_mcmc(initial_state, steps)
         elif len(initial_state) != 2:
             raise ValueError("Invalid initial state.")
 
@@ -282,8 +282,8 @@ class NirdustFitter:
         p0[:, 0] += initial_state[0]
         p0[:, 1] += initial_state[1]
 
-        self.steps_ = nsteps
-        return self.sampler.run_mcmc(p0, nsteps)
+        self.steps_ = steps
+        return self.sampler.run_mcmc(p0, steps)
 
     def chain(self, discard=0):
         return self.sampler.get_chain(discard=discard)
