@@ -99,6 +99,11 @@ def blackbody(nu, temperature, scale):
 # CLASSES
 # ==============================================================================
 
+@attr.s(frozen=True)
+class Parameter:
+    mean = attr.ib()
+    uncertainty = attr.ib()
+
 
 @attr.s(frozen=True)
 class NirdustResults:
@@ -133,12 +138,10 @@ class NirdustResults:
         The flux of the spectrum in arbitrary units.
     """
 
-    temperature = attr.ib(converter=lambda t: u.Quantity(t, u.K))
-    info = attr.ib()
-    uncertainty = attr.ib()
+    temperature = attr.ib()
+    scale = attr.ib()
     fitted_blackbody = attr.ib()
-    freq_axis = attr.ib(repr=False)
-    flux_axis = attr.ib(repr=False)
+    data = attr.ib(repr=False)
 
     def nplot(self, ax=None, data_color="firebrick", model_color="navy"):
         """Build a plot of the fitted spectrum and the fitted model.
@@ -162,14 +165,14 @@ class NirdustResults:
         out: ``matplotlib.pyplot.Axis`` :
             The axis where the method draws.
         """
-        instance = self.fitted_blackbody(self.freq_axis.value)
+        bb_fit = self.fitted_blackbody(self.data.frequency_axis)
         if ax is None:
             ax = plt.gca()
 
         ax.plot(
-            self.freq_axis, self.flux_axis, color=data_color, label="continuum"
+            self.data.frequency_axis, self.data.flux, color=data_color, label="continuum"
         )
-        ax.plot(self.freq_axis, instance, color=model_color, label="model")
+        ax.plot(self.data.frequency_axis, bb_fit, color=model_color, label="model")
         ax.set_xlabel("Frequency [Hz]")
         ax.set_ylabel("Normalized Energy [arbitrary units]")
         ax.legend()
@@ -181,19 +184,23 @@ class NirdustResults:
 # EMCEE FUNCTIONS
 # ==============================================================================
 
+def data_model(bb_flux, total_flux, external_flux):
+    fB = bb_flux.mean()
+    fO = total_flux.mean()
+    fX = external_flux.mean()
+    data = total_flux - external_flux * (fO - fB) / fX
+    return data
+
 # probability of the data given the model
 def gaussian_log_likelihood(theta, nu, total_flux, external_flux, stddev):
     T, logscale = theta
     scale = 10 ** logscale
 
     # calculate the model
-    B = blackbody(nu, T, scale)
-    fB = B.mean()
-    fO = total_flux.mean()
-    fX = external_flux.mean()
-    data = total_flux - external_flux * (fO - fB) / fX
+    bb_flux = blackbody(nu, T, scale)
+    data = data_model(bb_flux, total_flux, external_flux)
 
-    diff = data - B
+    diff = data - bb_flux
     if stddev is None:
         stddev = np.full_like(nu, diff.std(ddof=1))
 
@@ -232,14 +239,6 @@ def log_probability(theta, nu, total_flux, external_flux, stddev):
 # ==============================================================================
 # FITTER CLASS
 # ==============================================================================
-
-
-def _percentiles(chain, per):
-    values = map(
-        lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
-        zip(*np.percentile(chain, per, axis=0)),
-    )
-    return list(values)
 
 
 @attr.s
@@ -286,16 +285,31 @@ class NirdustFitter:
         return self.sampler.get_chain(discard=discard)
 
     def best_fit(self, discard=0):
-        chain = self.chain(discard=discard)
-        fit = map(
-            lambda v: (v[1], v[2] - v[1], v[1] - v[0]),
-            zip(
-                *np.percentile(
-                    chain.reshape((-1, self.ndim_)), [16, 50, 84], axis=0
-                )
-            ),
+        chain = self.chain(discard=discard).reshape((-1, self.ndim_))
+        chain[:, 1] = 10**chain[:, 1]
+
+        # mean, lower_error, upper_error
+        values = [50, 16, 84]
+        temp_values = np.percentile(chain[:, 0], values)
+        scale_values = np.percentile(chain[:, 1], values)
+
+        temp = Parameter(temp_values[0], (temp_values[1], temp_values[2]))
+        scale = Parameter(scale_values[0], (scale_values[1], scale_values[2]))
+        
+        bb_model = models.BlackBody(temp.value, scale.value)
+        data = data_model(
+            bb_model(self.total.frequency_axis).value,
+            self.total.flux.value,
+            self.external.flux.value,
         )
-        return list(fit)
+
+        result = NirdustResults(
+            temperature=temp,
+            scale=scale,
+            fitted_blackbody=models.BlackBody(temp.value, scale.value),
+            data=core.NirdustSpectrum(self.total.spectral_axis, data),
+        )
+        return result
 
     def plot(self, discard=0, ax=None):
         chain = self.chain(discard=discard)
