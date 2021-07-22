@@ -297,7 +297,7 @@ class NirdustFitter:
         )
         return list(fit)
 
-    def plot_chain(self, discard=0, ax=None):
+    def plot(self, discard=0, ax=None):
         chain = self.chain(discard=discard)
 
         if ax is None:
@@ -308,3 +308,5 @@ class NirdustFitter:
         ax[1].plot(chain[:, :, 1], color="k", alpha=0.4)
         ax[1].set_ylabel("log(scale)")
         return ax
+
+
