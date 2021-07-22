@@ -30,8 +30,6 @@ import specutils as su
 import specutils.manipulation as sm
 from specutils.spectra import Spectrum1D
 
-import uttr
-
 
 # ==============================================================================
 # UTILITIES

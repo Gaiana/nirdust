@@ -19,88 +19,93 @@
 # ==============================================================================
 
 
-from astropy import constants as const
 from astropy import units as u
 from astropy.modeling.models import BlackBody
 
 import attr
 
+import emcee
+
 import matplotlib.pyplot as plt
 
 import numpy as np
 
-import emcee
+from .core import NirdustSpectrum
 
 
-def blackbody(nu, temperature, scale):
-    """Normalized blackbody model.
-    This class is similar to the BlackBody model provided by Astropy except
-    that the 'scale' parameter is eliminated, i.e. is allways equal to 1.
-    The normalization is performed by dividing the blackbody flux by its
-    numerical mean. The result is a dimensionless Quantity.
-    Parameters
-    ----------
-    temperature: float, `~numpy.ndarray`, or `~astropy.units.Quantity`
-        Temperature of the blackbody.
-    Notes
-    -----
-    The Astropy BlackBody model can not be used directly to obtain a
-    normalized black body since the 'scale' parameter is not known a priori.
-    The scaling value (the mean in this case) directly depends on the
-    black body value.
-    """
+# ==============================================================================
+# EMCEE FUNCTIONS
+# ==============================================================================
 
-    # Convert to units for calculations, also force double precision
-    with u.add_enabled_equivalencies(u.spectral() + u.temperature()):
-        freq = u.Quantity(nu, u.Hz, dtype=np.float64)
-        temp = u.Quantity(temperature, u.K)
 
-    # check the units of scale and setup the output units
-    bb_unit = u.erg / (u.cm ** 2 * u.s * u.Hz * u.sr)  # default unit
-    # use the scale that was used at initialization for determining
-    # the units to return to support returning the right units when
-    # fitting where units are stripped
-    if hasattr(scale, "unit") and scale.unit is not None:
-        # check that the units on scale are covertable to surface
-        # brightness units
-        if not scale.unit.is_equivalent(bb_unit, u.spectral_density(nu)):
-            raise ValueError(
-                f"scale units not surface brightness: {scale.unit}"
-            )
-        # use the scale passed to get the value for scaling
-        if hasattr(scale, "unit"):
-            mult_scale = scale.value
-        else:
-            mult_scale = scale
-        bb_unit = scale.unit
+def dust_component(bb_flux, total_flux, external_flux):
+    """Documentar."""
+    fB = bb_flux.mean()
+    fO = total_flux.mean()
+    fX = external_flux.mean()
+    data = total_flux - external_flux * (fO - fB) / fX
+    return data
+
+
+# probability of the data given the model
+def gaussian_log_likelihood(theta, spectral_axis, total_flux, external_flux):
+    """Documentar."""
+    T, logscale = theta
+    scale = 10 ** logscale
+
+    # calculate the model
+    blackbody = BlackBody(u.Quantity(T, u.K), scale)
+    bb_flux = blackbody(spectral_axis).value
+    dust = dust_component(bb_flux, total_flux, external_flux)
+    diff = dust - bb_flux
+
+    # assume constant noise for every point
+    stddev = np.full_like(diff, diff.std(ddof=1))
+
+    loglike = np.sum(
+        -0.5 * np.log(2.0 * np.pi)
+        - np.log(stddev)
+        - diff ** 2 / (2.0 * stddev ** 2)
+    )
+    return loglike
+
+
+# uninformative prior
+def log_likelihood_prior(theta):
+    """Documentar."""
+    T, logscale = theta
+
+    # Maximum temperature for dust should be lower than 3000 K
+    # poner citas a esos numeros
+    Tok = 0 < T < 3000
+    logscaleok = -2 <= logscale < 12
+
+    if Tok and logscaleok:
+        return 0.0
     else:
-        mult_scale = scale
+        return -np.inf
 
-    # Check if input values are physically possible
-    if np.any(temp < 0):
-        raise ValueError(f"Temperature should be positive: {temp}")
 
-    log_boltz = const.h * freq / (const.k_B * temp)
-    boltzm1 = np.expm1(log_boltz)
-
-    # Calculate blackbody flux
-    bb_nu = 2.0 * const.h * freq ** 3 / (const.c ** 2 * boltzm1) / u.sr
-    y = mult_scale * bb_nu.to(bb_unit, u.spectral_density(freq))
-
-    # If the temperature parameter has no unit, we should return a unitless
-    # value. This occurs for instance during fitting, since we drop the
-    # units temporarily.
-    if hasattr(temperature, "unit"):
-        return y
-    return y.value
+# posterior probability
+def log_probability(theta, spectral_axis, total_flux, external_flux):
+    """Documentar."""
+    lp = log_likelihood_prior(theta)
+    if not np.isfinite(lp):
+        return -np.inf
+    else:
+        return lp + gaussian_log_likelihood(
+            theta, spectral_axis, total_flux, external_flux
+        )
 
 
 # ==============================================================================
-# CLASSES
+# RESULT CLASSES
 # ==============================================================================
+
 
 @attr.s(frozen=True)
 class Parameter:
+    name = attr.ib()
     mean = attr.ib()
     uncertainty = attr.ib()
 
@@ -141,7 +146,7 @@ class NirdustResults:
     temperature = attr.ib()
     scale = attr.ib()
     fitted_blackbody = attr.ib()
-    data = attr.ib(repr=False)
+    dust = attr.ib(repr=False)
 
     def nplot(self, ax=None, data_color="firebrick", model_color="navy"):
         """Build a plot of the fitted spectrum and the fitted model.
@@ -165,75 +170,24 @@ class NirdustResults:
         out: ``matplotlib.pyplot.Axis`` :
             The axis where the method draws.
         """
-        bb_fit = self.fitted_blackbody(self.data.frequency_axis)
+        bb_fit = self.fitted_blackbody(self.dust.spectral_axis)
         if ax is None:
             ax = plt.gca()
 
         ax.plot(
-            self.data.frequency_axis, self.data.flux, color=data_color, label="continuum"
+            self.dust.spectral_axis,
+            self.dust.flux,
+            color=data_color,
+            label="continuum",
         )
-        ax.plot(self.data.frequency_axis, bb_fit, color=model_color, label="model")
-        ax.set_xlabel("Frequency [Hz]")
+        ax.plot(
+            self.dust.spectral_axis, bb_fit, color=model_color, label="model"
+        )
+        ax.set_xlabel("Angstrom [A]")
         ax.set_ylabel("Normalized Energy [arbitrary units]")
         ax.legend()
 
         return ax
-
-
-# ==============================================================================
-# EMCEE FUNCTIONS
-# ==============================================================================
-
-def data_model(bb_flux, total_flux, external_flux):
-    fB = bb_flux.mean()
-    fO = total_flux.mean()
-    fX = external_flux.mean()
-    data = total_flux - external_flux * (fO - fB) / fX
-    return data
-
-# probability of the data given the model
-def gaussian_log_likelihood(theta, nu, total_flux, external_flux, stddev):
-    T, logscale = theta
-    scale = 10 ** logscale
-
-    # calculate the model
-    bb_flux = blackbody(nu, T, scale)
-    data = data_model(bb_flux, total_flux, external_flux)
-
-    diff = data - bb_flux
-    if stddev is None:
-        stddev = np.full_like(nu, diff.std(ddof=1))
-
-    loglike = np.sum(
-        -0.5 * np.log(2.0 * np.pi)
-        - np.log(stddev)
-        - diff ** 2 / (2.0 * stddev ** 2)
-    )
-    return loglike
-
-
-# uninformative prior
-def log_likelihood_prior(theta):
-    T, logscale = theta
-
-    Tok = 1 < T < 2500
-    logscaleok = -2 <= logscale < 12
-
-    if Tok and logscaleok:
-        return 0.0
-    else:
-        return -np.inf
-
-
-# posterior probability
-def log_probability(theta, nu, total_flux, external_flux, stddev):
-    lp = log_likelihood_prior(theta)
-    if not np.isfinite(lp):
-        return -np.inf
-    else:
-        return lp + gaussian_log_likelihood(
-            theta, nu, total_flux, external_flux, stddev
-        )
 
 
 # ==============================================================================
@@ -254,10 +208,9 @@ class NirdustFitter:
 
     def __attrs_post_init__(self):
         fargs = (
-            self.total.frequency_axis.value,
+            self.total.spectral_axis,
             self.total.flux.value,
             self.external.flux.value,
-            None,
         )
         self.sampler = emcee.EnsembleSampler(
             self.nwalkers,
@@ -267,7 +220,25 @@ class NirdustFitter:
             threads=self.nthreads,
         )
 
-    def run(self, initial_state=None, steps=1000):
+    def marginalize_parameters(self, discard=0):
+        chain = self.chain(discard=discard).reshape((-1, self.ndim_))
+        chain[:, 1] = 10 ** chain[:, 1]
+
+        # median, lower_error, upper_error
+        values = [50, 16, 84]
+        t_mean, t_low, t_up = np.percentile(chain[:, 0], values) * u.K
+        s_mean, s_low, s_up = np.percentile(chain[:, 1], values)  # u arbitrary
+
+        temp = Parameter(
+            "Temperature", t_mean, (t_mean - t_low, t_up - t_mean)
+        )
+        scale = Parameter("Scale", s_mean, (s_mean - s_low, s_up - s_mean))
+        return temp, scale
+
+    def fit(self, initial_state=None, steps=1000):
+
+        if self.steps_ is not None:
+            raise RuntimeError("Model already fitted.")
 
         if initial_state is None:
             initial_state = [1000.0, 8.0]
@@ -282,35 +253,26 @@ class NirdustFitter:
         p0[:, 1] += initial_state[1]
 
         self.steps_ = steps
-        return self.sampler.run_mcmc(p0, steps)
+        self.sampler.run_mcmc(p0, steps)
+        return self
 
     def chain(self, discard=0):
-        return self.sampler.get_chain(discard=discard)
+        return self.sampler.get_chain(discard=discard).copy()
 
-    def best_fit(self, discard=0):
-        chain = self.chain(discard=discard).reshape((-1, self.ndim_))
-        chain[:, 1] = 10**chain[:, 1]
+    def result(self, discard=0):
+        temp, scale = self.marginalize_parameters(discard=discard)
 
-        # mean, lower_error, upper_error
-        values = [50, 16, 84]
-        temp_values = np.percentile(chain[:, 0], values)
-        scale_values = np.percentile(chain[:, 1], values)
-
-        temp = Parameter(temp_values[0], (temp_values[1], temp_values[2]))
-        scale = Parameter(scale_values[0], (scale_values[1], scale_values[2]))
-        
-        bb_model = models.BlackBody(temp.value, scale.value)
-        data = data_model(
-            bb_model(self.total.frequency_axis).value,
+        bb_model = BlackBody(temp.mean, scale.mean)
+        dust = dust_component(
+            bb_model(self.total.spectral_axis).value,
             self.total.flux.value,
             self.external.flux.value,
         )
-
         result = NirdustResults(
             temperature=temp,
             scale=scale,
-            fitted_blackbody=models.BlackBody(temp.value, scale.value),
-            data=core.NirdustSpectrum(self.total.spectral_axis, data),
+            fitted_blackbody=bb_model,
+            dust=NirdustSpectrum(self.total.spectral_axis, dust),
         )
         return result
 
