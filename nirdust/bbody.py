@@ -250,6 +250,7 @@ class NirdustFitter:
     nthreads = attr.ib(default=1)
     seed = attr.ib(default=None)
     ndim_ = attr.ib(init=False, default=2)
+    steps_ = attr.ib(init=False, default=None)
 
     def __attrs_post_init__(self):
         fargs = (
@@ -266,12 +267,12 @@ class NirdustFitter:
             threads=self.nthreads,
         )
 
-    def run(self, initial_state=None, nsteps=1000):
+    def run(self, initial_state=None, steps=1000):
 
         if initial_state is None:
             initial_state = [1000.0, 8.0]
         elif isinstance(initial_state, emcee.State):
-            return self.sampler.run_mcmc(initial_state, nsteps)
+            return self.sampler.run_mcmc(initial_state, steps)
         elif len(initial_state) != 2:
             raise ValueError("Invalid initial state.")
 
@@ -279,7 +280,9 @@ class NirdustFitter:
         p0 = rng.random((self.nwalkers, self.ndim_))
         p0[:, 0] += initial_state[0]
         p0[:, 1] += initial_state[1]
-        return self.sampler.run_mcmc(p0, nsteps)
+
+        self.steps_ = steps
+        return self.sampler.run_mcmc(p0, steps)
 
     def chain(self, discard=0):
         return self.sampler.get_chain(discard=discard)
@@ -312,15 +315,37 @@ class NirdustFitter:
         return result
 
     def plot(self, discard=0, ax=None):
-        chain = self.chain(discard=discard)
 
+        # axis orchestration
         if ax is None:
             _, ax = plt.subplots(2, 1, sharex=True, figsize=(8, 6))
 
-        ax[0].plot(chain[:, :, 0], color="k", alpha=0.4)
-        ax[0].set_ylabel("T")
-        ax[1].plot(chain[:, :, 1], color="k", alpha=0.4)
-        ax[1].set_ylabel("log(scale)")
+        ax_t, ax_log = ax
+        fig = ax_t.get_figure()
+        fig.subplots_adjust(hspace=0)
+
+        # data
+        chain = self.chain(discard=discard)
+
+        arr_t = chain[:, :, 0]
+        mean_t = arr_t.mean(axis=1)
+
+        arr_log = chain[:, :, 1]
+        mean_log = arr_log.mean(axis=1)
+
+        # plot
+        ax_t.set_title(
+            f"Sampled parameters\n Steps={self.steps_} - Discarded={discard}"
+        )
+
+        ax_t.plot(arr_t, alpha=0.5)
+        ax_t.plot(mean_t, color="k", label="Mean")
+        ax_t.set_ylabel("T")
+
+        ax_log.plot(arr_log, alpha=0.5)
+        ax_log.plot(mean_log, color="k", label="Mean")
+        ax_log.set_ylabel("log(scale)")
+        ax_log.set_xlabel("Steps")
+        ax_log.legend()
+
         return ax
-
-
