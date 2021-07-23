@@ -30,8 +30,6 @@ import specutils as su
 import specutils.manipulation as sm
 from specutils.spectra import Spectrum1D
 
-import uttr
-
 
 # ==============================================================================
 # UTILITIES
@@ -123,8 +121,6 @@ class NirdustSpectrum:
     metadata = attr.ib(factory=dict, converter=_NDSpectrumMetadata)
 
     spec1d_ = attr.ib(init=False)
-
-    arr_ = uttr.array_accessor()
 
     @spec1d_.default
     def _spec1d_default(self):

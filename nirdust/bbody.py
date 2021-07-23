@@ -19,133 +19,209 @@
 # ==============================================================================
 
 
-from astropy import constants as const
 from astropy import units as u
-from astropy.modeling import Fittable1DModel, Parameter
-from astropy.modeling import fitting
+from astropy.modeling.models import BlackBody
 
 import attr
+from attr import validators
+
+import emcee
 
 import matplotlib.pyplot as plt
 
 import numpy as np
 
+from .core import NirdustSpectrum
+
 
 # ==============================================================================
-# CLASSES
+# EMCEE FUNCTIONS
 # ==============================================================================
 
 
-class NormalizedBlackBody(Fittable1DModel):
-    """Normalized blackbody model.
-
-    This class is similar to the BlackBody model provided by Astropy except
-    that the 'scale' parameter is eliminated, i.e. is allways equal to 1.
-
-    The normalization is performed by dividing the blackbody flux by its
-    numerical mean. The result is a dimensionless Quantity.
+def dust_component(blackbody_flux, target_flux, external_flux):
+    """Compute the expected dust spectrum given a blackbody prediction.
 
     Parameters
     ----------
-    temperature: float, `~numpy.ndarray`, or `~astropy.units.Quantity`
-        Temperature of the blackbody.
+    blackbody_flux: `~numpy.ndarray`
+        Blackbody spectrum intensity.
 
-    Notes
-    -----
-    The Astropy BlackBody model can not be used directly to obtain a
-    normalized black body since the 'scale' parameter is not known a priori.
-    The scaling value (the mean in this case) directly depends on the
-    black body value.
+    target_flux: `~numpy.ndarray`
+        Total spectrum intensity.
 
+    external_flux: `~numpy.ndarray`
+        External spectrum intensity.
+
+    Return
+    ------
+    dust_flux: `~numpy.ndarray`
+        Remaining dust spectrum intensity.
+    """
+    fB = blackbody_flux.mean()
+    fO = target_flux.mean()
+    fX = external_flux.mean()
+    dust_flux = target_flux - external_flux * (fO - fB) / fX
+    return dust_flux
+
+
+def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
+    """Gaussian logarithmic likelihood.
+
+    Compute the likelihood of the model represented by the parameter theta
+    given the data.
+
+    Parameters
+    ----------
+    theta: `~numpy.ndarray`
+        Parameter vector: (temperature, logscale).
+    spectral_axis: `~astropy.units.Quantity`
+        Wavelength axis. Should be the same for target_flux and external_flux.
+    target_flux: `~numpy.ndarray`
+        Total spectrum intensity.
+    external_flux: `~numpy.ndarray`
+        External spectrum intensity.
+
+    Return
+    ------
+    loglike: scalar
+        Logarithmic likelihood for parameter theta.
+    """
+    T, logscale = theta
+    scale = 10 ** logscale
+
+    # calculate the model
+    blackbody = BlackBody(u.Quantity(T, u.K), scale)
+    bb_flux = blackbody(spectral_axis).value
+    dust = dust_component(bb_flux, target_flux, external_flux)
+    diff = dust - bb_flux
+
+    # assume constant noise for every point
+    stddev = np.full_like(diff, diff.std(ddof=1))
+
+    loglike = np.sum(
+        -0.5 * np.log(2.0 * np.pi)
+        - np.log(stddev)
+        - diff ** 2 / (2.0 * stddev ** 2)
+    )
+    return loglike
+
+
+def log_likelihood_prior(theta):
+    """Prior logarithmic likelihood.
+
+    A priori likelihood for parameter theta. This is used to constrain
+    the parameter space, for example: 0 < Temperature < 3000.
+
+    Parameters
+    ----------
+    theta: `~numpy.ndarray`
+        Parameter vector: (temperature, logscale).
+
+    Return
+    ------
+    loglike: scalar
+        A priori logarithmic likelihood for parameter theta.
+    """
+    T, logscale = theta
+
+    # Maximum temperature for dust should be lower than 3000 K
+    Tok = 0 < T < 3000
+    logscaleok = -2 <= logscale < 12
+
+    if Tok and logscaleok:
+        return 0.0
+    else:
+        return -np.inf
+
+
+def log_probability(theta, spectral_axis, target_flux, external_flux):
+    """Posterior logarithmic likelihood.
+
+    Compute the likelihood of the model represented by the parameter theta
+    given the data and assuming a priori information (priors).
+
+    Parameters
+    ----------
+    theta: `~numpy.ndarray`
+        Parameter vector: (temperature, logscale).
+    spectral_axis: `~astropy.units.Quantity`
+        Wavelength axis. Should be the same for target_flux and external_flux.
+    target_flux: `~numpy.ndarray`
+        Total spectrum intensity.
+    external_flux: `~numpy.ndarray`
+        External spectrum intensity.
+
+    Return
+    ------
+    loglike: scalar
+        Posterior logarithmic likelihood for parameter theta.
+    """
+    lp = log_likelihood_prior(theta)
+    if not np.isfinite(lp):
+        return -np.inf
+    else:
+        return lp + gaussian_log_likelihood(
+            theta, spectral_axis, target_flux, external_flux
+        )
+
+
+# ==============================================================================
+# RESULT CLASSES
+# ==============================================================================
+
+
+@attr.s(frozen=True)
+class Parameter:
+    """Doc.
+
+    Attributes
+    ----------
+    name: str
+        Parameter name.
+    mean: scalar, `~astropy.units.Quantity`
+        Expected value for parameter after fitting procedure.
+    uncertainty: tuple, `~astropy.units.Quantity`
+        Assimetric uncertainties: (lower_uncertainty, higher_uncertainty)
     """
 
-    # We parametrize this model with a temperature.
-    temperature = Parameter(default=None, min=0)
-
-    @property
-    def T(self):
-        """Proxy for temperature."""
-        return self.temperature
-
-    def evaluate(self, nu, temperature):
-        """Evaluate the model.
-
-        Parameters
-        ----------
-        nu : float, `~numpy.ndarray`, or `~astropy.units.Quantity`
-            Frequency at which to compute the blackbody. If no units are given,
-            this defaults to Hz.
-
-        temperature : float, `~numpy.ndarray`, or `~astropy.units.Quantity`
-            Temperature of the blackbody. If no units are given, this defaults
-            to Kelvin.
-
-        Returns
-        -------
-        intensity : number or ndarray
-            Blackbody spectrum.
-
-        """
-        # Convert to units for calculations, also force double precision
-        # This is just in case the input units differ from K or Hz
-        with u.add_enabled_equivalencies(u.spectral() + u.temperature()):
-            freq = u.Quantity(nu, u.Hz, dtype=np.float64)
-            temp = u.Quantity(temperature, u.K)
-
-        log_boltz = const.h * freq / (const.k_B * temp)
-        boltzm1 = np.expm1(log_boltz)
-
-        # Calculate blackbody flux and normalize with the mean
-        bb = 2.0 * const.h * freq ** 3 / (const.c ** 2 * boltzm1) / u.sr
-        intensity = bb / np.mean(bb)
-
-        # If the temperature parameter has no unit, we should return a unitless
-        # value. This occurs for instance during fitting, since we drop the
-        # units temporarily.
-        if hasattr(temperature, "unit"):
-            return intensity
-        return intensity.value
+    name = attr.ib()
+    mean = attr.ib()
+    uncertainty = attr.ib()
 
 
 @attr.s(frozen=True)
 class NirdustResults:
     """Create the class NirdustResults.
 
-    Storages the results obtained with fit_blackbody plus the spectral and flux
-    axis of the fitted spectrum. The method nplot() can be called to plot the
-    spectrum and the blackbody model obtained in the fitting.
+    Storages the results obtained with NirdustFitter plus the dust spectrum.
+    The method nplot() can be called to plot the spectrum and the blackbody
+    model obtained in the fitting.
 
     Attributes
     ----------
-    temperature: Quantity
-        The temperature obtainted in the best black body fit in Kelvin.
+    temperature: Parameter
+        Parameter object with the expected blackbody temperature and
+        its uncertainty.
 
-    info: dict
-        The fit_info dictionary contains the values returned by
-        scipy.optimize.leastsq for the most recent fit, including the values
-        from the infodict dictionary it returns. See the scipy.optimize.leastsq
-        documentation for details on the meaning of these values.
+    scale: Parameter
+        Parameter object with the expected blackbody scale and
+        its uncertainty. Note: in the fitting procedure the log10(scale) is
+        sampled to achieve better convergence. However, here we provide the
+        linear value of scale as expected by the astropy BlackBody model. No
+        unit is provided as the intensity is in arbitrary units.
 
-    uncertainty: scalar
-        The uncertainty in the temparture fit as calculed by LevMarLSQFitter.
+    fitted_blackbody: `~astropy.modeling.models.BlackBody`
+        BlackBody instance with the best fit values of temperature and scale.
 
-    fitted_blackbody: model
-        The normalized_blackbody model for the best fit.
-
-    freq_axis: SpectralAxis object
-        The axis containing the spectral information of the spectrum in
-        units of Hz.
-
-    flux_axis: Quantity
-        The flux of the spectrum in arbitrary units.
+    dust: NirdustSpectrum
+        Reconstructed dust emission.
     """
 
-    temperature = attr.ib(converter=lambda t: u.Quantity(t, u.K))
-    info = attr.ib()
-    uncertainty = attr.ib()
+    temperature = attr.ib()
+    scale = attr.ib()
     fitted_blackbody = attr.ib()
-    freq_axis = attr.ib(repr=False)
-    flux_axis = attr.ib(repr=False)
+    dust = attr.ib(repr=False)
 
     def nplot(self, ax=None, data_color="firebrick", model_color="navy"):
         """Build a plot of the fitted spectrum and the fitted model.
@@ -164,92 +240,345 @@ class NirdustResults:
             The color in wich the fitted black body must be plotted, default
             if "navy".
 
-        Returns
-        -------
+        Return
+        ------
         out: ``matplotlib.pyplot.Axis`` :
             The axis where the method draws.
         """
-        instance = self.fitted_blackbody(self.freq_axis.value)
+        bb_fit = self.fitted_blackbody(self.dust.spectral_axis)
         if ax is None:
             ax = plt.gca()
 
         ax.plot(
-            self.freq_axis, self.flux_axis, color=data_color, label="continuum"
+            self.dust.spectral_axis,
+            self.dust.flux,
+            color=data_color,
+            label="continuum",
         )
-        ax.plot(self.freq_axis, instance, color=model_color, label="model")
-        ax.set_xlabel("Frequency [Hz]")
+        ax.plot(
+            self.dust.spectral_axis, bb_fit, color=model_color, label="model"
+        )
+        ax.set_xlabel("Angstrom [A]")
         ax.set_ylabel("Normalized Energy [arbitrary units]")
         ax.legend()
 
         return ax
 
 
-# =============================================================================
-# FUNCTIONS
-# =============================================================================
+# ==============================================================================
+# FITTER CLASS
+# ==============================================================================
 
 
-def normalized_blackbody_fitter(frequency, flux, T0):
-    """Fits a Normalized Blackbody model to spectrum.
+@attr.s
+class NirdustFitter:
+    """Fitter class.
 
-    The fitting is performed by using the LevMarLSQFitter class from Astropy.
+    Fit a BlackBody model to the data using Markov Chain Monte Carlo (MCMC)
+    sampling of the parameter space using the emcee implementation.
+
+    Attributes
+    ----------
+    target_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the nuclear spectrum.
+
+    external_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the external spectrum.
+
+    seed: int
+        Seed for random number generation. Defaul: None
+
+    kwargs:
+        Parameters to be passed to the emcee.EnsembleSampler class.
+    """
+
+    target_spectrum = attr.ib(
+        validator=validators.instance_of(NirdustSpectrum)
+    )
+    external_spectrum = attr.ib(
+        validator=validators.instance_of(NirdustSpectrum)
+    )
+    seed = attr.ib(
+        validator=validators.optional(attr.validators.instance_of(int))
+    )
+    sampler = attr.ib(validator=validators.instance_of(emcee.EnsembleSampler))
+    steps_ = attr.ib(init=False, default=None)
+
+    @classmethod
+    def from_params(
+        cls,
+        *,
+        target_spectrum,
+        external_spectrum,
+        nwalkers=11,
+        seed=None,
+        **kwargs,
+    ):
+        """Create NirdustFitter object from keyword parameters.
+
+        Parameters
+        ----------
+        target_spectrum: NirdustSpectrum object
+            Instance of NirdustSpectrum containing the nuclear spectrum.
+
+        external_spectrum: NirdustSpectrum object
+            Instance of NirdustSpectrum containing the external spectrum.
+
+        nwalkers: int
+            Number of walkers. Must be higher than 4 (twice the number of free
+            parameters). Default: 11.
+
+        seed: int
+            Seed for random number generation. Defaul: None
+
+        kwargs:
+            Parameters to be passed to the emcee.EnsembleSampler class.
+        """
+        sampler_args = (
+            target_spectrum.spectral_axis,
+            target_spectrum.flux.value,
+            external_spectrum.flux.value,
+        )
+        sampler = emcee.EnsembleSampler(
+            nwalkers,
+            2,
+            log_probability,
+            args=sampler_args,
+            **kwargs,
+        )
+        return cls(
+            target_spectrum=target_spectrum,
+            external_spectrum=external_spectrum,
+            seed=seed,
+            sampler=sampler,
+        )
+
+    @property
+    def isfitted(self):
+        """Check if model has already been fitted."""
+        return self.steps_ is not None
+
+    @property
+    def nwalkers(self):
+        """Get number of walkers."""
+        return self.sampler.nwalkers
+
+    @property
+    def ndim(self):
+        """Get number of dimensions to sample. Always 2."""
+        return 2
+
+    def marginalize_parameters(self, discard=0):
+        """Marginalize parameter distributions.
+
+        Parameters
+        ----------
+        discard: int
+            Number of chain steps to discard before marginalizing.
+
+        Return
+        ------
+        temperature: Parameter
+            Parameter object with expected temperature and its uncertainty.
+        scale: Parameter
+            Parameter object with expected scale and its uncertainty.
+            Note: in the fitting procedure the log10(scale) is sampled to
+            achieve better convergence. However, here we provide the linear
+            value of scale as expected by the astropy BlackBody model. No unit
+            is provided as the intensity is in arbitrary units.
+        """
+        chain = self.chain(discard=discard).reshape((-1, self.ndim))
+        chain[:, 1] = 10 ** chain[:, 1]
+
+        # median, lower_error, upper_error
+        values = [50, 16, 84]
+        t_mean, t_low, t_up = np.percentile(chain[:, 0], values) * u.K
+        s_mean, s_low, s_up = np.percentile(chain[:, 1], values)  # u arbitrary
+
+        temp = Parameter(
+            "Temperature", t_mean, (t_mean - t_low, t_up - t_mean)
+        )
+        scale = Parameter("Scale", s_mean, (s_mean - s_low, s_up - s_mean))
+        return temp, scale
+
+    def fit(self, initial_state=None, steps=1000):
+        """Run MCMC sampler.
+
+        Parameters
+        ----------
+        initial_state: tuple, optional
+            Vector indicating the initial guess values of temperature and
+            log10(scale). Default: (1000.0 K, 8.0)
+        steps: int, optional
+            Number of times the parameter space is be sampled. Default: 1000.
+
+        Return
+        ------
+        self: NirdustFitter
+            New instance of the fitter.
+        """
+        if self.isfitted:
+            raise RuntimeError("Model already fitted.")
+
+        if initial_state is None:
+            initial_state = (1000.0, 8.0)
+
+        elif len(initial_state) != 2:
+            raise ValueError("Invalid initial state.")
+
+        rng = np.random.default_rng(seed=self.seed)
+        p0 = rng.random((self.nwalkers, self.ndim))
+        p0[:, 0] += initial_state[0]
+        p0[:, 1] += initial_state[1]
+
+        self.steps_ = steps
+        self.sampler.run_mcmc(p0, steps)
+        return self
+
+    def chain(self, discard=0):
+        """Get the chain array.
+
+        Parameters
+        ----------
+        discard: int
+            Number of steps to discard from the chain, counting from the
+            begining.
+
+        Return
+        ------
+        chain: `~numpy.ndarray`
+            Array with sampled parameters.
+        """
+        return self.sampler.get_chain(discard=discard).copy()
+
+    def result(self, discard=0):
+        """Get the chain array.
+
+        Parameters
+        ----------
+        discard: int
+            Number of steps to discard from the chain, counting from the
+            begining.
+
+        Return
+        ------
+        result: NirdustResult
+            Results of the fitting procedure.
+        """
+        temp, scale = self.marginalize_parameters(discard=discard)
+
+        bb_model = BlackBody(temp.mean, scale.mean)
+        dust = dust_component(
+            bb_model(self.target_spectrum.spectral_axis).value,
+            self.target_spectrum.flux.value,
+            self.external_spectrum.flux.value,
+        )
+        result = NirdustResults(
+            temperature=temp,
+            scale=scale,
+            fitted_blackbody=bb_model,
+            dust=NirdustSpectrum(self.target_spectrum.spectral_axis, dust),
+        )
+        return result
+
+    def plot(self, discard=0, ax=None):
+        """Get the chain array.
+
+        Parameters
+        ----------
+        discard: int
+            Number of steps to discard from the chain, counting from the
+            begining.
+
+        ax: ``matplotlib.pyplot.Axis`` object
+            Object of type Axes containing complete information of the
+            properties to generate the image, by default it is None.
+
+        Return
+        ------
+        out: ``matplotlib.pyplot.Axis`` :
+            The axis where the method draws.
+        """
+        # axis orchestration
+        if ax is None:
+            _, ax = plt.subplots(2, 1, sharex=True, figsize=(8, 6))
+
+        ax_t, ax_log = ax
+        fig = ax_t.get_figure()
+        fig.subplots_adjust(hspace=0)
+
+        # data
+        chain = self.chain(discard=discard)
+
+        arr_t = chain[:, :, 0]
+        mean_t = arr_t.mean(axis=1)
+
+        arr_log = chain[:, :, 1]
+        mean_log = arr_log.mean(axis=1)
+
+        # plot
+        ax_t.set_title(
+            f"Sampled parameters\n Steps={self.steps_} - Discarded={discard}"
+        )
+
+        ax_t.plot(arr_t, alpha=0.5)
+        ax_t.plot(mean_t, color="k", label="Mean")
+        ax_t.set_ylabel("T")
+
+        ax_log.plot(arr_log, alpha=0.5)
+        ax_log.plot(mean_log, color="k", label="Mean")
+        ax_log.set_ylabel("log(scale)")
+        ax_log.set_xlabel("Steps")
+        ax_log.legend()
+
+        return ax
+
+
+# ==============================================================================
+# FITTER FUNCTION WRAPPER
+# ==============================================================================
+
+
+def fit_blackbody(
+    target_spectrum,
+    external_spectrum,
+    initial_state=None,
+    steps=1000,
+    **kwargs,
+):
+    """Fitter function.
+
+    Fit a BlackBody model to the data using Markov Chain Monte Carlo (MCMC)
+    sampling of the parameter space using the emcee implementation.
+    This function serves as a wrapper around the NirdustFitter class.
 
     Parameters
     ----------
-    frequency: `~numpy.ndarray`, or `~astropy.units.Quantity`
-        Spectral axis in units of Hz.
+    target_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the nuclear spectrum.
 
-    flux: `~numpy.ndarray`, or `~astropy.units.Quantity`
-        Normalized intensity.
+    external_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the external spectrum.
 
-    T0: float
-        Initial temperature for the fitting procedure.
+    initial_state: tuple, optional
+        Vector indicating the initial guess values of temperature and
+        log10(scale). Default: (1000.0 K, 8.0)
+
+    steps: int, optional
+        Number of times the parameter space is be sampled. Default: 1000.
+
+    kwargs: dict
+        Parameters to be passed to the emcee.EnsembleSampler class.
 
     Return
     ------
-    out: tuple
-        Best fitted model and a dictionary containing the parameters of the
-        best fitted model.
-
+    fitter: NirdustFitter object
+        Instance of NirdustFitter after the fitting procedure.
     """
-    # LevMarLSQFitter does not support inputs with units
-    freq_value = u.Quantity(frequency, u.Hz).value
-    flux_value = u.Quantity(flux).value
-    T0_value = u.Quantity(T0, u.K).value
-
-    bb_model = NormalizedBlackBody(temperature=T0_value)
-    fitter = fitting.LevMarLSQFitter(calc_uncertainties=True)
-    fitted_model = fitter(bb_model, freq_value, flux_value)
-
-    return fitted_model, fitter.fit_info
-
-
-def fit_blackbody(spectra, T0):
-    """Call blackbody_fitter and store results in a NirdustResults object.
-
-    Parameters
-    ----------
-    spectra:
-
-    T0: float or `~astropy.units.Quantity`
-        Initial temperature for the fit in Kelvin.
-
-    Returns
-    -------
-    out: NirdustResults object
-        An instance of the NirdustResults class that holds the resuslts of
-        the blackbody fitting.
-    """
-    model, fit_info = normalized_blackbody_fitter(
-        spectra.spectral_axis, spectra.flux, T0
+    fitter = NirdustFitter.from_params(
+        target_spectrum=target_spectrum,
+        external_spectrum=external_spectrum,
+        **kwargs,
     )
-
-    storage = NirdustResults(
-        temperature=model.temperature,
-        info=fit_info,
-        uncertainty=model.temperature.std,
-        fitted_blackbody=model,
-        freq_axis=spectra.spectral_axis,
-        flux_axis=spectra.flux,
-    )
-    return storage
+    fitter.fit(initial_state=initial_state, steps=steps)
+    return fitter
