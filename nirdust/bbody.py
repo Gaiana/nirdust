@@ -23,6 +23,7 @@ from astropy import units as u
 from astropy.modeling.models import BlackBody
 
 import attr
+from attr import validators
 
 import emcee
 
@@ -269,15 +270,15 @@ class NirdustResults:
 # ==============================================================================
 
 
-@attr.s
+@attr.s(auto_detect=True)
 class NirdustFitter:
     """Fitter class.
 
     Fit a BlackBody model to the data using Markov Chain Monte Carlo (MCMC)
     sampling of the parameter space using the emcee implementation.
 
-    Atributes
-    ---------
+    Parameters
+    ----------
     target_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the nuclear spectrum.
 
@@ -286,23 +287,40 @@ class NirdustFitter:
 
     nwalkers: int
         Number of walkers. Must be higher than 4 (twice the number of free
-        parameters).
-
-    nthreads: int
-        Number of threads.
+        parameters). Default: 11.
 
     seed: int
-        Seed for random number generation.
+        Seed for random number generation. Defaul: None
+
+    kwargs:
+        Parameters to be passed to the emcee.EnsembleSampler class.
     """
 
-    target_spectrum = attr.ib()
-    external_spectrum = attr.ib()
-    nwalkers = attr.ib(default=11)
-    nthreads = attr.ib(default=1)
-    seed = attr.ib(default=None)
+    target_spectrum = attr.ib(
+        validator=validators.instance_of(NirdustSpectrum)
+    )
+    external_spectrum = attr.ib(
+        validator=validators.instance_of(NirdustSpectrum)
+    )
+    nwalkers = attr.ib()
+    seed = attr.ib()
+    kwargs = attr.ib(factory=dict)
 
     ndim_ = attr.ib(init=False, default=2)
     steps_ = attr.ib(init=False, default=None)
+
+    def __init__(
+        self,
+        target_spectrum,
+        external_spectrum,
+        nwalkers=11,
+        seed=None,
+        **kwargs,
+    ):
+        """Redefine attrs init to accept kwargs for emcee config."""
+        self.__attrs_init__(
+            target_spectrum, external_spectrum, nwalkers, seed, kwargs
+        )
 
     def __attrs_post_init__(self):
         """Instantiate the sampler."""
@@ -316,8 +334,13 @@ class NirdustFitter:
             self.ndim_,
             log_probability,
             args=fargs,
-            threads=self.nthreads,
+            **self.kwargs,
         )
+
+    @property
+    def isfitted(self):
+        """Check if model has already been fitted."""
+        return self.steps_ is not None
 
     def marginalize_parameters(self, discard=0):
         """Marginalize parameter distributions.
@@ -368,7 +391,7 @@ class NirdustFitter:
         self: NirdustFitter
             New instance of the fitter.
         """
-        if self.steps_ is not None:
+        if self.isfitted:
             raise RuntimeError("Model already fitted.")
 
         if initial_state is None:
@@ -483,3 +506,53 @@ class NirdustFitter:
         ax_log.legend()
 
         return ax
+
+
+# ==============================================================================
+# FITTER FUNCTION WRAPPER
+# ==============================================================================
+
+
+def fit_blackbody(
+    target_spectrum,
+    external_spectrum,
+    initial_state=None,
+    steps=1000,
+    **kwargs,
+):
+    """Fitter function.
+
+    Fit a BlackBody model to the data using Markov Chain Monte Carlo (MCMC)
+    sampling of the parameter space using the emcee implementation.
+    This function serves as a wrapper around the NirdustFitter class.
+
+    Parameters
+    ----------
+    target_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the nuclear spectrum.
+
+    external_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the external spectrum.
+
+    initial_state: tuple, optional
+        Vector indicating the initial guess values of temperature and
+        log10(scale). Default: (1000.0 K, 8.0)
+
+    steps: int, optional
+        Number of times the parameter space is be sampled. Default: 1000.
+
+    kwargs: dict
+        Parameters to be passed to the emcee.EnsembleSampler class.
+
+    Return
+    ------
+    fitter: NirdustFitter object
+        Instance of NirdustFitter after the fitting procedure.
+    """
+    fitter = NirdustFitter(
+        target_spectrum=target_spectrum,
+        extenal_spectrum=external_spectrum,
+        **kwargs,
+    )
+    fitter.fit(initial_state=initial_state, steps=steps)
+    return fitter
