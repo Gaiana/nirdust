@@ -114,8 +114,7 @@ def test_NirdustResults_info():
     assert nr_inst.scale == 25
 
 
-def test_NirdustResults_uncertainty(NGC4945_continuum):
-    sp_axis = NGC4945_continuum.spectral_axis
+def test_NirdustResults_uncertainty():
     bb = BlackBody(1000 * u.K)
 
     nr_inst = bbody.NirdustResults(
