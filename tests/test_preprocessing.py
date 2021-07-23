@@ -328,8 +328,64 @@ def test_spectrum_resampling_invalid_scaling():
         )
 
 
+def test_spectrum_resampling_upscale_second_if():
+
+    g1 = models.Gaussian1D(0.6, 21200, 10)
+    g2 = models.Gaussian1D(-0.3, 22000, 15)
+
+    axis = np.arange(1500, 2500, 1) * u.Angstrom
+
+    rng = np.random.default_rng(75)
+
+    y = g1(axis.value) + g2(axis.value) + rng.normal(0.0, 0.03, axis.shape)
+    y_tot = (y + 0.0001 * axis.value + 1000) * u.adu
+
+    low_disp_sp = core.NirdustSpectrum(
+        flux=y_tot,
+        spectral_axis=axis,
+        z=0,
+    )
+
+    # same as axis but half the points, hence twice the dispersion
+    new_axis = np.arange(1500, 2500, 2) * u.Angstrom
+    new_flux = np.ones(len(new_axis)) * u.adu
+
+    high_disp_sp = core.NirdustSpectrum(
+        flux=new_flux,
+        spectral_axis=new_axis,
+        z=0,
+    )
+
+    # check without cleaning nan values
+    f_sp, s_sp = preprocessing.match_spectral_axes(
+        low_disp_sp, high_disp_sp, scaling="upscale", clean=False
+    )
+
+    assert len(f_sp.flux) == len(s_sp.flux)
+    assert len(s_sp.flux) == 1000
+
+    # check cleaning nan values.
+    # we know only 1 nan occurs for these spectrums
+    f_sp, s_sp = preprocessing.match_spectral_axes(
+        high_disp_sp, low_disp_sp, scaling="upscale", clean=True
+    )
+
+    assert len(f_sp.flux) == len(s_sp.flux)
+    assert len(s_sp.flux) == 999
+
+
+def test_spectrum_resampling_invalid_scaling():
+    with pytest.raises(ValueError):
+        preprocessing.match_spectral_axes(
+            None,
+            None,
+            scaling="equal",
+        )
+
+
+
 def test_match_spectral_axes_first_if(NGC4945_continuum_rest_frame):
-    # tests the case where the first spectrum is the largest (no resampling)
+    # tests the case where the first spectrum is the largest 
 
     first_sp = NGC4945_continuum_rest_frame
     second_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
@@ -342,7 +398,7 @@ def test_match_spectral_axes_first_if(NGC4945_continuum_rest_frame):
 
 
 def test_match_spectral_axes_second_if(NGC4945_continuum_rest_frame):
-    # tests the case where the second spectrum is the largest (no resampling)
+
 
     first_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
     second_sp = NGC4945_continuum_rest_frame
