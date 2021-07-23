@@ -354,17 +354,17 @@ class NirdustFitter:
         )
 
     @property
-    def isfitted(self):
-        """Check if model has already been fitted."""
-        return self.steps_ is not None
-
-    @property
     def nwalkers(self):
         """Get number of walkers."""
         return self.sampler.nwalkers
 
     @property
-    def ndim(self):
+    def isfitted_(self):
+        """Check if model has already been fitted."""
+        return self.steps_ is not None
+
+    @property
+    def ndim_(self):
         """Get number of dimensions to sample. Always 2."""
         return 2
 
@@ -387,7 +387,7 @@ class NirdustFitter:
             value of scale as expected by the astropy BlackBody model. No unit
             is provided as the intensity is in arbitrary units.
         """
-        chain = self.chain(discard=discard).reshape((-1, self.ndim))
+        chain = self.chain(discard=discard).reshape((-1, self.ndim_))
         chain[:, 1] = 10 ** chain[:, 1]
 
         # median, lower_error, upper_error
@@ -417,7 +417,7 @@ class NirdustFitter:
         self: NirdustFitter
             New instance of the fitter.
         """
-        if self.isfitted:
+        if self.isfitted_:
             raise RuntimeError("Model already fitted.")
 
         if initial_state is None:
@@ -427,7 +427,7 @@ class NirdustFitter:
             raise ValueError("Invalid initial state.")
 
         rng = np.random.default_rng(seed=self.seed)
-        p0 = rng.random((self.nwalkers, self.ndim))
+        p0 = rng.random((self.nwalkers, self.ndim_))
         p0[:, 0] += initial_state[0]
         p0[:, 1] += initial_state[1]
 
@@ -499,6 +499,9 @@ class NirdustFitter:
         out: ``matplotlib.pyplot.Axis`` :
             The axis where the method draws.
         """
+        if not self.isfitted_:
+            raise RuntimeError("The model is not fitted.")
+
         # axis orchestration
         if ax is None:
             _, ax = plt.subplots(2, 1, sharex=True, figsize=(8, 6))

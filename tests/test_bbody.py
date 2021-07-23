@@ -60,7 +60,7 @@ def test_fitter_snth_data(NGC4945_continuum):
         flux=33 * line * u.adu, spectral_axis=spectrum.spectral_axis
     )
 
-    fitter = bbody.fit_blackbody(spectrumT, externalT, steps=500)
+    fitter = bbody.fit_blackbody(spectrumT, externalT, steps=500, seed=42)
 
     expected_temp = fitter.result(400).temperature.mean
     expected_scale = fitter.result(400).scale.mean
@@ -70,11 +70,11 @@ def test_fitter_snth_data(NGC4945_continuum):
     assert expected_temp.unit == true_T.unit
 
 
-def test_fit_error(NGC4945_continuum):
+def test_fit_already_fitted(NGC4945_continuum):
 
     spectrum = NGC4945_continuum.cut_edges(19500, 22900)
 
-    fitter = bbody.fit_blackbody(spectrum, spectrum, steps=10)
+    fitter = bbody.fit_blackbody(spectrum, spectrum, steps=10, seed=42)
 
     with pytest.raises(RuntimeError):
         fitter.fit(steps=10)
@@ -92,7 +92,7 @@ def test_fit_error_2(NGC4945_continuum):
 
 
 @check_figures_equal()
-def test_plot(fig_test, fig_ref, NGC4945_continuum):
+def test_fit_plot(fig_test, fig_ref, NGC4945_continuum):
 
     spectrum = NGC4945_continuum.cut_edges(19500, 22900)
 
@@ -121,7 +121,7 @@ def test_plot(fig_test, fig_ref, NGC4945_continuum):
         flux=33 * line * u.adu, spectral_axis=spectrum.spectral_axis
     )
 
-    fitter = bbody.fit_blackbody(spectrumT, externalT, steps=20)
+    fitter = bbody.fit_blackbody(spectrumT, externalT, steps=20, seed=42)
 
     # test figure is generated
     ax_test = fig_test.subplots(2, 1, sharex=True)
@@ -159,7 +159,7 @@ def test_plot(fig_test, fig_ref, NGC4945_continuum):
 
 
 @check_figures_equal()
-def test_plot_non_axis(fig_test, fig_ref, NGC4945_continuum):
+def test_fit_plot_non_axis(fig_test, fig_ref, NGC4945_continuum):
 
     spectrum = NGC4945_continuum.cut_edges(19500, 22900)
 
@@ -188,7 +188,7 @@ def test_plot_non_axis(fig_test, fig_ref, NGC4945_continuum):
         flux=33 * line * u.adu, spectral_axis=spectrum.spectral_axis
     )
 
-    fitter = bbody.fit_blackbody(spectrumT, externalT, steps=20)
+    fitter = bbody.fit_blackbody(spectrumT, externalT, steps=20, seed=42)
 
     # test figure is generated
     ax_test = fig_test.subplots(2, 1, sharex=True)
@@ -224,6 +224,43 @@ def test_plot_non_axis(fig_test, fig_ref, NGC4945_continuum):
     ax_log.set_ylabel("log(scale)")
     ax_log.set_xlabel("Steps")
     ax_log.legend()
+
+
+def test_fit_plot_unfitted(NGC4945_continuum):
+
+    spectrum = NGC4945_continuum.cut_edges(19500, 22900)
+
+    # BlackBody model
+    true_T = 1233 * u.K
+    true_scale = 23.0
+    model = models.BlackBody(true_T, scale=true_scale)
+    bb = model(spectrum.frequency_axis).value
+
+    # Linear model
+    def tp_line(x, x1, x2, y1, y2):
+        return (y2 - y1) / (x2 - x1) * (x - x1) + y1
+
+    wave = spectrum.spectral_axis.value
+    delta_bb = bb[-1] - bb[0]
+    y1_line, y2_line = bb[0] + 2 / 3 * delta_bb, bb[0] + 1 / 3 * delta_bb
+    line = tp_line(wave, wave[0], wave[-1], y1_line, y2_line)
+
+    # Total model
+    flux = line * u.adu + bb * u.adu
+
+    spectrumT = core.NirdustSpectrum(
+        flux=flux, spectral_axis=spectrum.spectral_axis
+    )
+    externalT = core.NirdustSpectrum(
+        flux=33 * line * u.adu, spectral_axis=spectrum.spectral_axis
+    )
+
+    fitter = bbody.NirdustFitter.from_params(
+        target_spectrum=spectrumT, external_spectrum=externalT
+    )
+
+    with pytest.raises(RuntimeError):
+        fitter.plot()
 
 
 # =============================================================================
