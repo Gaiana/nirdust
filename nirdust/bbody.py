@@ -223,7 +223,7 @@ class NirdustResults:
     fitted_blackbody = attr.ib()
     dust = attr.ib(repr=False)
 
-    def plot(self, ax=None, data_color="firebrick", model_color="navy"):
+    def plot(self, ax=None, data_kws=None, model_kws=None):
         """Build a plot of the fitted spectrum and the fitted model.
 
         Parameters
@@ -232,13 +232,13 @@ class NirdustResults:
             Object of type Axes containing complete information of the
             properties to generate the image, by default it is None.
 
-        data_color: str
-            The color in wich the spectrum must be plotted, default is
-            "firebrick".
+        data_kws: ``dict``
+            Dictionaries of keyword arguments. Passed to the data plotting
+            function.
 
-        model_color: str
-            The color in wich the fitted black body must be plotted, default
-            if "navy".
+        model_kws: ``dict``
+            Dictionaries of keyword arguments. Passed to the model plotting
+            function.
 
         Return
         ------
@@ -249,17 +249,19 @@ class NirdustResults:
         if ax is None:
             ax = plt.gca()
 
+        data_kws = {} if data_kws is None else data_kws
+        data_kws.setdefault("color", "firebrick")
         ax.plot(
             self.dust.spectral_axis,
             self.dust.flux,
-            color=data_color,
             label="Dust emission",
+            **data_kws,
         )
+
+        model_kws = {} if model_kws is None else model_kws
+        model_kws.setdefault("color", "Navy")
         ax.plot(
-            self.dust.spectral_axis,
-            bb_fit,
-            color=model_color,
-            label="Black body",
+            self.dust.spectral_axis, bb_fit, label="Black body", **model_kws
         )
         ax.set_xlabel("Angstrom [A]")
         ax.set_ylabel("Intensity [arbitrary units]")
@@ -291,8 +293,6 @@ class NirdustFitter:
     seed: int
         Seed for random number generation. Defaul: None
 
-    kwargs:
-        Parameters to be passed to the emcee.EnsembleSampler class.
     """
 
     target_spectrum = attr.ib(
@@ -484,7 +484,15 @@ class NirdustFitter:
         )
         return result
 
-    def plot(self, discard=0, ax=None):
+    def plot(
+        self,
+        discard=0,
+        ax=None,
+        temp_kws=None,
+        temp_mean_kws=None,
+        log_kws=None,
+        log_mean_kws=None,
+    ):
         """Get the chain array.
 
         Parameters
@@ -522,17 +530,35 @@ class NirdustFitter:
         arr_log = chain[:, :, 1]
         mean_log = arr_log.mean(axis=1)
 
-        # plot
+        # title
         ax_t.set_title(
             f"Sampled parameters\n Steps={self.steps_} - Discarded={discard}"
         )
 
-        ax_t.plot(arr_t, alpha=0.5)
-        ax_t.plot(mean_t, color="k", label="Mean")
+        # temp
+        temp_kws = {} if temp_kws is None else temp_kws
+        temp_kws.setdefault("alpha", 0.5)
+        ax_t.plot(arr_t, **temp_kws)
+
+        # temp mean
+        temp_mean_kws = {} if temp_mean_kws is None else temp_mean_kws
+        temp_mean_kws.setdefault("color", "k")
+        ax_t.plot(mean_t, label="Mean", **temp_mean_kws)
+
+        # temp labels
         ax_t.set_ylabel("T")
 
-        ax_log.plot(arr_log, alpha=0.5)
-        ax_log.plot(mean_log, color="k", label="Mean")
+        # log
+        log_kws = {} if log_kws is None else log_kws
+        log_kws.setdefault("alpha", 0.5)
+        ax_log.plot(arr_log, **log_kws)
+
+        # log mean
+        log_mean_kws = {} if log_mean_kws is None else log_mean_kws
+        log_mean_kws.setdefault("color", "k")
+        ax_log.plot(mean_log, label="Mean", **log_mean_kws)
+
+        # log labels
         ax_log.set_ylabel("log(scale)")
         ax_log.set_xlabel("Steps")
         ax_log.legend()
