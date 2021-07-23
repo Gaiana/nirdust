@@ -61,13 +61,13 @@ def test_fitter_snth_data(NGC4945_continuum):
     )
 
     fitter = bbody.NirdustFitter(spectrumT, externalT)
-    fitter.fit()
+    fitter.fit(steps=500)
 
     expected_temp = fitter.result(400).temperature.mean
     expected_scale = fitter.result(400).scale.mean
 
-    np.testing.assert_almost_equal(expected_temp.value, 1233.0, decimal=10)
-    np.testing.assert_almost_equal(expected_scale, 23.0, decimal=10)
+    np.testing.assert_almost_equal(expected_temp.value, 1233.0, decimal=6)
+    np.testing.assert_almost_equal(expected_scale, 23.0, decimal=6)
     assert expected_temp.unit == true_T.unit
 
 
@@ -163,9 +163,8 @@ def test_plot(fig_test, fig_ref, NGC4945_continuum):
     ax_log.legend()
 
 
-
 @check_figures_equal()
-def test_plot(fig_test, fig_ref, NGC4945_continuum):
+def test_plot_non_axis(fig_test, fig_ref, NGC4945_continuum):
 
     spectrum = NGC4945_continuum.cut_edges(19500, 22900)
 
@@ -198,8 +197,8 @@ def test_plot(fig_test, fig_ref, NGC4945_continuum):
     fitter.fit(steps=20)
 
     # test figure is generated
-    ax_test = fig_test.subplots(2,1, sharex=True)
-    with patch("matplotlib.pyplot.subplots", return_value=(fig_test,ax_test)):
+    ax_test = fig_test.subplots(2, 1, sharex=True)
+    with patch("matplotlib.pyplot.subplots", return_value=(fig_test, ax_test)):
         fitter.plot()
 
     # ref figure is constructed
@@ -231,6 +230,7 @@ def test_plot(fig_test, fig_ref, NGC4945_continuum):
     ax_log.set_ylabel("log(scale)")
     ax_log.set_xlabel("Steps")
     ax_log.legend()
+
 
 # =============================================================================
 # BLACKBODY RESULT
