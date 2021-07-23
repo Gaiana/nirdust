@@ -305,7 +305,7 @@ def test_NirdustResults_flux_axis(NGC4945_continuum):
 
 
 @check_figures_equal()
-def test_nplot(fig_test, fig_ref, NGC4945_continuum):
+def test_plot_results(fig_test, fig_ref, NGC4945_continuum):
 
     spectrum = NGC4945_continuum.cut_edges(19500, 22900).normalize()
 
@@ -320,19 +320,19 @@ def test_nplot(fig_test, fig_ref, NGC4945_continuum):
     )
 
     ax_test = fig_test.subplots()
-    fit_results.nplot(ax=ax_test)
+    fit_results.plot(ax=ax_test)
 
     ax_ref = fig_ref.subplots()
 
-    ax_ref.plot(sp_axis, flux, color="firebrick", label="continuum")
-    ax_ref.plot(sp_axis, instanstella, color="navy", label="model")
+    ax_ref.plot(sp_axis, flux, color="firebrick", label="Dust emission")
+    ax_ref.plot(sp_axis, instanstella, color="navy", label="Black body")
     ax_ref.set_xlabel("Angstrom [A]")
-    ax_ref.set_ylabel("Normalized Energy [arbitrary units]")
+    ax_ref.set_ylabel("Intensity [arbitrary units]")
     ax_ref.legend()
 
 
 @check_figures_equal()
-def test_nplot_default_axis(fig_test, fig_ref, NGC4945_continuum):
+def test_plot_results_default_axis(fig_test, fig_ref, NGC4945_continuum):
     spectrum = NGC4945_continuum.cut_edges(19500, 22900).normalize()
 
     sp_axis = spectrum.spectral_axis
@@ -347,12 +347,12 @@ def test_nplot_default_axis(fig_test, fig_ref, NGC4945_continuum):
 
     ax_test = fig_test.subplots()
     with patch("matplotlib.pyplot.gca", return_value=ax_test):
-        fit_results.nplot()
+        fit_results.plot()
 
     ax_ref = fig_ref.subplots()
 
-    ax_ref.plot(sp_axis, flux, color="firebrick", label="continuum")
-    ax_ref.plot(sp_axis, instanstella, color="navy", label="model")
+    ax_ref.plot(sp_axis, flux, color="firebrick", label="Dust emission")
+    ax_ref.plot(sp_axis, instanstella, color="navy", label="Black body")
     ax_ref.set_xlabel("Angstrom [A]")
-    ax_ref.set_ylabel("Normalized Energy [arbitrary units]")
+    ax_ref.set_ylabel("Intensity [arbitrary units]")
     ax_ref.legend()

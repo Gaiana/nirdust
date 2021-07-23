@@ -223,7 +223,7 @@ class NirdustResults:
     fitted_blackbody = attr.ib()
     dust = attr.ib(repr=False)
 
-    def nplot(self, ax=None, data_color="firebrick", model_color="navy"):
+    def plot(self, ax=None, data_color="firebrick", model_color="navy"):
         """Build a plot of the fitted spectrum and the fitted model.
 
         Parameters
@@ -253,13 +253,16 @@ class NirdustResults:
             self.dust.spectral_axis,
             self.dust.flux,
             color=data_color,
-            label="continuum",
+            label="Dust emission",
         )
         ax.plot(
-            self.dust.spectral_axis, bb_fit, color=model_color, label="model"
+            self.dust.spectral_axis,
+            bb_fit,
+            color=model_color,
+            label="Black body",
         )
         ax.set_xlabel("Angstrom [A]")
-        ax.set_ylabel("Normalized Energy [arbitrary units]")
+        ax.set_ylabel("Intensity [arbitrary units]")
         ax.legend()
 
         return ax
