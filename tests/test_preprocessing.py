@@ -23,62 +23,6 @@ import pytest
 
 
 # =============================================================================
-# DUST_COMPONENT
-# =============================================================================
-
-
-def test_dust_component(NGC4945_continuum, NGC4945_external_continuum_400pc):
-    spectrum = NGC4945_continuum.cut_edges(19600, 22900)
-    external_spectrum = NGC4945_external_continuum_400pc.cut_edges(
-        19600, 22900
-    )
-    prepared = preprocessing.dust_component(spectrum, external_spectrum)
-    expected_len = len(spectrum.flux)
-    assert len(prepared.flux) == expected_len
-
-
-def test_dust_component_different_length(
-    NGC4945_continuum, NGC4945_external_continuum_400pc
-):
-    spectrum = NGC4945_continuum.cut_edges(19600, 22900)
-    external_spectrum = NGC4945_external_continuum_400pc.cut_edges(
-        19600, 22500
-    )
-
-    matched_1, matched_2 = preprocessing.match_spectral_axes(
-        spectrum, external_spectrum
-    )
-
-    prepared = preprocessing.dust_component(matched_1, matched_2)
-
-    assert len(prepared.flux) == len(prepared.spectral_axis)
-
-
-def test_dust_component_with_mask(
-    NGC4945_nuclear_with_lines, NGC4945_external_with_lines_200pc
-):
-
-    nuclear_sp = NGC4945_nuclear_with_lines.cut_edges(20000, 22500)
-    external_sp = NGC4945_external_with_lines_200pc.cut_edges(20000, 22500)
-
-    w1 = preprocessing.line_spectrum(nuclear_sp, 20800, 21050, 5, window=80)[1]
-    w2 = preprocessing.line_spectrum(external_sp, 20800, 21050, 5, window=80)[
-        1
-    ]
-
-    clean_nuc_sp = nuclear_sp.mask_spectrum(w1)
-    clean_ext_sp = external_sp.mask_spectrum(w2)
-
-    match_nuc, match_ext = preprocessing.match_spectral_axes(
-        clean_nuc_sp, clean_ext_sp
-    )
-
-    dust = preprocessing.dust_component(match_nuc, match_ext)
-
-    assert len(dust.flux) == 544
-
-
-# =============================================================================
 # LINE SPECTRUM
 # =============================================================================
 
@@ -374,18 +318,8 @@ def test_spectrum_resampling_upscale_second_if():
     assert len(s_sp.flux) == 999
 
 
-def test_spectrum_resampling_invalid_scaling():
-    with pytest.raises(ValueError):
-        preprocessing.match_spectral_axes(
-            None,
-            None,
-            scaling="equal",
-        )
-
-
-
 def test_match_spectral_axes_first_if(NGC4945_continuum_rest_frame):
-    # tests the case where the first spectrum is the largest 
+    # tests the case where the first spectrum is the largest
 
     first_sp = NGC4945_continuum_rest_frame
     second_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
@@ -398,7 +332,6 @@ def test_match_spectral_axes_first_if(NGC4945_continuum_rest_frame):
 
 
 def test_match_spectral_axes_second_if(NGC4945_continuum_rest_frame):
-
 
     first_sp = NGC4945_continuum_rest_frame.cut_edges(22000, 23000)
     second_sp = NGC4945_continuum_rest_frame
