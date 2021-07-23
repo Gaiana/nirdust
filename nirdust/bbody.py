@@ -290,8 +290,11 @@ class NirdustFitter:
     external_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the external spectrum.
 
-    seed: int
-        Seed for random number generation. Defaul: None
+    seed: int or None
+        Seed for random number generation.
+
+    sampler: ``emcee.EnsembleSampler``
+        Sampler instance to run the MCMC model.
 
     """
 
@@ -504,6 +507,19 @@ class NirdustFitter:
         ax: ``matplotlib.pyplot.Axis`` object
             Object of type Axes containing complete information of the
             properties to generate the image, by default it is None.
+
+        temp_kws: ``dict``
+            Dictionaries of keyword arguments. Passed to the temperature
+            plotting function.
+        temp_mean_kws: ``dict``
+            Dictionaries of keyword arguments. Passed to the temperature mean
+            plotting function.
+        log_kws: ``dict``
+            Dictionaries of keyword arguments. Passed to the logarithmic
+            plotting function.
+        log_mean_kws: ``dict``
+            Dictionaries of keyword arguments. Passed to the logarithmic mean
+            plotting function.
 
         Return
         ------

@@ -256,7 +256,9 @@ def test_fit_plot_unfitted(NGC4945_continuum):
     )
 
     fitter = bbody.NirdustFitter.from_params(
-        target_spectrum=spectrumT, external_spectrum=externalT
+        target_spectrum=spectrumT,
+        external_spectrum=externalT,
+        seed=42,
     )
 
     with pytest.raises(RuntimeError):
