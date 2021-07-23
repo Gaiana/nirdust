@@ -175,8 +175,8 @@ def log_probability(theta, spectral_axis, target_flux, external_flux):
 class Parameter:
     """Doc.
 
-    Atributes
-    ---------
+    Attributes
+    ----------
     name: str
         Parameter name.
     mean: scalar, `~astropy.units.Quantity`
@@ -270,24 +270,20 @@ class NirdustResults:
 # ==============================================================================
 
 
-@attr.s(auto_detect=True)
+@attr.s
 class NirdustFitter:
     """Fitter class.
 
     Fit a BlackBody model to the data using Markov Chain Monte Carlo (MCMC)
     sampling of the parameter space using the emcee implementation.
 
-    Parameters
+    Attributes
     ----------
     target_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the nuclear spectrum.
 
     external_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the external spectrum.
-
-    nwalkers: int
-        Number of walkers. Must be higher than 4 (twice the number of free
-        parameters). Default: 11.
 
     seed: int
         Seed for random number generation. Defaul: None
@@ -302,45 +298,75 @@ class NirdustFitter:
     external_spectrum = attr.ib(
         validator=validators.instance_of(NirdustSpectrum)
     )
-    nwalkers = attr.ib()
-    seed = attr.ib()
-    kwargs = attr.ib(factory=dict)
-
-    ndim_ = attr.ib(init=False, default=2)
+    seed = attr.ib(
+        validator=validators.optional(attr.validators.instance_of(int))
+    )
+    sampler = attr.ib(validator=validators.instance_of(emcee.EnsembleSampler))
     steps_ = attr.ib(init=False, default=None)
 
-    def __init__(
-        self,
+    @classmethod
+    def from_params(
+        cls,
+        *,
         target_spectrum,
         external_spectrum,
         nwalkers=11,
         seed=None,
         **kwargs,
     ):
-        """Redefine attrs init to accept kwargs for emcee config."""
-        self.__attrs_init__(
-            target_spectrum, external_spectrum, nwalkers, seed, kwargs
-        )
+        """Create NirdustFitter object from keyword parameters.
 
-    def __attrs_post_init__(self):
-        """Instantiate the sampler."""
-        fargs = (
-            self.target_spectrum.spectral_axis,
-            self.target_spectrum.flux.value,
-            self.external_spectrum.flux.value,
+        Parameters
+        ----------
+        target_spectrum: NirdustSpectrum object
+            Instance of NirdustSpectrum containing the nuclear spectrum.
+
+        external_spectrum: NirdustSpectrum object
+            Instance of NirdustSpectrum containing the external spectrum.
+
+        nwalkers: int
+            Number of walkers. Must be higher than 4 (twice the number of free
+            parameters). Default: 11.
+
+        seed: int
+            Seed for random number generation. Defaul: None
+
+        kwargs:
+            Parameters to be passed to the emcee.EnsembleSampler class.
+        """
+        sampler_args = (
+            target_spectrum.spectral_axis,
+            target_spectrum.flux.value,
+            external_spectrum.flux.value,
         )
-        self.sampler = emcee.EnsembleSampler(
-            self.nwalkers,
-            self.ndim_,
+        sampler = emcee.EnsembleSampler(
+            nwalkers,
+            2,
             log_probability,
-            args=fargs,
-            **self.kwargs,
+            args=sampler_args,
+            **kwargs,
+        )
+        return cls(
+            target_spectrum=target_spectrum,
+            external_spectrum=external_spectrum,
+            seed=seed,
+            sampler=sampler,
         )
 
     @property
     def isfitted(self):
         """Check if model has already been fitted."""
         return self.steps_ is not None
+
+    @property
+    def nwalkers(self):
+        """Get number of walkers."""
+        return self.sampler.nwalkers
+
+    @property
+    def ndim(self):
+        """Get number of dimensions to sample. Always 2."""
+        return 2
 
     def marginalize_parameters(self, discard=0):
         """Marginalize parameter distributions.
@@ -361,7 +387,7 @@ class NirdustFitter:
             value of scale as expected by the astropy BlackBody model. No unit
             is provided as the intensity is in arbitrary units.
         """
-        chain = self.chain(discard=discard).reshape((-1, self.ndim_))
+        chain = self.chain(discard=discard).reshape((-1, self.ndim))
         chain[:, 1] = 10 ** chain[:, 1]
 
         # median, lower_error, upper_error
@@ -401,7 +427,7 @@ class NirdustFitter:
             raise ValueError("Invalid initial state.")
 
         rng = np.random.default_rng(seed=self.seed)
-        p0 = rng.random((self.nwalkers, self.ndim_))
+        p0 = rng.random((self.nwalkers, self.ndim))
         p0[:, 0] += initial_state[0]
         p0[:, 1] += initial_state[1]
 
@@ -412,8 +438,8 @@ class NirdustFitter:
     def chain(self, discard=0):
         """Get the chain array.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         discard: int
             Number of steps to discard from the chain, counting from the
             begining.
@@ -428,8 +454,8 @@ class NirdustFitter:
     def result(self, discard=0):
         """Get the chain array.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         discard: int
             Number of steps to discard from the chain, counting from the
             begining.
@@ -458,8 +484,8 @@ class NirdustFitter:
     def plot(self, discard=0, ax=None):
         """Get the chain array.
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         discard: int
             Number of steps to discard from the chain, counting from the
             begining.
@@ -549,9 +575,9 @@ def fit_blackbody(
     fitter: NirdustFitter object
         Instance of NirdustFitter after the fitting procedure.
     """
-    fitter = NirdustFitter(
+    fitter = NirdustFitter.from_params(
         target_spectrum=target_spectrum,
-        extenal_spectrum=external_spectrum,
+        external_spectrum=external_spectrum,
         **kwargs,
     )
     fitter.fit(initial_state=initial_state, steps=steps)

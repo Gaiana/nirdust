@@ -39,7 +39,7 @@ REQUIREMENTS = [
     "astropy>=4.2",
     "specutils",
     "matplotlib",
-    "attrs>=21.1",
+    "attrs",
     "emcee",
 ]
 

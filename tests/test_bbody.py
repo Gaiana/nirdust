@@ -60,8 +60,7 @@ def test_fitter_snth_data(NGC4945_continuum):
         flux=33 * line * u.adu, spectral_axis=spectrum.spectral_axis
     )
 
-    fitter = bbody.NirdustFitter(spectrumT, externalT)
-    fitter.fit(steps=500)
+    fitter = bbody.fit_blackbody(spectrumT, externalT, steps=500)
 
     expected_temp = fitter.result(400).temperature.mean
     expected_scale = fitter.result(400).scale.mean
@@ -75,9 +74,7 @@ def test_fit_error(NGC4945_continuum):
 
     spectrum = NGC4945_continuum.cut_edges(19500, 22900)
 
-    fitter = bbody.NirdustFitter(spectrum, spectrum)
-
-    fitter.fit(steps=10)
+    fitter = bbody.fit_blackbody(spectrum, spectrum, steps=10)
 
     with pytest.raises(RuntimeError):
         fitter.fit(steps=10)
@@ -86,13 +83,12 @@ def test_fit_error(NGC4945_continuum):
 def test_fit_error_2(NGC4945_continuum):
 
     spectrum = NGC4945_continuum.cut_edges(19500, 22900)
-
-    fitter = bbody.NirdustFitter(spectrum, spectrum)
-
     initial_st = [1000, 10, 9]
 
     with pytest.raises(ValueError):
-        fitter.fit(initial_state=initial_st)
+        bbody.fit_blackbody(
+            spectrum, spectrum, initial_state=initial_st, steps=500
+        )
 
 
 @check_figures_equal()
@@ -125,8 +121,7 @@ def test_plot(fig_test, fig_ref, NGC4945_continuum):
         flux=33 * line * u.adu, spectral_axis=spectrum.spectral_axis
     )
 
-    fitter = bbody.NirdustFitter(spectrumT, externalT)
-    fitter.fit(steps=20)
+    fitter = bbody.fit_blackbody(spectrumT, externalT, steps=20)
 
     # test figure is generated
     ax_test = fig_test.subplots(2, 1, sharex=True)
@@ -193,8 +188,7 @@ def test_plot_non_axis(fig_test, fig_ref, NGC4945_continuum):
         flux=33 * line * u.adu, spectral_axis=spectrum.spectral_axis
     )
 
-    fitter = bbody.NirdustFitter(spectrumT, externalT)
-    fitter.fit(steps=20)
+    fitter = bbody.fit_blackbody(spectrumT, externalT, steps=20)
 
     # test figure is generated
     ax_test = fig_test.subplots(2, 1, sharex=True)
