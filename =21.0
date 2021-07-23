@@ -1,9 +1,0 @@
-Requirement already satisfied: attrs in /home/martin/Documents/Projects/nirdust/lib/python3.8/site-packages (20.3.0)
-Collecting attrs
-  Using cached attrs-21.2.0-py2.py3-none-any.whl (53 kB)
-Installing collected packages: attrs
-  Attempting uninstall: attrs
-    Found existing installation: attrs 20.3.0
-    Uninstalling attrs-20.3.0:
-      Successfully uninstalled attrs-20.3.0
-Successfully installed attrs-21.2.0
