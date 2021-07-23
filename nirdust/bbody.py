@@ -242,8 +242,6 @@ class NirdustFitter:
 
         if initial_state is None:
             initial_state = [1000.0, 8.0]
-        elif isinstance(initial_state, emcee.State):
-            return self.sampler.run_mcmc(initial_state, steps)
         elif len(initial_state) != 2:
             raise ValueError("Invalid initial state.")
 
