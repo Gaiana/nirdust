@@ -39,7 +39,7 @@ from .core import NirdustSpectrum
 # ==============================================================================
 
 
-def dust_component(blackbody_flux, target_flux, external_flux):
+def target_model(spectral_axis, external_flux, T, alpha, beta):
     """Compute the expected dust spectrum given a blackbody prediction.
 
     Parameters
@@ -58,11 +58,15 @@ def dust_component(blackbody_flux, target_flux, external_flux):
     dust_flux: `~numpy.ndarray`
         Remaining dust spectrum intensity.
     """
-    fB = blackbody_flux.mean()
-    fO = target_flux.mean()
-    fX = external_flux.mean()
-    dust_flux = target_flux - external_flux * (fO - fB) / fX
-    return dust_flux
+    # calculate the model
+    blackbody = BlackBody(u.Quantity(T, u.K))
+    bb_flux = blackbody(spectral_axis).value
+
+    bb_reduced = bb_flux - bb_flux.mean()
+    external_reduced = external_flux - external_flux.mean()
+    
+    prediction = alpha * external_reduced + beta * bb_reduced
+    return prediction
 
 
 def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
@@ -87,14 +91,12 @@ def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
     loglike: scalar
         Logarithmic likelihood for parameter theta.
     """
-    T, logscale = theta
-    scale = 10 ** logscale
+    T, alpha, beta = theta
 
-    # calculate the model
-    blackbody = BlackBody(u.Quantity(T, u.K), scale)
-    bb_flux = blackbody(spectral_axis).value
-    dust = dust_component(bb_flux, target_flux, external_flux)
-    diff = dust - bb_flux
+    prediction = target_model(spectral_axis, external_flux, T, alpha, beta)
+    
+    target_reduced = target_flux - target_flux.mean()
+    diff = target_reduced - prediction
 
     # assume constant noise for every point
     stddev = np.full_like(diff, diff.std(ddof=1))
@@ -123,13 +125,14 @@ def log_likelihood_prior(theta):
     loglike: scalar
         A priori logarithmic likelihood for parameter theta.
     """
-    T, logscale = theta
+    T, alpha, beta = theta
 
     # Maximum temperature for dust should be lower than 3000 K
     Tok = 0 < T < 3000
-    logscaleok = -2 <= logscale < 12
+    alphaok = alpha > 0
+    betaok = beta > 0
 
-    if Tok and logscaleok:
+    if Tok:# and alphaok and betaok:
         return 0.0
     else:
         return -np.inf
@@ -217,11 +220,12 @@ class NirdustResults:
     dust: NirdustSpectrum
         Reconstructed dust emission.
     """
-
     temperature = attr.ib()
-    scale = attr.ib()
+    alpha = attr.ib()
+    beta = attr.ib()
     fitted_blackbody = attr.ib()
-    dust = attr.ib(repr=False)
+    target_spectrum = attr.ib()
+    external_spectrum = attr.ib()
 
     def plot(self, ax=None, data_kws=None, model_kws=None):
         """Build a plot of the fitted spectrum and the fitted model.
@@ -245,23 +249,35 @@ class NirdustResults:
         out: ``matplotlib.pyplot.Axis`` :
             The axis where the method draws.
         """
-        bb_fit = self.fitted_blackbody(self.dust.spectral_axis)
+        bb_fit = self.fitted_blackbody(self.target_spectrum.spectral_axis)
+
+        prediction = target_model(
+            self.target_spectrum.spectral_axis,
+            self.external_spectrum.flux.value,
+            self.temperature.mean,
+            self.alpha.mean,
+            self.beta.mean,
+        )
+        target_reduced = self.target_spectrum.flux - self.target_spectrum.flux.mean()
+
         if ax is None:
             ax = plt.gca()
 
         data_kws = {} if data_kws is None else data_kws
         data_kws.setdefault("color", "firebrick")
         ax.plot(
-            self.dust.spectral_axis,
-            self.dust.flux,
-            label="Dust emission",
+            self.target_spectrum.spectral_axis,
+            target_reduced,
+            label="target reduced",
             **data_kws,
         )
 
         model_kws = {} if model_kws is None else model_kws
         model_kws.setdefault("color", "Navy")
         ax.plot(
-            self.dust.spectral_axis, bb_fit, label="Black body", **model_kws
+            self.target_spectrum.spectral_axis, prediction,
+            label="prediction",
+            **model_kws
         )
         ax.set_xlabel("Angstrom [A]")
         ax.set_ylabel("Intensity [arbitrary units]")
@@ -347,7 +363,7 @@ class NirdustFitter:
         )
         sampler = emcee.EnsembleSampler(
             nwalkers,
-            2,
+            3,
             log_probability,
             args=sampler_args,
             **kwargs,
@@ -372,7 +388,7 @@ class NirdustFitter:
     @property
     def ndim_(self):
         """Get number of dimensions to sample. Always 2."""
-        return 2
+        return 3
 
     def marginalize_parameters(self, discard=0):
         """Marginalize parameter distributions.
@@ -394,18 +410,20 @@ class NirdustFitter:
             is provided as the intensity is in arbitrary units.
         """
         chain = self.chain(discard=discard).reshape((-1, self.ndim_))
-        chain[:, 1] = 10 ** chain[:, 1]
+        #chain[:, 1] = 10 ** chain[:, 1]
 
         # median, lower_error, upper_error
         values = [50, 16, 84]
         t_mean, t_low, t_up = np.percentile(chain[:, 0], values) * u.K
-        s_mean, s_low, s_up = np.percentile(chain[:, 1], values)  # u arbitrary
+        a_mean, a_low, a_up = np.percentile(chain[:, 1], values)  # u arbitrary
+        b_mean, b_low, b_up = np.percentile(chain[:, 2], values)
 
         temp = Parameter(
             "Temperature", t_mean, (t_mean - t_low, t_up - t_mean)
         )
-        scale = Parameter("Scale", s_mean, (s_mean - s_low, s_up - s_mean))
-        return temp, scale
+        alpha = Parameter("Alpha", a_mean, (a_mean - a_low, a_up - a_mean))
+        beta = Parameter("Beta", b_mean, (b_mean - b_low, b_up - b_mean))
+        return temp, alpha, beta
 
     def fit(self, initial_state=None, steps=1000):
         """Run MCMC sampler.
@@ -427,15 +445,15 @@ class NirdustFitter:
             raise RuntimeError("Model already fitted.")
 
         if initial_state is None:
-            initial_state = (1000.0, 8.0)
+            initial_state = (1000.0, 1.0, 1.0)
 
         elif len(initial_state) != 2:
             raise ValueError("Invalid initial state.")
 
+        # acomodate initial values
         rng = np.random.default_rng(seed=self.seed)
         p0 = rng.random((self.nwalkers, self.ndim_))
-        p0[:, 0] += initial_state[0]
-        p0[:, 1] += initial_state[1]
+        p0 += np.asarray(initial_state)
 
         self.steps_ = steps
         self.sampler.run_mcmc(p0, steps)
@@ -471,19 +489,15 @@ class NirdustFitter:
         result: NirdustResult
             Results of the fitting procedure.
         """
-        temp, scale = self.marginalize_parameters(discard=discard)
+        temp, alpha, beta = self.marginalize_parameters(discard=discard)
 
-        bb_model = BlackBody(temp.mean, scale.mean)
-        dust = dust_component(
-            bb_model(self.target_spectrum.spectral_axis).value,
-            self.target_spectrum.flux.value,
-            self.external_spectrum.flux.value,
-        )
         result = NirdustResults(
             temperature=temp,
-            scale=scale,
-            fitted_blackbody=bb_model,
-            dust=NirdustSpectrum(self.target_spectrum.spectral_axis, dust),
+            alpha=alpha,
+            beta=beta,
+            fitted_blackbody=BlackBody(temp.mean),
+            target_spectrum=self.target_spectrum,
+            external_spectrum=self.external_spectrum,
         )
         return result
 
@@ -531,27 +545,30 @@ class NirdustFitter:
 
         # axis orchestration
         if ax is None:
-            _, ax = plt.subplots(2, 1, sharex=True, figsize=(8, 6))
+            _, ax = plt.subplots(3, 1, sharex=True, figsize=(8, 6))
 
-        ax_t, ax_log = ax
+        ax_t, ax_alpha, ax_beta = ax
         fig = ax_t.get_figure()
         fig.subplots_adjust(hspace=0)
 
-        # data
+        # data ==========================================================
         chain = self.chain(discard=discard)
 
         arr_t = chain[:, :, 0]
         mean_t = arr_t.mean(axis=1)
 
-        arr_log = chain[:, :, 1]
-        mean_log = arr_log.mean(axis=1)
+        arr_alpha = chain[:, :, 1]
+        mean_alpha = arr_alpha.mean(axis=1)
+
+        arr_beta = chain[:, :, 2]
+        mean_beta = arr_beta.mean(axis=1)
 
         # title
         ax_t.set_title(
             f"Sampled parameters\n Steps={self.steps_} - Discarded={discard}"
         )
 
-        # temp
+        # temp ==========================================================
         temp_kws = {} if temp_kws is None else temp_kws
         temp_kws.setdefault("alpha", 0.5)
         ax_t.plot(arr_t, **temp_kws)
@@ -564,20 +581,25 @@ class NirdustFitter:
         # temp labels
         ax_t.set_ylabel("T")
 
-        # log
+        # log ==========================================================
         log_kws = {} if log_kws is None else log_kws
         log_kws.setdefault("alpha", 0.5)
-        ax_log.plot(arr_log, **log_kws)
+        ax_alpha.plot(arr_alpha, **log_kws)
+        ax_beta.plot(arr_beta, **log_kws)
 
         # log mean
         log_mean_kws = {} if log_mean_kws is None else log_mean_kws
         log_mean_kws.setdefault("color", "k")
-        ax_log.plot(mean_log, label="Mean", **log_mean_kws)
+        ax_alpha.plot(mean_alpha, label="Mean", **log_mean_kws)
+        ax_beta.plot(mean_beta, label="Mean", **log_mean_kws)
 
         # log labels
-        ax_log.set_ylabel("log(scale)")
-        ax_log.set_xlabel("Steps")
-        ax_log.legend()
+        ax_alpha.set_ylabel("alpha")
+        ax_alpha.set_xlabel("Steps")
+        ax_alpha.legend()
+        ax_beta.set_ylabel("beta")
+        ax_beta.set_xlabel("Steps")
+        ax_beta.legend()
 
         return ax
 
