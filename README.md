@@ -61,7 +61,7 @@ Or, for the develovepment instalation clone this repository and then inside the 
 $ pip install -e .
 ```
 
-Authors: Gaia Gaspar, José Alacoria.
+Authors: Gaia Gaspar, José Alacoria, Juan B. Cabral & Martin Chalela
 
 
 
