@@ -64,7 +64,7 @@ def target_model(spectral_axis, external_flux, T, alpha, beta):
 
     bb_reduced = bb_flux - bb_flux.mean()
     external_reduced = external_flux - external_flux.mean()
-    
+
     prediction = alpha * external_reduced + beta * bb_reduced
     return prediction
 
@@ -94,7 +94,7 @@ def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
     T, alpha, beta = theta
 
     prediction = target_model(spectral_axis, external_flux, T, alpha, beta)
-    
+
     target_reduced = target_flux - target_flux.mean()
     diff = target_reduced - prediction
 
@@ -132,7 +132,7 @@ def log_likelihood_prior(theta):
     alphaok = alpha > 0
     betaok = beta > 0
 
-    if Tok:# and alphaok and betaok:
+    if Tok and alphaok and betaok:
         return 0.0
     else:
         return -np.inf
@@ -220,6 +220,7 @@ class NirdustResults:
     dust: NirdustSpectrum
         Reconstructed dust emission.
     """
+
     temperature = attr.ib()
     alpha = attr.ib()
     beta = attr.ib()
@@ -249,7 +250,7 @@ class NirdustResults:
         out: ``matplotlib.pyplot.Axis`` :
             The axis where the method draws.
         """
-        bb_fit = self.fitted_blackbody(self.target_spectrum.spectral_axis)
+        # bb_fit = self.fitted_blackbody(self.target_spectrum.spectral_axis)
 
         prediction = target_model(
             self.target_spectrum.spectral_axis,
@@ -258,7 +259,9 @@ class NirdustResults:
             self.alpha.mean,
             self.beta.mean,
         )
-        target_reduced = self.target_spectrum.flux - self.target_spectrum.flux.mean()
+        target_reduced = (
+            self.target_spectrum.flux - self.target_spectrum.flux.mean()
+        )
 
         if ax is None:
             ax = plt.gca()
@@ -275,9 +278,10 @@ class NirdustResults:
         model_kws = {} if model_kws is None else model_kws
         model_kws.setdefault("color", "Navy")
         ax.plot(
-            self.target_spectrum.spectral_axis, prediction,
+            self.target_spectrum.spectral_axis,
+            prediction,
             label="prediction",
-            **model_kws
+            **model_kws,
         )
         ax.set_xlabel("Angstrom [A]")
         ax.set_ylabel("Intensity [arbitrary units]")
@@ -410,7 +414,7 @@ class NirdustFitter:
             is provided as the intensity is in arbitrary units.
         """
         chain = self.chain(discard=discard).reshape((-1, self.ndim_))
-        #chain[:, 1] = 10 ** chain[:, 1]
+        # chain[:, 1] = 10 ** chain[:, 1]
 
         # median, lower_error, upper_error
         values = [50, 16, 84]
