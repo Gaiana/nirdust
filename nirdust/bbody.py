@@ -372,7 +372,7 @@ class NirdustFitter:
             args=sampler_args,
             **kwargs,
         )
-        return cls(
+        return NirdustFitter(
             target_spectrum=target_spectrum,
             external_spectrum=external_spectrum,
             seed=seed,
