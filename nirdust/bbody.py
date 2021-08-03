@@ -18,9 +18,12 @@
 # IMPORTS
 # ==============================================================================
 
+import abc
 
 from astropy import units as u
+from astropy.modeling import Fittable1DModel, Parameter
 from astropy.modeling.models import BlackBody
+from astropy.modeling.fitting import LevMarLSQFitter
 
 import attr
 from attr import validators
@@ -35,11 +38,11 @@ from .core import NirdustSpectrum
 
 
 # ==============================================================================
-# EMCEE FUNCTIONS
+# TARGET SPECTRUM MODEL
 # ==============================================================================
 
 
-def target_model(spectral_axis, external_flux, T, alpha, beta):
+def reduced_target_model(spectral_axis, external_flux, T, alpha, beta):
     """Compute the expected dust spectrum given a blackbody prediction.
 
     Parameters
@@ -69,6 +72,24 @@ def target_model(spectral_axis, external_flux, T, alpha, beta):
     return prediction
 
 
+class ReducedTargetModel(Fittable1DModel):
+
+    external_flux= Parameter(fixed=True)
+    T = Parameter(min=0., max=3000.)
+    alpha = Parameter(min=0.)
+    beta = Parameter(min=0.)
+
+    @staticmethod
+    def evaluate(spectral_axis, external_flux, T, alpha, beta):
+        # calculate the model
+        return reduced_target_model(
+            spectral_axis, external_flux, T, alpha, beta
+            )
+
+# ==============================================================================
+# EMCEE FUNCTIONS
+# ==============================================================================
+
 def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
     """Gaussian logarithmic likelihood.
 
@@ -93,7 +114,9 @@ def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
     """
     T, alpha, beta = theta
 
-    prediction = target_model(spectral_axis, external_flux, T, alpha, beta)
+    prediction = reduced_target_model(
+        spectral_axis, external_flux, T, alpha, beta
+        )
 
     target_reduced = target_flux - target_flux.mean()
     diff = target_reduced - prediction
@@ -175,21 +198,21 @@ def log_probability(theta, spectral_axis, target_flux, external_flux):
 
 
 @attr.s(frozen=True)
-class Parameter:
+class NirdustParameter:
     """Doc.
 
     Attributes
     ----------
     name: str
         Parameter name.
-    mean: scalar, `~astropy.units.Quantity`
+    value: scalar, `~astropy.units.Quantity`
         Expected value for parameter after fitting procedure.
     uncertainty: tuple, `~astropy.units.Quantity`
         Assimetric uncertainties: (lower_uncertainty, higher_uncertainty)
     """
 
     name = attr.ib()
-    mean = attr.ib()
+    value = attr.ib()
     uncertainty = attr.ib()
 
 
@@ -252,12 +275,12 @@ class NirdustResults:
         """
         # bb_fit = self.fitted_blackbody(self.target_spectrum.spectral_axis)
 
-        prediction = target_model(
+        prediction = reduced_target_model(
             self.target_spectrum.spectral_axis,
             self.external_spectrum.flux.value,
-            self.temperature.mean,
-            self.alpha.mean,
-            self.beta.mean,
+            self.temperature.value,
+            self.alpha.value,
+            self.beta.value,
         )
         target_reduced = (
             self.target_spectrum.flux - self.target_spectrum.flux.mean()
@@ -291,13 +314,32 @@ class NirdustResults:
 
 
 # ==============================================================================
-# FITTER CLASS
+# FITTER CLASSES
 # ==============================================================================
+
+class BaseFitter(metaclass=abc.ABCMeta):
+
+    @classmethod
+    @abc.abstractmethod
+    def from_params(cls):
+        raise NotImplemethedError()
+
+    @abc.abstractmethod
+    def best_parameters(self):
+        raise NotImplemethedError()
+
+    @abc.abstractmethod
+    def fit(self):
+        raise NotImplemethedError()
+
+    @abc.abstractmethod
+    def result(self):
+        raise NotImplemethedError()
 
 
 @attr.s
-class NirdustFitter:
-    """Fitter class.
+class EMCEENirdustFitter(BaseFitter):
+    """Emcee fitter class.
 
     Fit a BlackBody model to the data using Markov Chain Monte Carlo (MCMC)
     sampling of the parameter space using the emcee implementation.
@@ -331,15 +373,7 @@ class NirdustFitter:
     steps_ = attr.ib(init=False, default=None)
 
     @classmethod
-    def from_params(
-        cls,
-        *,
-        target_spectrum,
-        external_spectrum,
-        nwalkers=11,
-        seed=None,
-        **kwargs,
-    ):
+    def from_params(cls, *, target_spectrum, external_spectrum, **kwargs):
         """Create NirdustFitter object from keyword parameters.
 
         Parameters
@@ -360,6 +394,9 @@ class NirdustFitter:
         kwargs:
             Parameters to be passed to the emcee.EnsembleSampler class.
         """
+        nwalkers = kwargs.pop("nwalkers")
+        seed = kwargs.pop("seed")
+
         sampler_args = (
             target_spectrum.spectral_axis,
             target_spectrum.flux.value,
@@ -372,7 +409,7 @@ class NirdustFitter:
             args=sampler_args,
             **kwargs,
         )
-        return NirdustFitter(
+        return EMCEENirdustFitter(
             target_spectrum=target_spectrum,
             external_spectrum=external_spectrum,
             seed=seed,
@@ -394,7 +431,7 @@ class NirdustFitter:
         """Get number of dimensions to sample. Always 2."""
         return 3
 
-    def marginalize_parameters(self, discard=0):
+    def best_parameters(self, discard=0):
         """Marginalize parameter distributions.
 
         Parameters
@@ -418,15 +455,13 @@ class NirdustFitter:
 
         # median, lower_error, upper_error
         values = [50, 16, 84]
-        t_mean, t_low, t_up = np.percentile(chain[:, 0], values) * u.K
-        a_mean, a_low, a_up = np.percentile(chain[:, 1], values)  # u arbitrary
-        b_mean, b_low, b_up = np.percentile(chain[:, 2], values)
+        t, t_low, t_up = np.percentile(chain[:, 0], values) * u.K
+        a, a_low, a_up = np.percentile(chain[:, 1], values)  # u arbitrary
+        b, b_low, b_up = np.percentile(chain[:, 2], values)
 
-        temp = Parameter(
-            "Temperature", t_mean, (t_mean - t_low, t_up - t_mean)
-        )
-        alpha = Parameter("Alpha", a_mean, (a_mean - a_low, a_up - a_mean))
-        beta = Parameter("Beta", b_mean, (b_mean - b_low, b_up - b_mean))
+        temp = NirdustParameter("Temperature", t, (t - t_low, t_up - t))
+        alpha = NirdustParameter("Alpha", a, (a - a_low, a_up - a))
+        beta = NirdustParameter("Beta", b, (b - b_low, b_up - b))
         return temp, alpha, beta
 
     def fit(self, initial_state=None, steps=1000):
@@ -451,7 +486,7 @@ class NirdustFitter:
         if initial_state is None:
             initial_state = (1000.0, 1.0, 1.0)
 
-        elif len(initial_state) != 2:
+        elif len(initial_state) != 3:
             raise ValueError("Invalid initial state.")
 
         # acomodate initial values
@@ -493,13 +528,13 @@ class NirdustFitter:
         result: NirdustResult
             Results of the fitting procedure.
         """
-        temp, alpha, beta = self.marginalize_parameters(discard=discard)
+        temp, alpha, beta = self.best_parameters(discard=discard)
 
         result = NirdustResults(
             temperature=temp,
             alpha=alpha,
             beta=beta,
-            fitted_blackbody=BlackBody(temp.mean),
+            fitted_blackbody=BlackBody(temp.value),
             target_spectrum=self.target_spectrum,
             external_spectrum=self.external_spectrum,
         )
@@ -555,7 +590,6 @@ class NirdustFitter:
         fig = ax_t.get_figure()
         fig.subplots_adjust(hspace=0)
 
-        # data ==========================================================
         chain = self.chain(discard=discard)
 
         arr_t = chain[:, :, 0]
@@ -572,7 +606,6 @@ class NirdustFitter:
             f"Sampled parameters\n Steps={self.steps_} - Discarded={discard}"
         )
 
-        # temp ==========================================================
         temp_kws = {} if temp_kws is None else temp_kws
         temp_kws.setdefault("alpha", 0.5)
         ax_t.plot(arr_t, **temp_kws)
@@ -585,19 +618,18 @@ class NirdustFitter:
         # temp labels
         ax_t.set_ylabel("T")
 
-        # log ==========================================================
         log_kws = {} if log_kws is None else log_kws
         log_kws.setdefault("alpha", 0.5)
         ax_alpha.plot(arr_alpha, **log_kws)
         ax_beta.plot(arr_beta, **log_kws)
 
-        # log mean
+        # alpha,beta mean
         log_mean_kws = {} if log_mean_kws is None else log_mean_kws
         log_mean_kws.setdefault("color", "k")
         ax_alpha.plot(mean_alpha, label="Mean", **log_mean_kws)
         ax_beta.plot(mean_beta, label="Mean", **log_mean_kws)
 
-        # log labels
+        # alpha,beta labels
         ax_alpha.set_ylabel("alpha")
         ax_alpha.set_xlabel("Steps")
         ax_alpha.legend()
@@ -608,15 +640,156 @@ class NirdustFitter:
         return ax
 
 
+
+
+@attr.s
+class AstropyNirdustFitter(BaseFitter):
+    """Astropy fitter class.
+
+    Fit a BlackBody model to the data using Astropy modeling methods.
+
+    Attributes
+    ----------
+    target_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the nuclear spectrum.
+
+    external_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the external spectrum.
+
+    seed: int or None
+        Seed for random number generation.
+
+    """
+
+    target_spectrum = attr.ib(
+        validator=validators.instance_of(NirdustSpectrum)
+    )
+    external_spectrum = attr.ib(
+        validator=validators.instance_of(NirdustSpectrum)
+    )
+    fitter = attr.ib(validator=validators.instance_of(LevMarLSQFitter))
+
+    _fitted_model = attr.ib(default=None, init=False)
+
+    @property
+    def fitted_model(self):
+        return self._fitted_model
+    
+    @property
+    def isfitted_(self):
+        return self.fitted_model is not None
+
+    @property
+    def ndim_(self):
+        """Get number of dimensions to sample. Always 3."""
+        return 3
+
+    @classmethod
+    def from_params(cls, *, target_spectrum, external_spectrum, **kwargs):
+        return AstropyNirdustFitter(
+            target_spectrum=target_spectrum,
+            external_spectrum=external_spectrum,
+            fitter=LevMarLSQFitter(kwargs["calc_uncertainties"]),
+        )
+
+    def best_parameters(self):
+        """doc"""
+        t = self.fitted_model.T
+        a = self.fitted_model.alpha
+        b = self.fitted_model.beta
+
+        temp = NirdustParameter("Temperature", t.value * u.K, t.std)
+        alpha = NirdustParameter("Alpha", a.value, a.std)
+        beta = NirdustParameter("Beta", b.value, b.std)
+        return temp, alpha, beta
+
+
+    def fit(self, initial_state=None, **kwargs):
+        """Run LevMarLSQFitter fitter.
+
+        Parameters
+        ----------
+        initial_state: tuple, optional
+            Vector indicating the initial guess values of temperature and
+            log10(scale). Default: (1000.0 K, 8.0)
+
+        Return
+        ------
+        self: NirdustFitter
+            New instance of the fitter.
+        """
+        if self.isfitted_:
+            raise RuntimeError("Model already fitted.")
+
+        if initial_state is None:
+            initial_state = (1000.0, 1.0, 1.0)
+
+        elif len(initial_state) != 3:
+            raise ValueError("Invalid initial state.")
+
+        # Compute model
+        target_flux = self.target_spectrum.flux
+        target_reduced = target_flux - target_flux.mean()
+
+        rtm = ReducedTargetModel(
+            self.external_spectrum.flux.value, *initial_state
+            )
+        self._fitted_model = self.fitter(
+            rtm, 
+            self.target_spectrum.frequency_axis.value, 
+            target_reduced.value,
+            weights=None,   # noise goes here: weights=1/sigma
+            **kwargs,
+            )
+
+        return self
+    
+    def result(self):
+        """Get the chain array.
+
+        Parameters
+        ----------
+        discard: int
+            Number of steps to discard from the chain, counting from the
+            begining.
+
+        Return
+        ------
+        result: NirdustResult
+            Results of the fitting procedure.
+        """
+        temp, alpha, beta = self.best_parameters()
+
+        return NirdustResults(
+            temperature=temp,
+            alpha=alpha,
+            beta=beta,
+            fitted_blackbody=BlackBody(temp.value),
+            target_spectrum=self.target_spectrum,
+            external_spectrum=self.external_spectrum,
+        )
+
+
 # ==============================================================================
 # FITTER FUNCTION WRAPPER
 # ==============================================================================
 
+FITTER_BACKENDS = {
+    "astropy": (
+        AstropyNirdustFitter, 
+        {"calc_uncertainties": True},
+        ),
+    "emcee": (
+        EMCEENirdustFitter,
+        {"nwalkers": 11, "seed": None},
+        ),
+}
 
 def fit_blackbody(
     target_spectrum,
     external_spectrum,
     initial_state=None,
+    backend="emcee",
     steps=1000,
     **kwargs,
 ):
@@ -649,10 +822,18 @@ def fit_blackbody(
     fitter: NirdustFitter object
         Instance of NirdustFitter after the fitting procedure.
     """
-    fitter = NirdustFitter.from_params(
+    bend = backend.lower()
+    fcls, defaults = FITTER_BACKENDS[bend]
+    kwargs = {**defaults, **kwargs}     # update defaults with user kwargs
+
+    fitter = fcls.from_params(
         target_spectrum=target_spectrum,
         external_spectrum=external_spectrum,
         **kwargs,
     )
-    fitter.fit(initial_state=initial_state, steps=steps)
+    if bend == "astropy":
+        kwargs.pop("calc_uncertainties")
+        fitter.fit(initial_state=initial_state, **kwargs)
+    else:
+        fitter.fit(initial_state=initial_state, steps=steps)
     return fitter
