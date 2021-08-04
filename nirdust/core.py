@@ -21,6 +21,7 @@
 from collections.abc import Mapping
 
 from astropy import units as u
+from astropy.modeling import fitting
 
 import attr
 
@@ -28,8 +29,10 @@ import numpy as np
 
 import specutils as su
 import specutils.manipulation as sm
+from specutils.fitting import fit_generic_continuum
+from specutils.manipulation import noise_region_uncertainty
+from specutils.spectra import SpectralRegion
 from specutils.spectra import Spectrum1D
-
 
 # ==============================================================================
 # UTILITIES
@@ -112,6 +115,8 @@ class NirdustSpectrum:
     spec1d_: specutils.Spectrum1D object
         Contains the wavelength axis and the flux axis of the spectrum in
         unities of Å and ADU respectively.
+
+    noise: an array containing the uncertainty for each pixel of the spectrum.
     """
 
     spectral_axis = attr.ib(converter=u.Quantity)
@@ -121,6 +126,7 @@ class NirdustSpectrum:
     metadata = attr.ib(factory=dict, converter=_NDSpectrumMetadata)
 
     spec1d_ = attr.ib(init=False)
+    noise = attr.ib()
 
     @spec1d_.default
     def _spec1d_default(self):
@@ -128,6 +134,27 @@ class NirdustSpectrum:
             flux=self.flux,
             spectral_axis=self.spectral_axis,  # redshift=self.z,
         )
+
+    @noise.default
+    def _noise_default(self):
+
+        low_lim_default = u.Quantity(20650, u.AA)
+        upper_lim_default = u.Quantity(21000, u.AA)
+
+        # By defaults this fits a Chebyshev of order 3 to the flux
+        model = fit_generic_continuum(
+            self.spec1d_, fitter=fitting.LinearLSQFitter()
+        )
+
+        continuum = model(self.spectral_axis)
+        new_flux = self.spec1d_ - continuum
+
+        noise_region_def = SpectralRegion(low_lim_default, upper_lim_default)
+        noise_spectrum = noise_region_uncertainty(
+            new_flux, noise_region_def
+        ).uncertainty.array
+
+        return noise_spectrum
 
     def __dir__(self):
         """List all the content of the NirdustSpectum and the internal \
@@ -218,6 +245,53 @@ class NirdustSpectrum:
         """Assume linearity to compute the dispersion."""
         a, b = self.spectral_range
         return (b - a) / (self.spectral_length - 1)
+
+    def set_noise(self, low_lim=20650, upper_lim=21000):
+        """Compute noise for the spectrum.
+
+        Uses 'noise_region_uncertainty' from Astropy to compute the noise
+        of the spectrum inside a 'Spectral Region' given by the low_lim
+        and upper_lim parameters.
+        If this method is not used, Nirdust will internally compute the
+        noise using the default 'Spectral Region' 20650 - 21000 Angstroms.
+
+        Parameters
+        ----------
+        low_lim: float
+            A float containing the lower limit for the region where the noise
+            will be computed. Must be in Angstroms. Default is 20650.
+
+        upper_lim: float
+            A float containing the lower limit for the region where the noise
+            will be computed. Must be in Angstroms. Default is 20650.
+
+        Return
+        ------
+        NirdustSpectrum object
+            A new instance of NirdustSpectrum class with the new noise
+            parameter.
+
+        """
+        low_lim_q = u.Quantity(low_lim, u.AA)
+        upper_lim_q = u.Quantity(upper_lim, u.AA)
+
+        # By defaults this fits a Chebyshev of order 3 to the flux
+        model = fit_generic_continuum(
+            self.spec1d_, fitter=fitting.LinearLSQFitter()
+        )
+
+        continuum = model(self.spectral_axis)
+        new_flux = self.spec1d_ - continuum
+
+        noise_region_def = SpectralRegion(low_lim_q, upper_lim_q)
+        noise_spectrum = noise_region_uncertainty(
+            new_flux, noise_region_def
+        ).uncertainty.array
+
+        kwargs = public_members_asdict(self)
+        kwargs.update(noise=noise_spectrum)
+
+        return NirdustSpectrum(**kwargs)
 
     def mask_spectrum(self, line_intervals=None, mask=None):
         """Mask spectrum to remove spectral lines.

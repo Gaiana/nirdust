@@ -194,8 +194,8 @@ def line_spectrum(
         Same parameter as in find_lines_threshold from Specutils.
         Factor multiplied by the spectrum’s``uncertainty``, used for
         thresholding. Default is 3.
-
     window: float
+
         Same parameter as in fit_lines from specutils.fitting. Regions of
         the spectrum to use in the fitting. If None, then the whole
         spectrum will be used in the fitting. Window is used in the
@@ -209,7 +209,6 @@ def line_spectrum(
         returns the intervals where those lines were finded determined by
         3-sigma values around the center of the line. In the third position
         returns an array with the quality of the fitting for each line.
-
     """
     # values in correct units
     low_lim_ns = u.Quantity(low_lim_ns, u.AA)
