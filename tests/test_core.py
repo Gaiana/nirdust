@@ -231,3 +231,23 @@ def test_nomrmalize(NGC4945_continuum):
     normalized_spectrum = spectrum.normalize()
     mean = np.mean(normalized_spectrum.spec1d_.flux)
     assert mean == 1.0
+
+@pytest.mark.xfail
+def test_compute_noise(NGC4945_continuum):
+    wave = np.arange(23000, 25000, 3) * u.Angstrom#
+
+    flux = 10 * u.adu
+    rng = np.random.default_rng(5)
+    gnoise = rng.normal(0, 0.5, len(wave))
+    noisy_thing = flux + gnoise * u.adu
+
+    noise_sp = core.NirdustSpectrum(wave, noisy_thing)
+
+    low_lim = wave[0]
+    up_lim = wave[-1]
+
+    noise = noise_sp.compute_noise(low_lim, up_lim)
+
+    expected = np.std(noisy_thing).value
+
+    np.testing.assert_almost_equal(noise, expected, decimal=5)
