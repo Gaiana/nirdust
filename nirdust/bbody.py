@@ -42,7 +42,7 @@ from .core import NirdustSpectrum
 # ==============================================================================
 
 
-def reduced_target_model(spectral_axis, external_flux, T, alpha, beta):
+def reduced_target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
     """Compute the expected dust spectrum given a blackbody prediction.
 
     Parameters
@@ -65,25 +65,27 @@ def reduced_target_model(spectral_axis, external_flux, T, alpha, beta):
     blackbody = BlackBody(u.Quantity(T, u.K))
     bb_flux = blackbody(spectral_axis).value
 
-    bb_reduced = bb_flux - bb_flux.mean()
-    external_reduced = external_flux - external_flux.mean()
+    # bb_reduced = bb_flux - bb_flux.mean()
+    # external_reduced = external_flux - external_flux.mean()
 
-    prediction = alpha * external_reduced + beta * bb_reduced
+    # prediction = alpha * external_reduced + beta * bb_reduced
+    prediction = alpha * external_flux + beta * bb_flux + gamma
     return prediction
 
 
 class ReducedTargetModel(Fittable1DModel):
 
-    external_flux= Parameter(fixed=True)
+    external_flux = Parameter(fixed=True)
     T = Parameter(min=0., max=3000.)
     alpha = Parameter(min=0.)
     beta = Parameter(min=0.)
+    gamma = Parameter()
 
     @staticmethod
-    def evaluate(spectral_axis, external_flux, T, alpha, beta):
+    def evaluate(spectral_axis, external_flux, T, alpha, beta, gamma):
         # calculate the model
         return reduced_target_model(
-            spectral_axis, external_flux, T, alpha, beta
+            spectral_axis, external_flux, T, alpha, beta, gamma,
             )
 
 # ==============================================================================
@@ -112,17 +114,17 @@ def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
     loglike: scalar
         Logarithmic likelihood for parameter theta.
     """
-    T, alpha, beta = theta
+    T, alpha, beta, gamma = theta
 
     prediction = reduced_target_model(
-        spectral_axis, external_flux, T, alpha, beta
+        spectral_axis, external_flux, T, alpha, beta, gamma,
         )
 
-    target_reduced = target_flux - target_flux.mean()
-    diff = target_reduced - prediction
+    #target_reduced = target_flux - target_flux.mean()
+    diff = target_flux - prediction
 
     # assume constant noise for every point
-    stddev = np.full_like(diff, diff.std(ddof=1))
+    stddev = 50. # diff.std()
 
     loglike = np.sum(
         -0.5 * np.log(2.0 * np.pi)
@@ -148,7 +150,7 @@ def log_likelihood_prior(theta):
     loglike: scalar
         A priori logarithmic likelihood for parameter theta.
     """
-    T, alpha, beta = theta
+    T, alpha, beta, gamma = theta
 
     # Maximum temperature for dust should be lower than 3000 K
     Tok = 0 < T < 3000
@@ -247,6 +249,8 @@ class NirdustResults:
     temperature = attr.ib()
     alpha = attr.ib()
     beta = attr.ib()
+    gamma = attr.ib()
+
     fitted_blackbody = attr.ib()
     target_spectrum = attr.ib()
     external_spectrum = attr.ib()
@@ -281,6 +285,7 @@ class NirdustResults:
             self.temperature.value,
             self.alpha.value,
             self.beta.value,
+            self.gamma.value,
         )
         target_reduced = (
             self.target_spectrum.flux - self.target_spectrum.flux.mean()
@@ -317,24 +322,73 @@ class NirdustResults:
 # FITTER CLASSES
 # ==============================================================================
 
+@attr.s
 class BaseFitter(metaclass=abc.ABCMeta):
 
-    @classmethod
-    @abc.abstractmethod
-    def from_params(cls):
-        raise NotImplemethedError()
+    target_spectrum = attr.ib(
+        validator=validators.instance_of(NirdustSpectrum)
+    )
+    external_spectrum = attr.ib(
+        validator=validators.instance_of(NirdustSpectrum)
+    )
+    extra_conf = attr.ib(converter=dict)
 
+    _fitted = attr.ib(init=False, default=False)
+
+    # ABSTRACT
     @abc.abstractmethod
     def best_parameters(self):
-        raise NotImplemethedError()
+        raise NotImplementedError()
 
     @abc.abstractmethod
-    def fit(self):
-        raise NotImplemethedError()
+    def run_model(self, initial_state):
+        raise NotImplementedError()
 
-    @abc.abstractmethod
-    def result(self):
-        raise NotImplemethedError()
+    # DEFINED
+    @property
+    def ndim_(self):
+        return 4
+
+    @property
+    def isfitted_(self):
+        return self._fitted
+
+    def fit(self, initial_state):
+        if self.isfitted_:
+            raise RuntimeError("Model already fitted.")
+
+        if initial_state is None:
+            initial_state = (1000.0, 1.0, 1.0, 1.0)
+        elif len(initial_state) != self.ndim_:
+            raise ValueError("Invalid initial state.")
+
+        self.run_model(initial_state)
+        self._fitted = True
+        return self
+
+    def result(self, **kwargs):
+        """Get the chain array.
+        Parameters
+        ----------
+        kwargs:
+            Parameters for ``best_parameters()``.
+        Return
+        ------
+        result: NirdustResult
+            Results of the fitting procedure.
+        """
+        temp, alpha, beta, gamma = self.best_parameters(**kwargs)
+
+        result = NirdustResults(
+            temperature=temp,
+            alpha=alpha,
+            beta=beta,
+            gamma=gamma,
+            fitted_blackbody=BlackBody(temp.value),
+            target_spectrum=self.target_spectrum,
+            external_spectrum=self.external_spectrum,
+        )
+        return result
 
 
 @attr.s
@@ -359,77 +413,52 @@ class EMCEENirdustFitter(BaseFitter):
         Sampler instance to run the MCMC model.
 
     """
+    nwalkers = attr.ib(default=11, validator=validators.instance_of(int))
+    seed = attr.ib(default=None, validator=validators.optional(validators.instance_of(int)))
+    steps = attr.ib(default=1000, validator=validators.instance_of(int))
 
-    target_spectrum = attr.ib(
-        validator=validators.instance_of(NirdustSpectrum)
-    )
-    external_spectrum = attr.ib(
-        validator=validators.instance_of(NirdustSpectrum)
-    )
-    seed = attr.ib(
-        validator=validators.optional(attr.validators.instance_of(int))
-    )
-    sampler = attr.ib(validator=validators.instance_of(emcee.EnsembleSampler))
-    steps_ = attr.ib(init=False, default=None)
+    sampler_ = attr.ib(init=False)
 
-    @classmethod
-    def from_params(cls, *, target_spectrum, external_spectrum, **kwargs):
-        """Create NirdustFitter object from keyword parameters.
+    @sampler_.default
+    def _sampler__default(self):
+        model_args = (
+            self.target_spectrum.spectral_axis,
+            self.target_spectrum.flux.value,
+            self.external_spectrum.flux.value,
+        )
+        return emcee.EnsembleSampler(
+            nwalkers=self.nwalkers,
+            ndim=self.ndim_,
+            log_prob_fn=log_probability,
+            args=model_args,
+            **self.extra_conf
+        )
+
+    def chain(self, discard=0):
+        """Get the chain array.
 
         Parameters
         ----------
-        target_spectrum: NirdustSpectrum object
-            Instance of NirdustSpectrum containing the nuclear spectrum.
+        discard: int
+            Number of steps to discard from the chain, counting from the
+            begining.
 
-        external_spectrum: NirdustSpectrum object
-            Instance of NirdustSpectrum containing the external spectrum.
-
-        nwalkers: int
-            Number of walkers. Must be higher than 4 (twice the number of free
-            parameters). Default: 11.
-
-        seed: int
-            Seed for random number generation. Defaul: None
-
-        kwargs:
-            Parameters to be passed to the emcee.EnsembleSampler class.
+        Return
+        ------
+        chain: `~numpy.ndarray`
+            Array with sampled parameters.
         """
-        nwalkers = kwargs.pop("nwalkers")
-        seed = kwargs.pop("seed")
+        return self.sampler_.get_chain(discard=discard).copy()
 
-        sampler_args = (
-            target_spectrum.spectral_axis,
-            target_spectrum.flux.value,
-            external_spectrum.flux.value,
-        )
-        sampler = emcee.EnsembleSampler(
-            nwalkers,
-            3,
-            log_probability,
-            args=sampler_args,
-            **kwargs,
-        )
-        return EMCEENirdustFitter(
-            target_spectrum=target_spectrum,
-            external_spectrum=external_spectrum,
-            seed=seed,
-            sampler=sampler,
-        )
+    # redefinitions
 
-    @property
-    def nwalkers(self):
-        """Get number of walkers."""
-        return self.sampler.nwalkers
+    def run_model(self, initial_state):
+        # acomodate initial values
+        rng = np.random.default_rng(seed=self.seed)
+        p0 = rng.random((self.nwalkers, self.ndim_))
+        p0 += np.asarray(initial_state)
 
-    @property
-    def isfitted_(self):
-        """Check if model has already been fitted."""
-        return self.steps_ is not None
-
-    @property
-    def ndim_(self):
-        """Get number of dimensions to sample. Always 2."""
-        return 3
+        self.sampler_.run_mcmc(p0, self.steps)
 
     def best_parameters(self, discard=0):
         """Marginalize parameter distributions.
@@ -458,87 +487,13 @@ class EMCEENirdustFitter(BaseFitter):
         t, t_low, t_up = np.percentile(chain[:, 0], values) * u.K
         a, a_low, a_up = np.percentile(chain[:, 1], values)  # u arbitrary
         b, b_low, b_up = np.percentile(chain[:, 2], values)
+        g, g_low, g_up = np.percentile(chain[:, 3], values)
 
         temp = NirdustParameter("Temperature", t, (t - t_low, t_up - t))
         alpha = NirdustParameter("Alpha", a, (a - a_low, a_up - a))
         beta = NirdustParameter("Beta", b, (b - b_low, b_up - b))
-        return temp, alpha, beta
-
-    def fit(self, initial_state=None, steps=1000):
-        """Run MCMC sampler.
-
-        Parameters
-        ----------
-        initial_state: tuple, optional
-            Vector indicating the initial guess values of temperature and
-            log10(scale). Default: (1000.0 K, 8.0)
-        steps: int, optional
-            Number of times the parameter space is be sampled. Default: 1000.
-
-        Return
-        ------
-        self: NirdustFitter
-            New instance of the fitter.
-        """
-        if self.isfitted_:
-            raise RuntimeError("Model already fitted.")
-
-        if initial_state is None:
-            initial_state = (1000.0, 1.0, 1.0)
-
-        elif len(initial_state) != 3:
-            raise ValueError("Invalid initial state.")
-
-        # acomodate initial values
-        rng = np.random.default_rng(seed=self.seed)
-        p0 = rng.random((self.nwalkers, self.ndim_))
-        p0 += np.asarray(initial_state)
-
-        self.steps_ = steps
-        self.sampler.run_mcmc(p0, steps)
-        return self
-
-    def chain(self, discard=0):
-        """Get the chain array.
-
-        Parameters
-        ----------
-        discard: int
-            Number of steps to discard from the chain, counting from the
-            begining.
-
-        Return
-        ------
-        chain: `~numpy.ndarray`
-            Array with sampled parameters.
-        """
-        return self.sampler.get_chain(discard=discard).copy()
-
-    def result(self, discard=0):
-        """Get the chain array.
-
-        Parameters
-        ----------
-        discard: int
-            Number of steps to discard from the chain, counting from the
-            begining.
-
-        Return
-        ------
-        result: NirdustResult
-            Results of the fitting procedure.
-        """
-        temp, alpha, beta = self.best_parameters(discard=discard)
-
-        result = NirdustResults(
-            temperature=temp,
-            alpha=alpha,
-            beta=beta,
-            fitted_blackbody=BlackBody(temp.value),
-            target_spectrum=self.target_spectrum,
-            external_spectrum=self.external_spectrum,
-        )
-        return result
+        gamma = NirdustParameter("Gamma", g, (g - g_low, g_up - g))
+        return temp, alpha, beta, gamma
 
     def plot(
         self,
@@ -584,9 +539,9 @@ class EMCEENirdustFitter(BaseFitter):
 
         # axis orchestration
         if ax is None:
-            _, ax = plt.subplots(3, 1, sharex=True, figsize=(8, 6))
+            _, ax = plt.subplots(4, 1, sharex=True, figsize=(8, 6))
 
-        ax_t, ax_alpha, ax_beta = ax
+        ax_t, ax_alpha, ax_beta, ax_gamma = ax
         fig = ax_t.get_figure()
         fig.subplots_adjust(hspace=0)
 
@@ -601,9 +556,12 @@ class EMCEENirdustFitter(BaseFitter):
         arr_beta = chain[:, :, 2]
         mean_beta = arr_beta.mean(axis=1)
 
+        arr_gamma = chain[:, :, 3]
+        mean_gamma = arr_gamma.mean(axis=1)
+
         # title
         ax_t.set_title(
-            f"Sampled parameters\n Steps={self.steps_} - Discarded={discard}"
+            f"Sampled parameters\n Steps={self.steps} - Discarded={discard}"
         )
 
         temp_kws = {} if temp_kws is None else temp_kws
@@ -622,21 +580,27 @@ class EMCEENirdustFitter(BaseFitter):
         log_kws.setdefault("alpha", 0.5)
         ax_alpha.plot(arr_alpha, **log_kws)
         ax_beta.plot(arr_beta, **log_kws)
+        ax_gamma.plot(arr_gamma, **log_kws)
 
         # alpha,beta mean
         log_mean_kws = {} if log_mean_kws is None else log_mean_kws
         log_mean_kws.setdefault("color", "k")
         ax_alpha.plot(mean_alpha, label="Mean", **log_mean_kws)
         ax_beta.plot(mean_beta, label="Mean", **log_mean_kws)
+        ax_gamma.plot(mean_gamma, label="Mean", **log_mean_kws)
 
         # alpha,beta labels
         ax_alpha.set_ylabel("alpha")
         ax_alpha.set_xlabel("Steps")
         ax_alpha.legend()
+
         ax_beta.set_ylabel("beta")
         ax_beta.set_xlabel("Steps")
         ax_beta.legend()
 
+        ax_gamma.set_ylabel("gamma")
+        ax_gamma.set_xlabel("Steps")
+        ax_gamma.legend()
         return ax
 
 
@@ -661,15 +625,15 @@ class AstropyNirdustFitter(BaseFitter):
 
     """
 
-    target_spectrum = attr.ib(
-        validator=validators.instance_of(NirdustSpectrum)
-    )
-    external_spectrum = attr.ib(
-        validator=validators.instance_of(NirdustSpectrum)
-    )
-    fitter = attr.ib(validator=validators.instance_of(LevMarLSQFitter))
+    calc_uncertainties = attr.ib(default=True, converter=bool)
+
+    fitter_ = attr.ib(init=False)
 
     _fitted_model = attr.ib(default=None, init=False)
+
+    @fitter_.default
+    def _fitter__default(self):
+        return LevMarLSQFitter(self.calc_uncertainties)
 
     @property
     def fitted_model(self):
@@ -679,53 +643,20 @@ class AstropyNirdustFitter(BaseFitter):
     def isfitted_(self):
         return self.fitted_model is not None
 
-    @property
-    def ndim_(self):
-        """Get number of dimensions to sample. Always 3."""
-        return 3
-
-    @classmethod
-    def from_params(cls, *, target_spectrum, external_spectrum, **kwargs):
-        return AstropyNirdustFitter(
-            target_spectrum=target_spectrum,
-            external_spectrum=external_spectrum,
-            fitter=LevMarLSQFitter(kwargs["calc_uncertainties"]),
-        )
-
     def best_parameters(self):
         """doc"""
         t = self.fitted_model.T
         a = self.fitted_model.alpha
         b = self.fitted_model.beta
+        g = self.fitted_model.gamma
 
         temp = NirdustParameter("Temperature", t.value * u.K, t.std)
         alpha = NirdustParameter("Alpha", a.value, a.std)
         beta = NirdustParameter("Beta", b.value, b.std)
-        return temp, alpha, beta
+        gamma = NirdustParameter("Gamma", g.value, g.std)
+        return temp, alpha, beta, gamma
 
-
-    def fit(self, initial_state=None, **kwargs):
-        """Run LevMarLSQFitter fitter.
-
-        Parameters
-        ----------
-        initial_state: tuple, optional
-            Vector indicating the initial guess values of temperature and
-            log10(scale). Default: (1000.0 K, 8.0)
-
-        Return
-        ------
-        self: NirdustFitter
-            New instance of the fitter.
-        """
-        if self.isfitted_:
-            raise RuntimeError("Model already fitted.")
-
-        if initial_state is None:
-            initial_state = (1000.0, 1.0, 1.0)
-
-        elif len(initial_state) != 3:
-            raise ValueError("Invalid initial state.")
+    def run_model(self, initial_state):
 
         # Compute model
         target_flux = self.target_spectrum.flux
@@ -734,40 +665,16 @@ class AstropyNirdustFitter(BaseFitter):
         rtm = ReducedTargetModel(
             self.external_spectrum.flux.value, *initial_state
             )
-        self._fitted_model = self.fitter(
-            rtm, 
-            self.target_spectrum.frequency_axis.value, 
+        fmodel = self.fitter_(
+            rtm,
+            self.target_spectrum.frequency_axis.value,
             target_reduced.value,
             weights=None,   # noise goes here: weights=1/sigma
-            **kwargs,
+            **self.extra_conf,
             )
 
-        return self
-    
-    def result(self):
-        """Get the chain array.
+        self._fitted_model = fmodel
 
-        Parameters
-        ----------
-        discard: int
-            Number of steps to discard from the chain, counting from the
-            begining.
-
-        Return
-        ------
-        result: NirdustResult
-            Results of the fitting procedure.
-        """
-        temp, alpha, beta = self.best_parameters()
-
-        return NirdustResults(
-            temperature=temp,
-            alpha=alpha,
-            beta=beta,
-            fitted_blackbody=BlackBody(temp.value),
-            target_spectrum=self.target_spectrum,
-            external_spectrum=self.external_spectrum,
-        )
 
 
 # ==============================================================================
@@ -775,14 +682,8 @@ class AstropyNirdustFitter(BaseFitter):
 # ==============================================================================
 
 FITTER_BACKENDS = {
-    "astropy": (
-        AstropyNirdustFitter, 
-        {"calc_uncertainties": True},
-        ),
-    "emcee": (
-        EMCEENirdustFitter,
-        {"nwalkers": 11, "seed": None},
-        ),
+    "astropy": AstropyNirdustFitter,
+    "emcee": EMCEENirdustFitter,
 }
 
 def fit_blackbody(
@@ -790,7 +691,6 @@ def fit_blackbody(
     external_spectrum,
     initial_state=None,
     backend="emcee",
-    steps=1000,
     **kwargs,
 ):
     """Fitter function.
@@ -822,18 +722,24 @@ def fit_blackbody(
     fitter: NirdustFitter object
         Instance of NirdustFitter after the fitting procedure.
     """
-    bend = backend.lower()
-    fcls, defaults = FITTER_BACKENDS[bend]
-    kwargs = {**defaults, **kwargs}     # update defaults with user kwargs
+    fcls = FITTER_BACKENDS[backend.lower()]
 
-    fitter = fcls.from_params(
-        target_spectrum=target_spectrum,
-        external_spectrum=external_spectrum,
-        **kwargs,
-    )
-    if bend == "astropy":
-        kwargs.pop("calc_uncertainties")
-        fitter.fit(initial_state=initial_state, **kwargs)
-    else:
-        fitter.fit(initial_state=initial_state, steps=steps)
+    # divide kwargs in two parts
+    instance_kws = {}  # attributes of the fitter class
+    extra_conf = {}  # extra configuration
+
+    attrs_fields = set(attr.fields_dict(fcls).keys())
+    for k, v in kwargs.items():
+        if k in attrs_fields:
+            instance_kws[k] = v
+        else:
+            extra_conf[k] = v
+
+    fitter = fcls(
+        target_spectrum = target_spectrum,
+        external_spectrum = external_spectrum,
+        extra_conf = extra_conf,
+        **instance_kws)
+
+    fitter.fit(initial_state=initial_state)
     return fitter
