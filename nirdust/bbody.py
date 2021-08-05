@@ -42,7 +42,7 @@ from .core import NirdustSpectrum
 # ==============================================================================
 
 
-def reduced_target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
+def target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
     """Compute the expected dust spectrum given a blackbody prediction.
 
     Parameters
@@ -65,26 +65,22 @@ def reduced_target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
     blackbody = BlackBody(u.Quantity(T, u.K))
     bb_flux = blackbody(spectral_axis).value
 
-    # bb_reduced = bb_flux - bb_flux.mean()
-    # external_reduced = external_flux - external_flux.mean()
-
-    # prediction = alpha * external_reduced + beta * bb_reduced
     prediction = alpha * external_flux + beta * bb_flux + gamma
     return prediction
 
 
-class ReducedTargetModel(Fittable1DModel):
+class TargetModel(Fittable1DModel):
 
     external_flux = Parameter(fixed=True)
     T = Parameter(min=0., max=3000.)
-    alpha = Parameter(min=0.)
-    beta = Parameter(min=0.)
+    alpha = Parameter(min=0)
+    beta = Parameter(min=0)
     gamma = Parameter()
 
     @staticmethod
     def evaluate(spectral_axis, external_flux, T, alpha, beta, gamma):
         # calculate the model
-        return reduced_target_model(
+        return target_model(
             spectral_axis, external_flux, T, alpha, beta, gamma,
             )
 
@@ -116,7 +112,7 @@ def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
     """
     T, alpha, beta, gamma = theta
 
-    prediction = reduced_target_model(
+    prediction = target_model(
         spectral_axis, external_flux, T, alpha, beta, gamma,
         )
 
@@ -279,7 +275,7 @@ class NirdustResults:
         """
         # bb_fit = self.fitted_blackbody(self.target_spectrum.spectral_axis)
 
-        prediction = reduced_target_model(
+        prediction = target_model(
             self.target_spectrum.spectral_axis,
             self.external_spectrum.flux.value,
             self.temperature.value,
@@ -287,9 +283,9 @@ class NirdustResults:
             self.beta.value,
             self.gamma.value,
         )
-        target_reduced = (
-            self.target_spectrum.flux - self.target_spectrum.flux.mean()
-        )
+        # target_reduced = (
+        #     self.target_spectrum.flux - self.target_spectrum.flux.mean()
+        # )
 
         if ax is None:
             ax = plt.gca()
@@ -298,7 +294,7 @@ class NirdustResults:
         data_kws.setdefault("color", "firebrick")
         ax.plot(
             self.target_spectrum.spectral_axis,
-            target_reduced,
+            self.target_spectrum.flux,
             label="target reduced",
             **data_kws,
         )
@@ -659,17 +655,16 @@ class AstropyNirdustFitter(BaseFitter):
     def run_model(self, initial_state):
 
         # Compute model
-        target_flux = self.target_spectrum.flux
-        target_reduced = target_flux - target_flux.mean()
+        frequency_axis = self.target_spectrum.frequency_axis.value
+        target_flux = self.target_spectrum.flux.value
 
-        rtm = ReducedTargetModel(
-            self.external_spectrum.flux.value, *initial_state
-            )
+        rtm = TargetModel(self.external_spectrum.flux.value, *initial_state)
+
         fmodel = self.fitter_(
             rtm,
-            self.target_spectrum.frequency_axis.value,
-            target_reduced.value,
-            weights=None,   # noise goes here: weights=1/sigma
+            frequency_axis,
+            target_flux,
+            weights=1e-2,   # noise goes here: weights=1/sigma
             **self.extra_conf,
             )
 
