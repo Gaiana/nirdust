@@ -106,7 +106,7 @@ class NirdustSpectrum:
 
     metadata: mapping, optional
         Any dict like object. This is a good place to store the header
-        of the fist file or any arbitrary mapping. Internally NirdustSpectrum
+        of the fits file or any arbitrary mapping. Internally NirdustSpectrum
         wraps the object inside a convenient metadata object usefull to
         access the keys as attributes.
 
@@ -116,7 +116,12 @@ class NirdustSpectrum:
         Contains the wavelength axis and the flux axis of the spectrum in
         unities of Å and ADU respectively.
 
-    noise: an array containing the uncertainty for each pixel of the spectrum.
+    noise: float.
+        The value of the uncertainty as calculated by 'noise_region_uncertainty'
+        from 'Astropy' inside a region. If the value of noise is not provided,
+        Nirdust will compute ir by default using the region
+        20650 - 21000 Angstroms. The user can re-compute noise using the class
+        method 'compute_noise'.
     """
 
     spectral_axis = attr.ib(converter=u.Quantity)
@@ -141,7 +146,7 @@ class NirdustSpectrum:
         low_lim_default = u.Quantity(20650, u.AA)
         upper_lim_default = u.Quantity(21000, u.AA)
 
-        # By defaults this fits a Chebyshev of order 3 to the flux
+        # By defaults this fits a Chebyshev of order 3 to the fluxMETA
         model = fit_generic_continuum(
             self.spec1d_, fitter=fitting.LinearLSQFitter()
         )
@@ -150,11 +155,11 @@ class NirdustSpectrum:
         new_flux = self.spec1d_ - continuum
 
         noise_region_def = SpectralRegion(low_lim_default, upper_lim_default)
-        noise_spectrum = noise_region_uncertainty(
+        noise_value = noise_region_uncertainty(
             new_flux, noise_region_def
-        ).uncertainty.array
+        ).uncertainty.array[1]
 
-        return noise_spectrum
+        return noise_value
 
     def __dir__(self):
         """List all the content of the NirdustSpectum and the internal \
@@ -246,14 +251,12 @@ class NirdustSpectrum:
         a, b = self.spectral_range
         return (b - a) / (self.spectral_length - 1)
 
-    def set_noise(self, low_lim=20650, upper_lim=21000):
+    def compute_noise(self, low_lim=20650, upper_lim=21000):
         """Compute noise for the spectrum.
 
         Uses 'noise_region_uncertainty' from Astropy to compute the noise
         of the spectrum inside a 'Spectral Region' given by the low_lim
         and upper_lim parameters.
-        If this method is not used, Nirdust will internally compute the
-        noise using the default 'Spectral Region' 20650 - 21000 Angstroms.
 
         Parameters
         ----------
@@ -284,12 +287,12 @@ class NirdustSpectrum:
         new_flux = self.spec1d_ - continuum
 
         noise_region_def = SpectralRegion(low_lim_q, upper_lim_q)
-        noise_spectrum = noise_region_uncertainty(
+        noise_value = noise_region_uncertainty(
             new_flux, noise_region_def
-        ).uncertainty.array
+        ).uncertainty.array[1]
 
         kwargs = public_members_asdict(self)
-        kwargs.update(noise=noise_spectrum)
+        kwargs.update(noise=noise_value)
 
         return NirdustSpectrum(**kwargs)
 
