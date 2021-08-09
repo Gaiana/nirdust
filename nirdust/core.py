@@ -90,10 +90,10 @@ class _NDSpectrumMetadata(Mapping):
 class NirdustSpectrum:
     """Class containing a spectrum to operate with Nirdust.
 
-    Stores the flux and wavelength axis of the spectrum in a Spectrum1D object 
-    and provides various methods for obtaining the dust component and perform 
+    Stores the flux and wavelength axis of the spectrum in a Spectrum1D object
+    and provides various methods for obtaining the dust component and perform
     blackbody fitting.
-    The `flux` parameter recieves either flux-calibrated intensity or non 
+    The `flux` parameter recieves either flux-calibrated intensity or non
     flux-calibrated intensity, in both cases Nirdust will assign 'ADU' units to
     it.
 
@@ -121,10 +121,10 @@ class NirdustSpectrum:
         unities of Å and ADU respectively.
 
     noise: float.
-        A value of the uncertainty representative of all the spectral range. 
-        If the value of noise is not provided, Nirdust will compute it by 
-        default using `noise_region_uncertainty` from `Astropy` inside the 
-        region 20650 - 21000 Å. The user can re-compute noise using the class 
+        A value of the uncertainty representative of all the spectral range.
+        If the value of noise is not provided, Nirdust will compute it by
+        default using `noise_region_uncertainty` from `Astropy` inside the
+        region 20650 - 21000 Å. The user can re-compute noise using the class
         method `compute_noise`.
     """
 
@@ -408,8 +408,8 @@ class NirdustSpectrum:
         Returns
         -------
         out: `NirsdustSpectrum` object
-            New instance of the `NirdustSpectrun` class with the flux normalized
-            to unity.
+            New instance of the `NirdustSpectrun` class with the flux
+            normalized to unity.
         """
         normalized_flux = self.flux / np.mean(self.flux)
 

@@ -83,12 +83,12 @@ def match_spectral_axes(
 ):
     """Resample the higher resolution spectrum.
 
-    `Spectrum_resampling` uses the `spectral_axis` of one imput spectrum to 
-    resample the `spectral_axis` of the otherone, depending on the `scaling` 
-    parameter. 
-    To do so this function uses the `FluxConservingResampler` class of 
-    `Specutils`. The order of the input spectra is arbitrary and the order in 
-    the output is the same as in the input. It is recomended to run this 
+    `Spectrum_resampling` uses the `spectral_axis` of one imput spectrum to
+    resample the `spectral_axis` of the otherone, depending on the `scaling`
+    parameter.
+    To do so this function uses the `FluxConservingResampler` class of
+    `Specutils`. The order of the input spectra is arbitrary and the order in
+    the output is the same as in the input. It is recomended to run this
     function after the class methods 'cut_edges' and 'mask_spectrum'.
 
     Parameters
@@ -191,8 +191,8 @@ def line_spectrum(
         Factor multiplied by the spectrum’s`uncertainty`, used for
         thresholding. Default is 3.
     window: float
-        Same parameter as in `specutils.fitting.fit_lines`. Width of the region 
-        around each line of the spectrum to use in the fitting. If None, then 
+        Same parameter as in `specutils.fitting.fit_lines`. Width of the region
+        around each line of the spectrum to use in the fitting. If None, then
         the whole spectrum will be used in the fitting. `Window` is used in the
         Gaussian fitting of the spectral lines. Default is 50 (Å).
 
@@ -203,7 +203,7 @@ def line_spectrum(
         original spectrum containing the fitted lines. In the second position,
         returns the intervals where those lines were finded determined by
         3-sigma values around the center of the line. In the third position
-        returns an array with the quality of the fitting for each line (not yet 
+        returns an array with the quality of the fitting for each line (not yet
         implemented).
     """
     # values in correct units
