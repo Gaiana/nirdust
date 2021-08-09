@@ -36,6 +36,16 @@ import numpy as np
 
 from .core import NirdustSpectrum
 
+# ==============================================================================
+# EXCEPTIONS
+# ==============================================================================
+
+
+class InvalidBackendError(KeyError):
+    """Raised when an invalid backend is requested."""
+
+    pass
+
 
 # ==============================================================================
 # TARGET SPECTRUM MODEL
@@ -43,23 +53,28 @@ from .core import NirdustSpectrum
 
 
 def target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
-    """Compute the expected dust spectrum given a blackbody prediction.
+    """Compute the expected spectrum given a blackbody prediction.
 
     Parameters
     ----------
-    blackbody_flux: `~numpy.ndarray`
-        Blackbody spectrum intensity.
-
-    target_flux: `~numpy.ndarray`
-        Total spectrum intensity.
-
+    spectral_axis: `~astropy.units.Quantity`
+        Wavelength axis for BlackBody evaluation. Should be the same for 
+        external_flux.
     external_flux: `~numpy.ndarray`
         External spectrum intensity.
+    T: float
+        BlackBody temperature in Kelvin.
+    alpha: float
+        Multiplicative coefficient for external_flux.
+    beta: float
+        Multiplicative coefficient for blackbody.
+    gamma: float
+        Additive coefficient.
 
     Return
     ------
-    dust_flux: `~numpy.ndarray`
-        Remaining dust spectrum intensity.
+    prediction: `~numpy.ndarray`
+        Expected flux given the input parameters.
     """
     # calculate the model
     blackbody = BlackBody(u.Quantity(T, u.K))
@@ -70,25 +85,73 @@ def target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
 
 
 class TargetModel(Fittable1DModel):
+    """Fittable model for Astropy fitters.
 
+    Parameters
+    ----------
+    external_flux: `~numpy.ndarray`
+        External spectrum intensity. Fixed at input value.
+    T: float
+        BlackBody temperature in Kelvin.
+        Fittable. Bounds: (0, 3000).
+    alpha: float
+        Multiplicative coefficient for external_flux.
+        Fittable. Bounds: (0, inf)
+    beta: float
+        Multiplicative coefficient for blackbody. 
+        Fittable. Bounds: (0, inf)
+    gamma: float
+        Additive coefficient.
+        Fittable. Bounds: (-inf, inf)
+    """
     external_flux = Parameter(fixed=True)
-    T = Parameter(min=0., max=3000.)
+    T = Parameter(min=0.0, max=3000.0)
     alpha = Parameter(min=0)
     beta = Parameter(min=0)
     gamma = Parameter()
 
     @staticmethod
     def evaluate(spectral_axis, external_flux, T, alpha, beta, gamma):
+        """Compute the expected spectrum given a blackbody prediction.
+
+        Parameters
+        ----------
+        spectral_axis: `~astropy.units.Quantity`
+            Wavelength axis for BlackBody evaluation. Should be the same for 
+            external_flux.
+        external_flux: `~numpy.ndarray`
+            External spectrum intensity.
+        T: float
+            BlackBody temperature in Kelvin.
+        alpha: float
+            Multiplicative coefficient for external_flux.
+        beta: float
+            Multiplicative coefficient for blackbody.
+        gamma: float
+            Additive coefficient.
+
+        Return
+        ------
+        prediction: `~numpy.ndarray`
+            Expected flux given the input parameters.
+        """
         # calculate the model
         return target_model(
-            spectral_axis, external_flux, T, alpha, beta, gamma,
-            )
+            spectral_axis,
+            external_flux,
+            T,
+            alpha,
+            beta,
+            gamma,
+        )
+
 
 # ==============================================================================
 # EMCEE FUNCTIONS
 # ==============================================================================
 
-def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
+
+def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux, noise):
     """Gaussian logarithmic likelihood.
 
     Compute the likelihood of the model represented by the parameter theta
@@ -97,13 +160,15 @@ def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
     Parameters
     ----------
     theta: `~numpy.ndarray`
-        Parameter vector: (temperature, logscale).
+        Parameter vector: (temperature, alpha, beta, gamma).
     spectral_axis: `~astropy.units.Quantity`
         Wavelength axis. Should be the same for target_flux and external_flux.
     target_flux: `~numpy.ndarray`
         Total spectrum intensity.
     external_flux: `~numpy.ndarray`
         External spectrum intensity.
+    noise: `~numpy.ndarray`
+        Combined noise of target_flux and external_flux.
 
     Return
     ------
@@ -113,19 +178,24 @@ def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux):
     T, alpha, beta, gamma = theta
 
     prediction = target_model(
-        spectral_axis, external_flux, T, alpha, beta, gamma,
-        )
+        spectral_axis,
+        external_flux,
+        T,
+        alpha,
+        beta,
+        gamma,
+    )
 
-    #target_reduced = target_flux - target_flux.mean()
+    # target_reduced = target_flux - target_flux.mean()
     diff = target_flux - prediction
 
     # assume constant noise for every point
-    stddev = 50. # diff.std()
+    #stddev = 50.0  # diff.std()
 
     loglike = np.sum(
         -0.5 * np.log(2.0 * np.pi)
-        - np.log(stddev)
-        - diff ** 2 / (2.0 * stddev ** 2)
+        - np.log(noise)
+        - diff ** 2 / (2.0 * noise ** 2)
     )
     return loglike
 
@@ -139,7 +209,7 @@ def log_likelihood_prior(theta):
     Parameters
     ----------
     theta: `~numpy.ndarray`
-        Parameter vector: (temperature, logscale).
+        Parameter vector: (temperature, alpha, beta, gamma).
 
     Return
     ------
@@ -159,7 +229,7 @@ def log_likelihood_prior(theta):
         return -np.inf
 
 
-def log_probability(theta, spectral_axis, target_flux, external_flux):
+def log_probability(theta, spectral_axis, target_flux, external_flux, noise):
     """Posterior logarithmic likelihood.
 
     Compute the likelihood of the model represented by the parameter theta
@@ -168,7 +238,7 @@ def log_probability(theta, spectral_axis, target_flux, external_flux):
     Parameters
     ----------
     theta: `~numpy.ndarray`
-        Parameter vector: (temperature, logscale).
+        Parameter vector: (temperature, alpha, beta, gamma).
     spectral_axis: `~astropy.units.Quantity`
         Wavelength axis. Should be the same for target_flux and external_flux.
     target_flux: `~numpy.ndarray`
@@ -186,7 +256,7 @@ def log_probability(theta, spectral_axis, target_flux, external_flux):
         return -np.inf
     else:
         return lp + gaussian_log_likelihood(
-            theta, spectral_axis, target_flux, external_flux
+            theta, spectral_axis, target_flux, external_flux, noise
         )
 
 
@@ -209,7 +279,7 @@ class NirdustParameter:
         Assimetric uncertainties: (lower_uncertainty, higher_uncertainty)
     """
 
-    name = attr.ib()
+    name = attr.ib(validator=validators.instance_of(str))
     value = attr.ib()
     uncertainty = attr.ib()
 
@@ -228,18 +298,29 @@ class NirdustResults:
         Parameter object with the expected blackbody temperature and
         its uncertainty.
 
-    scale: Parameter
-        Parameter object with the expected blackbody scale and
-        its uncertainty. Note: in the fitting procedure the log10(scale) is
-        sampled to achieve better convergence. However, here we provide the
-        linear value of scale as expected by the astropy BlackBody model. No
-        unit is provided as the intensity is in arbitrary units.
+    alpha: Parameter
+        Parameter object with the expected alpha value and
+        its uncertainty. Note: No unit is provided as the intensity is in
+        arbitrary units.
+
+    beta: Parameter
+        Parameter object with the expected beta value and
+        its uncertainty. Note: No unit is provided as the intensity is in
+        arbitrary units.
+
+    gamma: Parameter
+        Parameter object with the expected gamma value and
+        its uncertainty. Note: No unit is provided as the intensity is in
+        arbitrary units.
 
     fitted_blackbody: `~astropy.modeling.models.BlackBody`
-        BlackBody instance with the best fit values of temperature and scale.
+        BlackBody instance with the best fit value of temperature.
 
-    dust: NirdustSpectrum
-        Reconstructed dust emission.
+    target_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the central spectrum.
+
+    external_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the external spectrum.
     """
 
     temperature = attr.ib()
@@ -273,8 +354,6 @@ class NirdustResults:
         out: ``matplotlib.pyplot.Axis`` :
             The axis where the method draws.
         """
-        # bb_fit = self.fitted_blackbody(self.target_spectrum.spectral_axis)
-
         prediction = target_model(
             self.target_spectrum.spectral_axis,
             self.external_spectrum.flux.value,
@@ -283,9 +362,6 @@ class NirdustResults:
             self.beta.value,
             self.gamma.value,
         )
-        # target_reduced = (
-        #     self.target_spectrum.flux - self.target_spectrum.flux.mean()
-        # )
 
         if ax is None:
             ax = plt.gca()
@@ -318,6 +394,7 @@ class NirdustResults:
 # FITTER CLASSES
 # ==============================================================================
 
+
 @attr.s
 class BaseFitter(metaclass=abc.ABCMeta):
 
@@ -328,6 +405,8 @@ class BaseFitter(metaclass=abc.ABCMeta):
         validator=validators.instance_of(NirdustSpectrum)
     )
     extra_conf = attr.ib(converter=dict)
+
+    total_noise_ = attr.ib(init=False)
 
     _fitted = attr.ib(init=False, default=False)
 
@@ -341,6 +420,12 @@ class BaseFitter(metaclass=abc.ABCMeta):
         raise NotImplementedError()
 
     # DEFINED
+    @total_noise_.default
+    def _total_noise__default(self):
+        return np.sqrt(
+            self.target_spectrum.noise ** 2 + self.external_spectrum.noise ** 2
+        )
+
     @property
     def ndim_(self):
         return 4
@@ -397,7 +482,7 @@ class EMCEENirdustFitter(BaseFitter):
     Attributes
     ----------
     target_spectrum: NirdustSpectrum object
-        Instance of NirdustSpectrum containing the nuclear spectrum.
+        Instance of NirdustSpectrum containing the central spectrum.
 
     external_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the external spectrum.
@@ -409,8 +494,12 @@ class EMCEENirdustFitter(BaseFitter):
         Sampler instance to run the MCMC model.
 
     """
+
     nwalkers = attr.ib(default=11, validator=validators.instance_of(int))
-    seed = attr.ib(default=None, validator=validators.optional(validators.instance_of(int)))
+    seed = attr.ib(
+        default=None,
+        validator=validators.optional(validators.instance_of(int)),
+    )
     steps = attr.ib(default=1000, validator=validators.instance_of(int))
 
     sampler_ = attr.ib(init=False)
@@ -421,13 +510,14 @@ class EMCEENirdustFitter(BaseFitter):
             self.target_spectrum.spectral_axis,
             self.target_spectrum.flux.value,
             self.external_spectrum.flux.value,
+            self.total_noise_,
         )
         return emcee.EnsembleSampler(
             nwalkers=self.nwalkers,
             ndim=self.ndim_,
             log_prob_fn=log_probability,
             args=model_args,
-            **self.extra_conf
+            **self.extra_conf,
         )
 
     def chain(self, discard=0):
@@ -600,8 +690,6 @@ class EMCEENirdustFitter(BaseFitter):
         return ax
 
 
-
-
 @attr.s
 class AstropyNirdustFitter(BaseFitter):
     """Astropy fitter class.
@@ -634,7 +722,7 @@ class AstropyNirdustFitter(BaseFitter):
     @property
     def fitted_model(self):
         return self._fitted_model
-    
+
     @property
     def isfitted_(self):
         return self.fitted_model is not None
@@ -664,12 +752,11 @@ class AstropyNirdustFitter(BaseFitter):
             rtm,
             frequency_axis,
             target_flux,
-            weights=1e-2,   # noise goes here: weights=1/sigma
+            weights=1/self.total_noise_,
             **self.extra_conf,
-            )
+        )
 
         self._fitted_model = fmodel
-
 
 
 # ==============================================================================
@@ -680,6 +767,7 @@ FITTER_BACKENDS = {
     "astropy": AstropyNirdustFitter,
     "emcee": EMCEENirdustFitter,
 }
+
 
 def fit_blackbody(
     target_spectrum,
@@ -717,6 +805,11 @@ def fit_blackbody(
     fitter: NirdustFitter object
         Instance of NirdustFitter after the fitting procedure.
     """
+    if backend.lower() not in FITTER_BACKENDS.keys():
+        raise InvalidBackendError(
+            f"Invalid backend '{backend}'. Available backends: {list(FITTER_BACKENDS.keys())}"
+        )
+
     fcls = FITTER_BACKENDS[backend.lower()]
 
     # divide kwargs in two parts
@@ -731,10 +824,11 @@ def fit_blackbody(
             extra_conf[k] = v
 
     fitter = fcls(
-        target_spectrum = target_spectrum,
-        external_spectrum = external_spectrum,
-        extra_conf = extra_conf,
-        **instance_kws)
+        target_spectrum=target_spectrum,
+        external_spectrum=external_spectrum,
+        extra_conf=extra_conf,
+        **instance_kws,
+    )
 
     fitter.fit(initial_state=initial_state)
     return fitter
