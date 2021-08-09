@@ -232,9 +232,9 @@ def test_nomrmalize(NGC4945_continuum):
     mean = np.mean(normalized_spectrum.spec1d_.flux)
     assert mean == 1.0
 
-@pytest.mark.xfail
+
 def test_compute_noise(NGC4945_continuum):
-    wave = np.arange(23000, 25000, 3) * u.Angstrom#
+    wave = np.arange(23000, 25000, 0.1) * u.Angstrom
 
     flux = 10 * u.adu
     rng = np.random.default_rng(5)
@@ -246,7 +246,7 @@ def test_compute_noise(NGC4945_continuum):
     low_lim = wave[0]
     up_lim = wave[-1]
 
-    noise = noise_sp.compute_noise(low_lim, up_lim)
+    noise = noise_sp.compute_noise(low_lim, up_lim).noise
 
     expected = np.std(noisy_thing).value
 

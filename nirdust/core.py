@@ -11,7 +11,7 @@
 # DOCS
 # ==============================================================================
 
-"""Core functionalities for nirdust."""
+"""Core functionalities for Nirdust."""
 
 
 # ==============================================================================
@@ -88,10 +88,14 @@ class _NDSpectrumMetadata(Mapping):
 
 @attr.s(frozen=True, repr=False)
 class NirdustSpectrum:
-    """Class containing a spectrum to operate with nirdust.
+    """Class containing a spectrum to operate with Nirdust.
 
-    Stores the spectrum in a Spectrum1D object and provides various methods
-    for obtaining the dust component and perform blackbody fitting.
+    Stores the flux and wavelength axis of the spectrum in a Spectrum1D object
+    and provides various methods for obtaining the dust component and perform
+    blackbody fitting.
+    The `flux` parameter recieves either flux-calibrated intensity or non
+    flux-calibrated intensity, in both cases Nirdust will assign 'ADU' units to
+    it.
 
     Parameters
     ----------
@@ -112,16 +116,16 @@ class NirdustSpectrum:
 
     Attributes
     ----------
-    spec1d_: specutils.Spectrum1D object
+    spec1d_: `specutils.Spectrum1D` object
         Contains the wavelength axis and the flux axis of the spectrum in
         unities of Å and ADU respectively.
 
     noise: float.
-        The value of the uncertainty as calculated by 'noise_region_uncertainty'
-        from 'Astropy' inside a region. If the value of noise is not provided,
-        Nirdust will compute ir by default using the region
-        20650 - 21000 Angstroms. The user can re-compute noise using the class
-        method 'compute_noise'.
+        A value of the uncertainty representative of all the spectral range.
+        If the value of noise is not provided, Nirdust will compute it by
+        default using `noise_region_uncertainty` from `Astropy` inside the
+        region 20650 - 21000 Å. The user can re-compute noise using the class
+        method `compute_noise`.
     """
 
     spectral_axis = attr.ib(converter=u.Quantity)
@@ -185,11 +189,11 @@ class NirdustSpectrum:
         )
 
     def __getattr__(self, a):
-        """Return an attribute from specutils.Spectrum1D class.
+        """Return an attribute from `specutils.Spectrum1D` class.
 
         Parameters
         ----------
-        a: attribute from spectrum1D class.
+        a: attribute from `spectrum1D` class.
 
         Returns
         -------
@@ -199,7 +203,7 @@ class NirdustSpectrum:
         return getattr(self.spec1d_, a)
 
     def __getitem__(self, slice):
-        """Define the method for getting a slice of a NirdustSpectrum object.
+        """Define the method for getting a slice of a `NirdustSpectrum` object.
 
         Parameters
         ----------
@@ -207,8 +211,8 @@ class NirdustSpectrum:
 
         Return
         ------
-        out: NirsdustSpectrum object
-            Return a new instance of the class NirdustSpectrum sliced by the
+        out: `NirsdustSpectrum` object
+            Return a new instance of the class `NirdustSpectrum` sliced by the
             given indexes.
         """
         spec1d = self.spec1d_.__getitem__(slice)
@@ -247,31 +251,31 @@ class NirdustSpectrum:
 
     @property
     def spectral_dispersion(self):
-        """Assume linearity to compute the dispersion."""
+        """Assume linearity to compute the spectral dispersion."""
         a, b = self.spectral_range
         return (b - a) / (self.spectral_length - 1)
 
     def compute_noise(self, low_lim=20650, upper_lim=21000):
         """Compute noise for the spectrum.
 
-        Uses 'noise_region_uncertainty' from Astropy to compute the noise
-        of the spectrum inside a 'Spectral Region' given by the low_lim
-        and upper_lim parameters.
+        Uses `noise_region_uncertainty` from Astropy to compute the noise
+        of the spectrum inside a `Spectral Region` given by the `low_lim`
+        and `upper_lim` parameters.
 
         Parameters
         ----------
         low_lim: float
             A float containing the lower limit for the region where the noise
-            will be computed. Must be in Angstroms. Default is 20650.
+            will be computed. Must be in Å. Default is 20650.
 
         upper_lim: float
             A float containing the lower limit for the region where the noise
-            will be computed. Must be in Angstroms. Default is 20650.
+            will be computed. Must be in Å. Default is 20650.
 
         Return
         ------
-        NirdustSpectrum object
-            A new instance of NirdustSpectrum class with the new noise
+        `NirdustSpectrum` object
+            A new instance of `NirdustSpectrum` class with the new noise
             parameter.
 
         """
@@ -299,9 +303,9 @@ class NirdustSpectrum:
     def mask_spectrum(self, line_intervals=None, mask=None):
         """Mask spectrum to remove spectral lines.
 
-        Recives either a boolean mask containing 'False' values in the line
+        Recives either a boolean mask containing `False` values in the line
         positions or a list with the line positions as given by the
-        'line_spectrum' method of the NirdustSpectrum class. This method uses
+        `line_spectrum` method of the `NirdustSpectrum` class. This method uses
         one of those imputs to remove points from the spectrum.
 
         Parameters
@@ -309,16 +313,16 @@ class NirdustSpectrum:
         line_intervals: python iterable
             Any iterable object with pairs containing the beginning and end of
             the region were the spectral lines are. The second return of
-            'line_spectrum()' is valid.
+            `line_spectrum` is valid.
 
         mask: boolean array
             array with same length as the spectrum containing boolean values
-            with False values in the indexes that should be masked.
+            with `False` values in the indexes that should be masked.
 
         Return
         ------
-        NirdustSpectrum object
-            A new instance of NirdustSpectrum class with the especified
+        `NirdustSpectrum` object
+            A new instance of `NirdustSpectrum` class with the especified
             intervals removed.
         """
         if all(v is None for v in (line_intervals, mask)):
@@ -370,8 +374,8 @@ class NirdustSpectrum:
 
         Returns
         -------
-        out: NirsdustSpectrum object
-            Return a new instance of class NirdustSpectrum cut in wavelength.
+        out: `NirsdustSpectrum` object
+            Return a new instance of class `NirdustSpectrum` cut in wavelength.
         """
         region = su.SpectralRegion(mini * u.AA, maxi * u.AA)
         cutted_spec1d = sm.extract_region(self.spec1d_, region)
@@ -388,8 +392,8 @@ class NirdustSpectrum:
 
         Returns
         -------
-        out: object NirsdustSpectrum
-            New instance of the NirdustSpectrun class containing the spectrum
+        out: object `NirsdustSpectrum`
+            New instance of the `NirdustSpectrun` class containing the spectrum
             with a frquency axis in units of Hz.
         """
         new_axis = self.spectral_axis.to(u.Hz, equivalencies=u.spectral())
@@ -403,9 +407,9 @@ class NirdustSpectrum:
 
         Returns
         -------
-        out: NirsdustSpectrum object
-            New instance of the NirdustSpectrun class with the flux normalized
-            to unity.
+        out: `NirsdustSpectrum` object
+            New instance of the `NirdustSpectrun` class with the flux
+            normalized to unity.
         """
         normalized_flux = self.flux / np.mean(self.flux)
 
