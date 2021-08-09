@@ -41,13 +41,9 @@ from . import core
 def _rescale(sp, reference_sp):
     """Resample a given spectrum to a reference spectrum.
 
-    The first spectrum will be resampled to have the same spectral_axis as
-    the reference spectrum. The resampling algorithm is the specutils method
-    FluxConservingResampler.
-
     Notes
     -----
-    nan values may occur at the edges where the resampler is forced
+    `nan` values may occur at the edges where the resampler is forced
     to extrapolate.
     """
     input_sp1d = sp.spec1d_
@@ -65,7 +61,7 @@ def _rescale(sp, reference_sp):
 
 
 def _clean_and_match(sp1, sp2):
-    """Clean nan values and apply the same mask to both spectrums."""
+    """Clean `nan` values and apply the same mask to both spectrums."""
     # nan values occur in the flux variable
     # check for invalid values in both spectrums
     mask = np.isfinite(sp1.flux) & np.isfinite(sp2.flux)
@@ -87,34 +83,34 @@ def match_spectral_axes(
 ):
     """Resample the higher resolution spectrum.
 
-    Spectrum_resampling uses the spectral_axis of the lower resolution
-    spectrum to resample the higher resolution one. To do so this function
-    uses the FluxConservingResampler() class of 'Specutils'. The order of the
-    input spectra is arbitrary and the order in the output is the same as in
-    the input. Only the higher resolution spectrum will be modified, the lower
-    resolution spectrum will be unaltered. It is recommended to run
-    spectrum_resampling after 'cut_edges'.
+    `Spectrum_resampling` uses the `spectral_axis` of one imput spectrum to 
+    resample the `spectral_axis` of the otherone, depending on the `scaling` 
+    parameter. 
+    To do so this function uses the `FluxConservingResampler` class of 
+    `Specutils`. The order of the input spectra is arbitrary and the order in 
+    the output is the same as in the input. It is recomended to run this 
+    function after the class methods 'cut_edges' and 'mask_spectrum'.
 
     Parameters
     ----------
-    first_sp: NirdustSpectrum object
+    first_sp: `NirdustSpectrum` object
 
-    second_sp: NirdustSpectrum object
+    second_sp: `NirdustSpectrum` object
 
     scaling: string
-        If 'downscale' the higher resolution spectrum will be resampled to
-        match the lower resolution spectrum. If 'upscale' the lower resolution
+        If `downscale` the higher resolution spectrum will be resampled to
+        match the lower resolution spectrum. If `upscale` the lower resolution
         spectrum will be resampled to match the higher resolution spectrum.
 
     clean: bool
-        Flag to indicate if the spectrums have to be cleaned by nan values
-        after the rescaling procedure. nan values occur at the edges of the
+        Flag to indicate if the spectrums have to be cleaned by `nan` values
+        after the rescaling procedure. `nan` values occur at the edges of the
         resampled spectrum when it is forced to extrapolate beyond the
         spectral range of the reference spectrum.
 
     Return
     ------
-    out: NirdustSpectrum, NirdustSpectrum
+    out: `NirdustSpectrum`, `NirdustSpectrum`
 
     """
     scaling = scaling.lower()
@@ -172,43 +168,43 @@ def line_spectrum(
 ):
     """Construct the line spectrum.
 
-    Uses various Specutils features to fit the continuum of the spectrum,
-    subtract it and find the emission and absorption lines in the spectrum.
+    Uses various `Specutils` features to fit the continuum of the spectrum,
+    subtract it and find the emission and absorption lines.
     Then fits all the lines with gaussian models to construct the line
-    spectrum.
+    spectrum using `astropy.models.Gaussian1D`.
 
     Parameters
     ----------
-    spectrum: NirdustSpectrum object
-        A spectrum stored in a NirdustSpectrum class object.
+    spectrum: `NirdustSpectrum` object
+        A spectrum stored in a `NirdustSpectrum` class object.
 
     low_lim_ns: float
         Lower limit of the spectral region defined to measure the
-        noise level. Default is 20650 (wavelenght in Angstroms).
+        noise level. Default is 20650 (Å).
 
     upper_lim_ns: float
         Lower limit of the spectral region defined to measure the
-        noise level. Default is 21000 (wavelenght in Angstroms).
+        noise level. Default is 21000 (Å).
 
     noise_factor: float
-        Same parameter as in find_lines_threshold from Specutils.
-        Factor multiplied by the spectrum’s``uncertainty``, used for
+        Same parameter as in `specutils.fitting.find_lines_threshold`.
+        Factor multiplied by the spectrum’s`uncertainty`, used for
         thresholding. Default is 3.
     window: float
-
-        Same parameter as in fit_lines from specutils.fitting. Regions of
-        the spectrum to use in the fitting. If None, then the whole
-        spectrum will be used in the fitting. Window is used in the
-        Gaussian fitting of the spectral lines. Default is 50 (Angstroms).
+        Same parameter as in `specutils.fitting.fit_lines`. Width of the region 
+        around each line of the spectrum to use in the fitting. If None, then 
+        the whole spectrum will be used in the fitting. `Window` is used in the
+        Gaussian fitting of the spectral lines. Default is 50 (Å).
 
     Return
     ------
     out: flux axis, list, list
-        Returns in the first position a flux axis of the same lenght as the
+        Returns in the first element a flux axis of the same lenght as the
         original spectrum containing the fitted lines. In the second position,
         returns the intervals where those lines were finded determined by
         3-sigma values around the center of the line. In the third position
-        returns an array with the quality of the fitting for each line.
+        returns an array with the quality of the fitting for each line (not yet 
+        implemented).
     """
     # values in correct units
     low_lim_ns = u.Quantity(low_lim_ns, u.AA)

@@ -98,11 +98,11 @@ def pix2wavelength(pix_arr, header, z=0):
 
 
 def spectrum(flux, header, z=0):
-    """Instantiate a NirdustSpectrum object from FITS parameters.
+    """Instantiate a `NirdustSpectrum` object from FITS parameters.
 
     Parameters
     ----------
-    flux: Quantity
+    flux: `~astropy.units.Quantity`
         Intensity for each pixel in arbitrary units.
 
     header: FITS header
@@ -129,7 +129,7 @@ def spectrum(flux, header, z=0):
 
 
 def read_fits(file_name, extension=None, z=0):
-    """Read a spectrum in FITS format and store it in a NirdustSpectrum object.
+    """Read a spectrum in FITS format and store it in a `NirdustSpectrum` object.
 
     Parameters
     ----------
@@ -147,8 +147,8 @@ def read_fits(file_name, extension=None, z=0):
 
     Return
     ------
-    out: NirsdustSpectrum object
-        Returns an instance of the class NirdustSpectrum.
+    out: `NirsdustSpectrum` object
+        Returns an instance of the class `NirdustSpectrum`.
     """
     with fits.open(file_name) as hdulist:
 
@@ -180,11 +180,11 @@ def read_table(
     z=0,
     **kwargs,
 ):
-    """Read a spectrum from a table and store it in a NirdustSpectrum object.
+    """Read a spectrum from a table and store it in a `NirdustSpectrum` object.
 
     The table must contain two columns for the wavelength and the
     intensity/flux, the column number can be specified by parameters.  It is
-    assumed that the unit of the wavelength axis is Angstroms.
+    assumed that the unit of the wavelength axis is Å.
 
     Parameters
     ----------
@@ -198,12 +198,12 @@ def read_table(
         The positional number of the intensity/flux column. Default is 1.
 
     kwargs:
-        Se pasa directo a ``astropy.table.Table.read``.
+        Args from``astropy.table.Table.read``.
 
     Return
     ------
-    out: NirsdustSpectrum object
-        Returns an instance of the class NirdustSpectrum.
+    out: `NirsdustSpectrum` object
+        Returns an instance of the class `NirdustSpectrum`.
     """
     table = Table.read(file_name, format=format, **kwargs)
     wavelength = table.columns[wavelength_column]
