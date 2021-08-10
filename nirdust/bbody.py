@@ -22,8 +22,8 @@ import abc
 
 from astropy import units as u
 from astropy.modeling import Fittable1DModel, Parameter
-from astropy.modeling.models import BlackBody
 from astropy.modeling.fitting import LevMarLSQFitter
+from astropy.modeling.models import BlackBody
 
 import attr
 from attr import validators
@@ -58,7 +58,7 @@ def target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
     Parameters
     ----------
     spectral_axis: `~astropy.units.Quantity`
-        Wavelength axis for BlackBody evaluation. Should be the same for 
+        Wavelength axis for BlackBody evaluation. Should be the same for
         external_flux.
     external_flux: `~numpy.ndarray`
         External spectrum intensity.
@@ -98,12 +98,13 @@ class TargetModel(Fittable1DModel):
         Multiplicative coefficient for external_flux.
         Fittable. Bounds: (0, inf)
     beta: float
-        Multiplicative coefficient for blackbody. 
+        Multiplicative coefficient for blackbody.
         Fittable. Bounds: (0, inf)
     gamma: float
         Additive coefficient.
         Fittable. Bounds: (-inf, inf)
     """
+
     external_flux = Parameter(fixed=True)
     T = Parameter(min=0.0, max=3000.0)
     alpha = Parameter(min=0)
@@ -117,7 +118,7 @@ class TargetModel(Fittable1DModel):
         Parameters
         ----------
         spectral_axis: `~astropy.units.Quantity`
-            Wavelength axis for BlackBody evaluation. Should be the same for 
+            Wavelength axis for BlackBody evaluation. Should be the same for
             external_flux.
         external_flux: `~numpy.ndarray`
             External spectrum intensity.
@@ -151,7 +152,9 @@ class TargetModel(Fittable1DModel):
 # ==============================================================================
 
 
-def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux, noise):
+def gaussian_log_likelihood(
+    theta, spectral_axis, target_flux, external_flux, noise
+):
     """Gaussian logarithmic likelihood.
 
     Compute the likelihood of the model represented by the parameter theta
@@ -190,7 +193,7 @@ def gaussian_log_likelihood(theta, spectral_axis, target_flux, external_flux, no
     diff = target_flux - prediction
 
     # assume constant noise for every point
-    #stddev = 50.0  # diff.std()
+    # stddev = 50.0  # diff.std()
 
     loglike = np.sum(
         -0.5 * np.log(2.0 * np.pi)
@@ -294,21 +297,21 @@ class NirdustResults:
 
     Attributes
     ----------
-    temperature: Parameter
+    temperature: NirdustParameter
         Parameter object with the expected blackbody temperature and
         its uncertainty.
 
-    alpha: Parameter
+    alpha: NirdustParameter
         Parameter object with the expected alpha value and
         its uncertainty. Note: No unit is provided as the intensity is in
         arbitrary units.
 
-    beta: Parameter
+    beta: NirdustParameter
         Parameter object with the expected beta value and
         its uncertainty. Note: No unit is provided as the intensity is in
         arbitrary units.
 
-    gamma: Parameter
+    gamma: NirdustParameter
         Parameter object with the expected gamma value and
         its uncertainty. Note: No unit is provided as the intensity is in
         arbitrary units.
@@ -323,14 +326,18 @@ class NirdustResults:
         Instance of NirdustSpectrum containing the external spectrum.
     """
 
-    temperature = attr.ib()
-    alpha = attr.ib()
-    beta = attr.ib()
-    gamma = attr.ib()
+    temperature = attr.ib(validator=validators.instance_of(NirdustParameter))
+    alpha = attr.ib(validator=validators.instance_of(NirdustParameter))
+    beta = attr.ib(validator=validators.instance_of(NirdustParameter))
+    gamma = attr.ib(validator=validators.instance_of(NirdustParameter))
 
-    fitted_blackbody = attr.ib()
-    target_spectrum = attr.ib()
-    external_spectrum = attr.ib()
+    fitted_blackbody = attr.ib(validator=validators.instance_of(BlackBody))
+    target_spectrum = attr.ib(
+        validator=validators.instance_of(NirdustSpectrum)
+    )
+    external_spectrum = attr.ib(
+        validator=validators.instance_of(NirdustSpectrum)
+    )
 
     def plot(self, ax=None, data_kws=None, model_kws=None):
         """Build a plot of the fitted spectrum and the fitted model.
@@ -366,15 +373,17 @@ class NirdustResults:
         if ax is None:
             ax = plt.gca()
 
+        # Target
         data_kws = {} if data_kws is None else data_kws
         data_kws.setdefault("color", "firebrick")
         ax.plot(
             self.target_spectrum.spectral_axis,
             self.target_spectrum.flux,
-            label="target reduced",
+            label="target",
             **data_kws,
         )
 
+        # Prediction
         model_kws = {} if model_kws is None else model_kws
         model_kws.setdefault("color", "Navy")
         ax.plot(
@@ -397,6 +406,19 @@ class NirdustResults:
 
 @attr.s
 class BaseFitter(metaclass=abc.ABCMeta):
+    """Base class for Nirdust Fitters.
+
+    Attributes
+    ----------
+    target_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the central spectrum.
+
+    external_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the external spectrum.
+
+    extra_conf: dict
+        Extra keyword parameters to be passed to emcee.EnsembleSampler.
+    """
 
     target_spectrum = attr.ib(
         validator=validators.instance_of(NirdustSpectrum)
@@ -413,28 +435,41 @@ class BaseFitter(metaclass=abc.ABCMeta):
     # ABSTRACT
     @abc.abstractmethod
     def best_parameters(self):
-        raise NotImplementedError()
+        """Abstract method."""
+        pass
 
     @abc.abstractmethod
     def run_model(self, initial_state):
-        raise NotImplementedError()
+        """Abstract method."""
+        pass
 
     # DEFINED
     @total_noise_.default
     def _total_noise__default(self):
+        """Propagated noise."""
         return np.sqrt(
             self.target_spectrum.noise ** 2 + self.external_spectrum.noise ** 2
         )
 
     @property
     def ndim_(self):
+        """Return number of fittable parameters."""
         return 4
 
     @property
     def isfitted_(self):
+        """Indicate if fit() was excecuted."""
         return self._fitted
 
     def fit(self, initial_state):
+        """Start fitting computation.
+
+        Parameters
+        ----------
+        initial_state: tuple
+            Vector indicating the initial guess values in order, i.e:
+            (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
+        """
         if self.isfitted_:
             raise RuntimeError("Model already fitted.")
 
@@ -449,6 +484,7 @@ class BaseFitter(metaclass=abc.ABCMeta):
 
     def result(self, **kwargs):
         """Get the chain array.
+
         Parameters
         ----------
         kwargs:
@@ -487,12 +523,17 @@ class EMCEENirdustFitter(BaseFitter):
     external_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the external spectrum.
 
-    seed: int or None
-        Seed for random number generation.
+    extra_conf: dict
+        Extra keyword parameters to be passed to emcee.EnsembleSampler.
 
-    sampler: ``emcee.EnsembleSampler``
-        Sampler instance to run the MCMC model.
+    nwalkers: int, optional
+        Number of individual chains to run. Default: 11.
 
+    seed: int, optional
+        Seed for the random number generator. Default: None.
+
+    steps: int, optional
+        Number of times the parameter space is be sampled. Default: 1000.
     """
 
     nwalkers = attr.ib(default=11, validator=validators.instance_of(int))
@@ -506,6 +547,7 @@ class EMCEENirdustFitter(BaseFitter):
 
     @sampler_.default
     def _sampler__default(self):
+        """Instance of Emcee EnsembleSampler."""
         model_args = (
             self.target_spectrum.spectral_axis,
             self.target_spectrum.flux.value,
@@ -539,6 +581,14 @@ class EMCEENirdustFitter(BaseFitter):
     # redefinitions
 
     def run_model(self, initial_state):
+        """Run sampler given an initial_state.
+
+        Parameters
+        ----------
+        initial_state: tuple
+            Vector indicating the initial guess values in order, i.e:
+            (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
+        """
         # acomodate initial values
         rng = np.random.default_rng(seed=self.seed)
         p0 = rng.random((self.nwalkers, self.ndim_))
@@ -556,14 +606,24 @@ class EMCEENirdustFitter(BaseFitter):
 
         Return
         ------
-        temperature: Parameter
-            Parameter object with expected temperature and its uncertainty.
-        scale: Parameter
-            Parameter object with expected scale and its uncertainty.
-            Note: in the fitting procedure the log10(scale) is sampled to
-            achieve better convergence. However, here we provide the linear
-            value of scale as expected by the astropy BlackBody model. No unit
-            is provided as the intensity is in arbitrary units.
+        temperature: NirdustParameter
+            Parameter object with the expected blackbody temperature and
+            its uncertainty.
+
+        alpha: NirdustParameter
+            Parameter object with the expected alpha value and
+            its uncertainty. Note: No unit is provided as the intensity is in
+            arbitrary units.
+
+        beta: NirdustParameter
+            Parameter object with the expected beta value and
+            its uncertainty. Note: No unit is provided as the intensity is in
+            arbitrary units.
+
+        gamma: NirdustParameter
+            Parameter object with the expected gamma value and
+            its uncertainty. Note: No unit is provided as the intensity is in
+            arbitrary units.
         """
         chain = self.chain(discard=discard).reshape((-1, self.ndim_))
         # chain[:, 1] = 10 ** chain[:, 1]
@@ -658,6 +718,7 @@ class EMCEENirdustFitter(BaseFitter):
         temp_mean_kws = {} if temp_mean_kws is None else temp_mean_kws
         temp_mean_kws.setdefault("color", "k")
         ax_t.plot(mean_t, label="Mean", **temp_mean_kws)
+        ax_t.legend()
 
         # temp labels
         ax_t.set_ylabel("T")
@@ -677,11 +738,9 @@ class EMCEENirdustFitter(BaseFitter):
 
         # alpha,beta labels
         ax_alpha.set_ylabel("alpha")
-        ax_alpha.set_xlabel("Steps")
         ax_alpha.legend()
 
         ax_beta.set_ylabel("beta")
-        ax_beta.set_xlabel("Steps")
         ax_beta.legend()
 
         ax_gamma.set_ylabel("gamma")
@@ -699,14 +758,18 @@ class AstropyNirdustFitter(BaseFitter):
     Attributes
     ----------
     target_spectrum: NirdustSpectrum object
-        Instance of NirdustSpectrum containing the nuclear spectrum.
+        Instance of NirdustSpectrum containing the central spectrum.
 
     external_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the external spectrum.
 
-    seed: int or None
-        Seed for random number generation.
+    extra_conf: dict
+        Extra keyword parameters to be passed to the fitter instance of
+        LevMarLSQFitter.
 
+    calc_uncertainties: bool
+        Indicate if the fitter should compute the uncertainites. This
+        parameter is passed directly to LevMarLSQFitter. Default is True.
     """
 
     calc_uncertainties = attr.ib(default=True, converter=bool)
@@ -717,18 +780,43 @@ class AstropyNirdustFitter(BaseFitter):
 
     @fitter_.default
     def _fitter__default(self):
+        """Instance of Astropy fitter LevMarLSQFitter."""
         return LevMarLSQFitter(self.calc_uncertainties)
 
     @property
     def fitted_model(self):
+        """Target model with best values."""
         return self._fitted_model
 
     @property
     def isfitted_(self):
+        """Indicate if fit() was excecuted."""
         return self.fitted_model is not None
 
     def best_parameters(self):
-        """doc"""
+        """Return best fitting values for the model.
+
+        Return
+        ------
+        temperature: NirdustParameter
+            Parameter object with the expected blackbody temperature and
+            its uncertainty.
+
+        alpha: NirdustParameter
+            Parameter object with the expected alpha value and
+            its uncertainty. Note: No unit is provided as the intensity is in
+            arbitrary units.
+
+        beta: NirdustParameter
+            Parameter object with the expected beta value and
+            its uncertainty. Note: No unit is provided as the intensity is in
+            arbitrary units.
+
+        gamma: NirdustParameter
+            Parameter object with the expected gamma value and
+            its uncertainty. Note: No unit is provided as the intensity is in
+            arbitrary units.
+        """
         t = self.fitted_model.T
         a = self.fitted_model.alpha
         b = self.fitted_model.beta
@@ -741,18 +829,25 @@ class AstropyNirdustFitter(BaseFitter):
         return temp, alpha, beta, gamma
 
     def run_model(self, initial_state):
+        """Run fitter given an initial_state.
 
+        Parameters
+        ----------
+        initial_state: tuple
+            Vector indicating the initial guess values in order, i.e:
+            (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
+        """
         # Compute model
         frequency_axis = self.target_spectrum.frequency_axis.value
         target_flux = self.target_spectrum.flux.value
 
-        rtm = TargetModel(self.external_spectrum.flux.value, *initial_state)
+        model = TargetModel(self.external_spectrum.flux.value, *initial_state)
 
         fmodel = self.fitter_(
-            rtm,
+            model,
             frequency_axis,
             target_flux,
-            weights=1/self.total_noise_,
+            weights=1 / self.total_noise_,
             **self.extra_conf,
         )
 
@@ -807,7 +902,8 @@ def fit_blackbody(
     """
     if backend.lower() not in FITTER_BACKENDS.keys():
         raise InvalidBackendError(
-            f"Invalid backend '{backend}'. Available backends: {list(FITTER_BACKENDS.keys())}"
+            f"Invalid backend '{backend}'. "
+            "Available backends: {list(FITTER_BACKENDS.keys())}"
         )
 
     fcls = FITTER_BACKENDS[backend.lower()]
