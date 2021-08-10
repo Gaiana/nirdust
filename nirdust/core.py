@@ -46,7 +46,9 @@ def _filter_internals(attribute, value):
 
 def public_members_asdict(object):
     """Thin wrapper around attr.asdict, that ignore all private members."""
-    return attr.asdict(object, filter=_filter_internals)
+    kwargs = attr.asdict(object, filter=_filter_internals, recurse=False)
+    kwargs["metadata"] = dict(kwargs["metadata"])
+    return kwargs
 
 
 # ==============================================================================
@@ -79,7 +81,8 @@ class _NDSpectrumMetadata(Mapping):
 
     def __repr__(self):
         """x.__repr__() <==> repr(x)."""
-        return f"metadata({repr(set(self._md))})"
+        content = repr(set(self._md)) if self._md else "{}"
+        return f"metadata({content})"
 
     def __dir__(self):
         """x.__dir__() <==> dir(x)."""
@@ -355,6 +358,7 @@ class NirdustSpectrum:
             )
 
         kwargs = public_members_asdict(self)
+
         kwargs.update(
             flux=masked_spectrum.flux,
             spectral_axis=masked_spectrum.spectral_axis,
