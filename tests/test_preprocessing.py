@@ -31,14 +31,14 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
 
     sp_axis = NGC4945_continuum_rest_frame.spectral_axis
     g1 = models.Gaussian1D(0.6, 21200, 10)
-    g2 = models.Gaussian1D(-0.3, 22000, 15)
+    g2 = models.Gaussian1D(-0.3, 22400, 15)
 
     rng = np.random.default_rng(75)
 
     y = (
         g1(sp_axis.value)
         + g2(sp_axis.value)
-        + rng.normal(0.0, 0.01, sp_axis.shape)
+        + rng.normal(0.0, 0.02, sp_axis.shape)
     )
     y_tot = (y + 0.0001 * sp_axis.value + 1000) * u.adu
 
@@ -46,7 +46,7 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
         flux=y_tot,
         spectral_axis=sp_axis,
         z=0,
-    )
+    ).compute_noise(23400, 24000)
 
     expected_positions = (
         np.array(
@@ -58,9 +58,9 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
         * u.Angstrom
     )
 
-    positions = preprocessing.line_spectrum(
-        snth_line_spectrum, 23000, 24000, 5, window=80
-    )[1]
+    positions = preprocessing.line_spectrum(snth_line_spectrum, 5, window=80)[
+        1
+    ]
 
     np.testing.assert_almost_equal(
         positions.value * 0.001, expected_positions.value * 0.001, decimal=0
@@ -86,11 +86,11 @@ def test_number_of_lines(NGC4945_continuum_rest_frame):
         flux=y_tot,
         spectral_axis=sp_axis,
         z=0,
-    )
+    ).compute_noise(23000, 24000)
 
-    positions = preprocessing.line_spectrum(
-        snth_line_spectrum, 23000, 24000, 5, window=80
-    )[1]
+    positions = preprocessing.line_spectrum(snth_line_spectrum, 5, window=80)[
+        1
+    ]
 
     assert len(positions[0]) == 2
 
