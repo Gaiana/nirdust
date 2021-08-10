@@ -19,6 +19,7 @@ from nirdust import core, preprocessing
 
 import numpy as np
 
+
 import pytest
 
 
@@ -27,7 +28,7 @@ import pytest
 # =============================================================================
 
 
-def test_line_spectrum(NGC4945_continuum_rest_frame):
+def test_line_positions(NGC4945_continuum_rest_frame):
 
     sp_axis = NGC4945_continuum_rest_frame.spectral_axis
     g1 = models.Gaussian1D(0.6, 21200, 10)
@@ -95,6 +96,37 @@ def test_number_of_lines(NGC4945_continuum_rest_frame):
     assert len(positions[0]) == 2
 
 
+def test_line_spectrum(NGC4945_continuum_rest_frame):
+
+    sp_axis = NGC4945_continuum_rest_frame.spectral_axis
+
+    g1 = models.Gaussian1D(0.6, 21200, 10)
+    g2 = models.Gaussian1D(-0.3, 22000, 15)
+
+    rng = np.random.default_rng(75)
+
+    y = (
+        g1(sp_axis.value)
+        + g2(sp_axis.value)
+        + rng.normal(0.0, 0.03, sp_axis.shape)
+    )
+    y_tot = (y + 0.0001 * sp_axis.value + 1000) * u.adu
+
+    snth_line_spectrum = core.NirdustSpectrum(
+        flux=y_tot,
+        spectral_axis=sp_axis,
+        z=0,
+    ).compute_noise(23000, 24000)
+
+    lines = preprocessing.line_spectrum(snth_line_spectrum, 5, window=80)[
+        0
+    ].flux
+
+    all_zeros = any(lines)
+
+    assert all_zeros is True
+
+
 def test_spectral_dispersion(NGC4945_continuum_rest_frame):
 
     sp = NGC4945_continuum_rest_frame
@@ -103,6 +135,11 @@ def test_spectral_dispersion(NGC4945_continuum_rest_frame):
     expected = sp.metadata.CD1_1
 
     np.testing.assert_almost_equal(dispersion, expected, decimal=14)
+
+
+# ===============================================================================
+# MASK SPECTRUM
+# =============================================================================
 
 
 def test_mask_spectrum_1(NGC4945_continuum_rest_frame):
@@ -166,7 +203,7 @@ def test_mask_spectrum_5(NGC4945_continuum_rest_frame):
         spectrum.mask_spectrum(mask=mask)
 
 
-# ===============================================================================
+# =============================================================================
 # MATCH SPECTRAL AXES
 # =============================================================================
 

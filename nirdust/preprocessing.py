@@ -230,7 +230,10 @@ def line_spectrum(
         line_intervals.append(interval)
 
     line_spectrum = u.Quantity(line_spectrum)
+    line_nd_spectrum = core.NirdustSpectrum(
+        flux=line_spectrum, spectral_axis=spectrum.spectral_axis
+    )
     line_intervals = u.Quantity(line_intervals, u.AA)
 
     line_fitting_quality = 0.0
-    return line_spectrum, line_intervals, line_fitting_quality
+    return line_nd_spectrum, line_intervals, line_fitting_quality
