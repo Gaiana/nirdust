@@ -224,11 +224,49 @@ def test_compute_noise(NGC4945_continuum):
 
     noise_sp = core.NirdustSpectrum(wave, noisy_thing)
 
-    low_lim = wave[0]
-    up_lim = wave[-1]
+    low_lim = wave[1].value
+    up_lim = wave[-2].value
 
     noise = noise_sp.compute_noise(low_lim, up_lim).noise
 
     expected = np.std(noisy_thing).value
 
     np.testing.assert_almost_equal(noise, expected, decimal=5)
+    
+def test_metadata_update_regions():
+
+    wave = np.arange(22000, 25000, 3.5) * u.Angstrom
+    flux = 10 * u.adu*np.ones(len(wave))
+    spectrum = core.NirdustSpectrum(flux=flux, spectral_axis=wave)
+    
+    n_spectrum = spectrum.compute_noise(24000, 24500)
+    
+    dic = core.public_members_asdict(n_spectrum)
+    meta = dic['metadata']
+    
+    assert meta['nr_low_lim'] == 24000 
+    assert meta['nr_upper_lim'] == 24500 
+    
+      
+def test_value_error_compute_noise():      
+      
+    wave = np.arange(22000, 25000, 3.5) * u.Angstrom
+    flux = 10 * u.adu*np.ones(len(wave))
+    spectrum = core.NirdustSpectrum(flux=flux, spectral_axis=wave)
+      
+    with pytest.raises(ValueError):
+        spectrum.compute_noise(21000, 24500)
+        
+        
+def test_value_error_compute_noise2():      
+      
+    wave = np.arange(22000, 25000, 3.5) * u.Angstrom
+    flux = 10 * u.adu*np.ones(len(wave))
+    spectrum = core.NirdustSpectrum(flux=flux, spectral_axis=wave)
+      
+    with pytest.raises(ValueError):
+        spectrum.compute_noise(24500, 24000)        
+      
+    
+
+    #hacer lo de que tambien se guarde en el metadata cuando la region es por default
