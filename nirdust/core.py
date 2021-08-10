@@ -282,13 +282,14 @@ class NirdustSpectrum:
             parameter.
 
         """
-        
-        if (low_lim < self.spectral_range[0].value) or (low_lim > self.spectral_range[1].value):
+        if (low_lim < self.spectral_range[0].value) or (
+            low_lim > self.spectral_range[1].value
+        ):
             raise ValueError("Region parameter out of spectrum bounds")
-        
+
         if low_lim >= upper_lim:
             raise ValueError("low_lim parameter must be lower than upper_lim")
-        
+
         low_lim_q = u.Quantity(low_lim, u.AA)
         upper_lim_q = u.Quantity(upper_lim, u.AA)
 
@@ -305,16 +306,17 @@ class NirdustSpectrum:
             new_flux, noise_region_def
         ).uncertainty.array[1]
 
-        region = {'nr_low_lim':low_lim_q.value, 'nr_upper_lim': upper_lim_q.value}
-                
+        region = {
+            "nr_low_lim": low_lim_q.value,
+            "nr_upper_lim": upper_lim_q.value,
+        }
+
         kwargs = public_members_asdict(self)
-        meta = kwargs['metadata']
+        meta = kwargs["metadata"]
         meta.update(region)
         kwargs.update(noise=noise_value, metadata=meta)
-       
 
         return NirdustSpectrum(**kwargs)
-
 
     def mask_spectrum(self, line_intervals=None, mask=None):
         """Mask spectrum to remove spectral lines.
