@@ -20,6 +20,7 @@
 
 from astropy import units as u
 from astropy.modeling import fitting, models
+from astropy.nddata import StdDevUncertainty
 
 import numpy as np
 
@@ -27,8 +28,7 @@ from specutils.fitting import find_lines_threshold
 from specutils.fitting import fit_generic_continuum
 from specutils.fitting import fit_lines
 from specutils.manipulation import FluxConservingResampler
-from specutils.manipulation import noise_region_uncertainty
-from specutils.spectra import SpectralRegion
+from specutils.spectra import Spectrum1D
 
 from . import core
 
@@ -161,8 +161,6 @@ def _make_window(center, delta):
 
 def line_spectrum(
     spectrum,
-    low_lim_ns=20650,
-    upper_lim_ns=21000,
     noise_factor=3,
     window=50,
 ):
@@ -177,14 +175,6 @@ def line_spectrum(
     ----------
     spectrum: `NirdustSpectrum` object
         A spectrum stored in a `NirdustSpectrum` class object.
-
-    low_lim_ns: float
-        Lower limit of the spectral region defined to measure the
-        noise level. Default is 20650 (Å).
-
-    upper_lim_ns: float
-        Lower limit of the spectral region defined to measure the
-        noise level. Default is 21000 (Å).
 
     noise_factor: float
         Same parameter as in `specutils.fitting.find_lines_threshold`.
@@ -207,8 +197,6 @@ def line_spectrum(
         implemented).
     """
     # values in correct units
-    low_lim_ns = u.Quantity(low_lim_ns, u.AA)
-    upper_lim_ns = u.Quantity(upper_lim_ns, u.AA)
     window = u.Quantity(window, u.AA)
 
     # By defaults this fits a Chebyshev of order 3 to the flux
@@ -218,9 +206,12 @@ def line_spectrum(
     continuum = model(spectrum.spectral_axis)
     new_flux = spectrum.spec1d_ - continuum
 
-    noise_region_def = SpectralRegion(low_lim_ns, upper_lim_ns)
-    noise_reg_spectrum = noise_region_uncertainty(new_flux, noise_region_def)
-    lines = find_lines_threshold(noise_reg_spectrum, noise_factor=noise_factor)
+    noise = spectrum.noise * np.ones(len(spectrum.flux))
+    uncertainty = StdDevUncertainty(noise)
+    noise_spectrum = Spectrum1D(
+        new_flux.flux, spectrum.spectral_axis, uncertainty=uncertainty
+    )
+    lines = find_lines_threshold(noise_spectrum, noise_factor=noise_factor)
 
     line_sign = {"emission": 1.0, "absorption": -1.0}
     line_spectrum = np.zeros(len(new_flux.spectral_axis))
@@ -239,7 +230,10 @@ def line_spectrum(
         line_intervals.append(interval)
 
     line_spectrum = u.Quantity(line_spectrum)
+    line_nd_spectrum = core.NirdustSpectrum(
+        flux=line_spectrum, spectral_axis=spectrum.spectral_axis
+    )
     line_intervals = u.Quantity(line_intervals, u.AA)
 
     line_fitting_quality = 0.0
-    return line_spectrum, line_intervals, line_fitting_quality
+    return line_nd_spectrum, line_intervals, line_fitting_quality
