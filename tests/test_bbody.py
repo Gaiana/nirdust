@@ -378,10 +378,25 @@ def test_BaseFitter_new_class(synth_total_noised):
         external_spectrum=synth_total_noised,
         extra_conf={},
     )
+    assert isinstance(fitter, bbody.BaseFitter)
     assert hasattr(fitter, "fit")
 
 
-def test_BaseFitter_abstract_best_parameters(synth_total_noised):
+def test_BaseFitter_only_best_parameters(synth_total_noised):
+    class NewFitter(bbody.BaseFitter):
+        # No run_model
+        def best_parameters(self):
+            pass
+
+    with pytest.raises(TypeError):
+        NewFitter(
+            target_spectrum=synth_total_noised,
+            external_spectrum=synth_total_noised,
+            extra_conf={},
+        )
+
+
+def test_BaseFitter_only_run_model(synth_total_noised):
     class NewFitter(bbody.BaseFitter):
         # No best_parameters
         def run_model(self):
@@ -395,18 +410,40 @@ def test_BaseFitter_abstract_best_parameters(synth_total_noised):
         )
 
 
+def test_BaseFitter_abstract_best_parameters(synth_total_noised):
+    class NewFitter(bbody.BaseFitter):
+        def run_model(self, **kwargs):
+            pass
+
+        def best_parameters(self):
+            return super().best_parameters()
+
+    fitter = NewFitter(
+        target_spectrum=synth_total_noised,
+        external_spectrum=synth_total_noised,
+        extra_conf={},
+    )
+
+    with pytest.raises(RuntimeError):
+        fitter.best_parameters()
+
+
 def test_BaseFitter_abstract_run_model(synth_total_noised):
     class NewFitter(bbody.BaseFitter):
-        # No run_model
+        def run_model(self, **kwargs):
+            return super().run_model(**kwargs)
+
         def best_parameters(self):
             pass
 
-    with pytest.raises(TypeError):
-        NewFitter(
-            target_spectrum=synth_total_noised,
-            external_spectrum=synth_total_noised,
-            extra_conf={},
-        )
+    fitter = NewFitter(
+        target_spectrum=synth_total_noised,
+        external_spectrum=synth_total_noised,
+        extra_conf={},
+    )
+
+    with pytest.raises(RuntimeError):
+        fitter.run_model(initial_state=(0, 0, 0, 0))
 
 
 class Test_EMCEENirdustFitter:
