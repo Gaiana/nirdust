@@ -435,13 +435,13 @@ class BaseFitter(metaclass=abc.ABCMeta):
     # ABSTRACT
     @abc.abstractmethod
     def best_parameters(self):
-        """Abstract method."""
-        pass
+        """Return best parameter information after fitting."""
+        raise NotImplementedError()
 
     @abc.abstractmethod
     def run_model(self, initial_state):
-        """Abstract method."""
-        pass
+        """Run the specific fitting method given an initial_state."""
+        raise NotImplementedError()
 
     # DEFINED
     @total_noise_.default
