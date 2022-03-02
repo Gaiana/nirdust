@@ -23,7 +23,7 @@ import abc
 from astropy import units as u
 from astropy.modeling import Fittable1DModel, Parameter
 from astropy.modeling.fitting import LevMarLSQFitter
-from astropy.modeling.models import BlackBody
+from astropy.modeling.models import BlackBody, Gaussian1D
 
 import attr
 from attr import validators
@@ -50,6 +50,42 @@ class InvalidBackendError(KeyError):
 # ==============================================================================
 # TARGET SPECTRUM MODEL
 # ==============================================================================
+
+
+def model4scipy(theta, spectral_axis, target_flux, external_flux, noise):
+    T, alpha, log_beta, log_gamma = theta
+
+    # if T < 1:
+    #     return np.inf
+
+    prediction = target_model(
+        spectral_axis,
+        external_flux,
+        T,
+        alpha,
+        10 ** log_beta,
+        10 ** log_gamma,
+    )
+
+    # Physical Conditions:
+    # 1. alpha term must be higher than beta term (mean values)
+    # 2. gamma can account for 5 percent or less of target flux
+    # 3. Positive Temperature
+    # alpha_term = np.mean(alpha * external_flux)
+    # beta_term = np.mean(prediction - alpha_term - gamma)
+    # if (gamma > 0.05 * target_flux.min()) or (alpha_term < beta_term):
+    #     return np.inf
+
+    # chi2 = np.sum((target_flux - prediction) ** 2 / noise)
+    # return chi2
+    diff = target_flux - prediction
+
+    loglike = np.sum(
+        -0.5 * np.log(2.0 * np.pi)
+        - np.log(noise)
+        - diff ** 2 / (2.0 * noise ** 2)
+    )
+    return -loglike
 
 
 def target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
@@ -106,10 +142,10 @@ class TargetModel(Fittable1DModel):
     """
 
     external_flux = Parameter(fixed=True)
-    T = Parameter(min=0.0, max=3000.0)
-    alpha = Parameter(min=0)
-    beta = Parameter(min=0)
-    gamma = Parameter()
+    T = Parameter(min=100.0, max=2000.0)
+    alpha = Parameter(min=0.0, max=20.0)
+    beta = Parameter(min=6.0, max=10.0)
+    gamma = Parameter(min=-10.0, max=0.0)
 
     @staticmethod
     def evaluate(spectral_axis, external_flux, T, alpha, beta, gamma):
@@ -136,14 +172,13 @@ class TargetModel(Fittable1DModel):
         prediction: `~numpy.ndarray`
             Expected flux given the input parameters.
         """
-        # calculate the model
         return target_model(
             spectral_axis,
             external_flux,
             T,
             alpha,
-            beta,
-            gamma,
+            10**beta,
+            10**gamma,
         )
 
 
@@ -178,7 +213,9 @@ def gaussian_log_likelihood(
     loglike: scalar
         Logarithmic likelihood for parameter theta.
     """
-    T, alpha, beta, gamma = theta
+    T, alpha, log_beta, log_gamma = theta
+    beta = 10 ** log_beta
+    gamma = 10 ** log_gamma
 
     prediction = target_model(
         spectral_axis,
@@ -189,11 +226,19 @@ def gaussian_log_likelihood(
         gamma,
     )
 
-    # target_reduced = target_flux - target_flux.mean()
-    diff = target_flux - prediction
+    # Physical Conditions:
+    # 1. alpha term must be higher than beta term (mean values)
+    # 2. gamma can account for 5 percent or less of target flux
+    alpha_term = np.mean(alpha * external_flux)
+    beta_term = np.mean(prediction - alpha_term - gamma)
 
-    # assume constant noise for every point
-    # stddev = 50.0  # diff.std()
+    alpha_positivity = alpha_term - beta_term
+    gamma_positivity = 0.05 * target_flux.min() - gamma
+
+    if (alpha_positivity < 0) and (gamma_positivity < 0):
+        return -np.inf
+
+    diff = target_flux - prediction
 
     loglike = np.sum(
         -0.5 * np.log(2.0 * np.pi)
@@ -219,15 +264,18 @@ def log_likelihood_prior(theta):
     loglike: scalar
         A priori logarithmic likelihood for parameter theta.
     """
-    T, alpha, beta, gamma = theta
+    T, alpha, log_beta, log_gamma = theta
 
     # Maximum temperature for dust should be lower than 3000 K
-    Tok = 0 < T < 3000
-    alphaok = alpha > 0
-    betaok = beta > 0
+    Tok = 200 < T < 2000
+    alphaok = 0 < alpha < 20
+    betaok = 6 < log_beta < 10
+    gammaok = -10 < log_gamma < 0
 
-    if Tok and alphaok and betaok:
-        return 0.0
+    if Tok and alphaok and betaok and gammaok:
+        pT = 1  # Gaussian1D.evaluate(T, 1., 800., 100.)
+        palpha = 1  # Gaussian1D.evaluate(alpha, 1., 15., 5.)
+        return 0.0 #+ np.log10(pT) + np.log10(palpha)
     else:
         return -np.inf
 
@@ -255,12 +303,13 @@ def log_probability(theta, spectral_axis, target_flux, external_flux, noise):
         Posterior logarithmic likelihood for parameter theta.
     """
     lp = log_likelihood_prior(theta)
-    if not np.isfinite(lp):
-        return -np.inf
-    else:
-        return lp + gaussian_log_likelihood(
+    if np.isfinite(lp):
+        gll = gaussian_log_likelihood(
             theta, spectral_axis, target_flux, external_flux, noise
         )
+        return lp + gll
+    else:
+        return -np.inf
 
 
 # ==============================================================================
@@ -474,7 +523,7 @@ class BaseFitter(metaclass=abc.ABCMeta):
             raise RuntimeError("Model already fitted.")
 
         if initial_state is None:
-            initial_state = (1000.0, 1.0, 1.0, 1.0)
+            initial_state = (1000.0, 8.0, 9.0, -5.0)
         elif len(initial_state) != self.ndim_:
             raise ValueError("Invalid initial state.")
 
@@ -592,6 +641,9 @@ class EMCEENirdustFitter(BaseFitter):
         # acomodate initial values
         rng = np.random.default_rng(seed=self.seed)
         p0 = rng.random((self.nwalkers, self.ndim_))
+        p0[:, 0] *= 200.
+        p0[:, 1] *= 5
+        # p0[:, 2] *= 5
         p0 += np.asarray(initial_state)
 
         self.sampler_.run_mcmc(p0, self.steps)
