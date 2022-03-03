@@ -52,42 +52,6 @@ class InvalidBackendError(KeyError):
 # ==============================================================================
 
 
-def model4scipy(theta, spectral_axis, target_flux, external_flux, noise):
-    T, alpha, log_beta, log_gamma = theta
-
-    # if T < 1:
-    #     return np.inf
-
-    prediction = target_model(
-        spectral_axis,
-        external_flux,
-        T,
-        alpha,
-        10 ** log_beta,
-        10 ** log_gamma,
-    )
-
-    # Physical Conditions:
-    # 1. alpha term must be higher than beta term (mean values)
-    # 2. gamma can account for 5 percent or less of target flux
-    # 3. Positive Temperature
-    # alpha_term = np.mean(alpha * external_flux)
-    # beta_term = np.mean(prediction - alpha_term - gamma)
-    # if (gamma > 0.05 * target_flux.min()) or (alpha_term < beta_term):
-    #     return np.inf
-
-    # chi2 = np.sum((target_flux - prediction) ** 2 / noise)
-    # return chi2
-    diff = target_flux - prediction
-
-    loglike = np.sum(
-        -0.5 * np.log(2.0 * np.pi)
-        - np.log(noise)
-        - diff ** 2 / (2.0 * noise ** 2)
-    )
-    return -loglike
-
-
 def target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
     """Compute the expected spectrum given a blackbody prediction.
 
@@ -120,70 +84,8 @@ def target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
     return prediction
 
 
-class TargetModel(Fittable1DModel):
-    """Fittable model for Astropy fitters.
-
-    Parameters
-    ----------
-    external_flux: `~numpy.ndarray`
-        External spectrum intensity. Fixed at input value.
-    T: float
-        BlackBody temperature in Kelvin.
-        Fittable. Bounds: (0, 3000).
-    alpha: float
-        Multiplicative coefficient for external_flux.
-        Fittable. Bounds: (0, inf)
-    beta: float
-        Multiplicative coefficient for blackbody.
-        Fittable. Bounds: (0, inf)
-    gamma: float
-        Additive coefficient.
-        Fittable. Bounds: (-inf, inf)
-    """
-
-    external_flux = Parameter(fixed=True)
-    T = Parameter(min=100.0, max=2000.0)
-    alpha = Parameter(min=0.0, max=20.0)
-    beta = Parameter(min=6.0, max=10.0)
-    gamma = Parameter(min=-10.0, max=0.0)
-
-    @staticmethod
-    def evaluate(spectral_axis, external_flux, T, alpha, beta, gamma):
-        """Compute the expected spectrum given a blackbody prediction.
-
-        Parameters
-        ----------
-        spectral_axis: `~astropy.units.Quantity`
-            Wavelength axis for BlackBody evaluation. Should be the same for
-            external_flux.
-        external_flux: `~numpy.ndarray`
-            External spectrum intensity.
-        T: float
-            BlackBody temperature in Kelvin.
-        alpha: float
-            Multiplicative coefficient for external_flux.
-        beta: float
-            Multiplicative coefficient for blackbody.
-        gamma: float
-            Additive coefficient.
-
-        Return
-        ------
-        prediction: `~numpy.ndarray`
-            Expected flux given the input parameters.
-        """
-        return target_model(
-            spectral_axis,
-            external_flux,
-            T,
-            alpha,
-            10**beta,
-            10**gamma,
-        )
-
-
 # ==============================================================================
-# EMCEE FUNCTIONS
+# LIKELIHOOD FUNCTIONS
 # ==============================================================================
 
 
@@ -226,18 +128,6 @@ def gaussian_log_likelihood(
         gamma,
     )
 
-    # Physical Conditions:
-    # 1. alpha term must be higher than beta term (mean values)
-    # 2. gamma can account for 5 percent or less of target flux
-    alpha_term = np.mean(alpha * external_flux)
-    beta_term = np.mean(prediction - alpha_term - gamma)
-
-    alpha_positivity = alpha_term - beta_term
-    gamma_positivity = 0.05 * target_flux.min() - gamma
-
-    if (alpha_positivity < 0) and (gamma_positivity < 0):
-        return -np.inf
-
     diff = target_flux - prediction
 
     loglike = np.sum(
@@ -248,43 +138,15 @@ def gaussian_log_likelihood(
     return loglike
 
 
-def log_likelihood_prior(theta):
-    """Prior logarithmic likelihood.
+def negative_gaussian_log_likelihood(
+    theta, spectral_axis, target_flux, external_flux, noise
+):
+    """Negative Gaussian logarithmic likelihood.
 
-    A priori likelihood for parameter theta. This is used to constrain
-    the parameter space, for example: 0 < Temperature < 3000.
-
-    Parameters
-    ----------
-    theta: `~numpy.ndarray`
-        Parameter vector: (temperature, alpha, beta, gamma).
-
-    Return
-    ------
-    loglike: scalar
-        A priori logarithmic likelihood for parameter theta.
-    """
-    T, alpha, log_beta, log_gamma = theta
-
-    # Maximum temperature for dust should be lower than 3000 K
-    Tok = 200 < T < 2000
-    alphaok = 0 < alpha < 20
-    betaok = 6 < log_beta < 10
-    gammaok = -10 < log_gamma < 0
-
-    if Tok and alphaok and betaok and gammaok:
-        pT = 1  # Gaussian1D.evaluate(T, 1., 800., 100.)
-        palpha = 1  # Gaussian1D.evaluate(alpha, 1., 15., 5.)
-        return 0.0 #+ np.log10(pT) + np.log10(palpha)
-    else:
-        return -np.inf
-
-
-def log_probability(theta, spectral_axis, target_flux, external_flux, noise):
-    """Posterior logarithmic likelihood.
-
-    Compute the likelihood of the model represented by the parameter theta
-    given the data and assuming a priori information (priors).
+    Compute the negative likelihood of the model represented by the parameter
+    theta given the data. The negative sign is added for minimization
+    purposes, i.e. finding the maximum likelihood parameters is the same
+    as minimizing the negative likelihood.
 
     Parameters
     ----------
@@ -296,20 +158,60 @@ def log_probability(theta, spectral_axis, target_flux, external_flux, noise):
         Total spectrum intensity.
     external_flux: `~numpy.ndarray`
         External spectrum intensity.
+    noise: `~numpy.ndarray`
+        Combined noise of target_flux and external_flux.
 
     Return
     ------
-    loglike: scalar
-        Posterior logarithmic likelihood for parameter theta.
+    neg_loglike: scalar
+        Negative logarithmic likelihood for parameter theta.
     """
-    lp = log_likelihood_prior(theta)
-    if np.isfinite(lp):
-        gll = gaussian_log_likelihood(
-            theta, spectral_axis, target_flux, external_flux, noise
-        )
-        return lp + gll
-    else:
-        return -np.inf
+    loglike = gaussian_log_likelihood(
+        theta, spectral_axis, target_flux, external_flux, noise
+    )
+    return -loglike
+
+
+# ==============================================================================
+# PHYSICAL CONSTRAINTS FUNCTIONS
+# ==============================================================================
+
+
+def alpha_vs_beta(theta, spectral_axis, target_flux, external_flux, noise):
+    # we assume that alpha*ExternalSpectrum > beta*BlackBody, in mean values
+    T, alpha, log_beta, log_gamma = theta
+    beta = 10 ** log_beta
+    gamma = 10 ** log_gamma
+
+    prediction = target_model(
+        spectral_axis,
+        external_flux,
+        T,
+        alpha,
+        beta,
+        gamma,
+    )
+
+    alpha_term = np.mean(alpha * external_flux)
+    beta_term = np.mean(prediction - alpha_term - gamma)
+
+    alpha_positivity = alpha_term - beta_term
+
+    # Positive output is True
+    return alpha_positivity
+
+
+def gamma_vs_total_flux(
+    theta, spectral_axis, target_flux, external_flux, noise
+):
+    # we assume that gamma can account for 5 percent or less of target flux
+    T, alpha, log_beta, log_gamma = theta
+    gamma = 10 ** log_gamma
+
+    gamma_positivity = 0.05 * target_flux.min() - gamma
+
+    # Positive output is True
+    return gamma_positivity
 
 
 # ==============================================================================
@@ -558,254 +460,10 @@ class BaseFitter(metaclass=abc.ABCMeta):
 
 
 @attr.s
-class EMCEENirdustFitter(BaseFitter):
-    """Emcee fitter class.
+class BasinhoppingFitter(BaseFitter):
+    """Scipy Basinhopping fitter class.
 
-    Fit a BlackBody model to the data using Markov Chain Monte Carlo (MCMC)
-    sampling of the parameter space using the emcee implementation.
-
-    Attributes
-    ----------
-    target_spectrum: NirdustSpectrum object
-        Instance of NirdustSpectrum containing the central spectrum.
-
-    external_spectrum: NirdustSpectrum object
-        Instance of NirdustSpectrum containing the external spectrum.
-
-    extra_conf: dict
-        Extra keyword parameters to be passed to emcee.EnsembleSampler.
-
-    nwalkers: int, optional
-        Number of individual chains to run. Default: 11.
-
-    seed: int, optional
-        Seed for the random number generator. Default: None.
-
-    steps: int, optional
-        Number of times the parameter space is be sampled. Default: 1000.
-    """
-
-    nwalkers = attr.ib(default=11, validator=validators.instance_of(int))
-    seed = attr.ib(
-        default=None,
-        validator=validators.optional(validators.instance_of(int)),
-    )
-    steps = attr.ib(default=1000, validator=validators.instance_of(int))
-
-    sampler_ = attr.ib(init=False)
-
-    @sampler_.default
-    def _sampler__default(self):
-        """Instance of Emcee EnsembleSampler."""
-        model_args = (
-            self.target_spectrum.spectral_axis,
-            self.target_spectrum.flux.value,
-            self.external_spectrum.flux.value,
-            self.total_noise_,
-        )
-        return emcee.EnsembleSampler(
-            nwalkers=self.nwalkers,
-            ndim=self.ndim_,
-            log_prob_fn=log_probability,
-            args=model_args,
-            **self.extra_conf,
-        )
-
-    def chain(self, discard=0):
-        """Get the chain array.
-
-        Parameters
-        ----------
-        discard: int
-            Number of steps to discard from the chain, counting from the
-            begining.
-
-        Return
-        ------
-        chain: `~numpy.ndarray`
-            Array with sampled parameters.
-        """
-        return self.sampler_.get_chain(discard=discard).copy()
-
-    # redefinitions
-
-    def run_model(self, initial_state):
-        """Run sampler given an initial_state.
-
-        Parameters
-        ----------
-        initial_state: tuple
-            Vector indicating the initial guess values in order, i.e:
-            (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
-        """
-        # acomodate initial values
-        rng = np.random.default_rng(seed=self.seed)
-        p0 = rng.random((self.nwalkers, self.ndim_))
-        p0[:, 0] *= 200.
-        p0[:, 1] *= 5
-        # p0[:, 2] *= 5
-        p0 += np.asarray(initial_state)
-
-        self.sampler_.run_mcmc(p0, self.steps)
-
-    def best_parameters(self, discard=0):
-        """Marginalize parameter distributions.
-
-        Parameters
-        ----------
-        discard: int
-            Number of chain steps to discard before marginalizing.
-
-        Return
-        ------
-        temperature: NirdustParameter
-            Parameter object with the expected blackbody temperature and
-            its uncertainty.
-
-        alpha: NirdustParameter
-            Parameter object with the expected alpha value and
-            its uncertainty. Note: No unit is provided as the intensity is in
-            arbitrary units.
-
-        beta: NirdustParameter
-            Parameter object with the expected beta value and
-            its uncertainty. Note: No unit is provided as the intensity is in
-            arbitrary units.
-
-        gamma: NirdustParameter
-            Parameter object with the expected gamma value and
-            its uncertainty. Note: No unit is provided as the intensity is in
-            arbitrary units.
-        """
-        chain = self.chain(discard=discard).reshape((-1, self.ndim_))
-        # chain[:, 1] = 10 ** chain[:, 1]
-
-        # median, lower_error, upper_error
-        values = [50, 16, 84]
-        t, t_low, t_up = np.percentile(chain[:, 0], values) * u.K
-        a, a_low, a_up = np.percentile(chain[:, 1], values)  # u arbitrary
-        b, b_low, b_up = np.percentile(chain[:, 2], values)
-        g, g_low, g_up = np.percentile(chain[:, 3], values)
-
-        temp = NirdustParameter("Temperature", t, (t - t_low, t_up - t))
-        alpha = NirdustParameter("Alpha", a, (a - a_low, a_up - a))
-        beta = NirdustParameter("Beta", b, (b - b_low, b_up - b))
-        gamma = NirdustParameter("Gamma", g, (g - g_low, g_up - g))
-        return temp, alpha, beta, gamma
-
-    def plot(
-        self,
-        discard=0,
-        ax=None,
-        temp_kws=None,
-        temp_mean_kws=None,
-        log_kws=None,
-        log_mean_kws=None,
-    ):
-        """Get the chain array.
-
-        Parameters
-        ----------
-        discard: int
-            Number of steps to discard from the chain, counting from the
-            begining.
-
-        ax: ``matplotlib.pyplot.Axis`` object
-            Object of type Axes containing complete information of the
-            properties to generate the image, by default it is None.
-
-        temp_kws: ``dict``
-            Dictionaries of keyword arguments. Passed to the temperature
-            plotting function.
-        temp_mean_kws: ``dict``
-            Dictionaries of keyword arguments. Passed to the temperature mean
-            plotting function.
-        log_kws: ``dict``
-            Dictionaries of keyword arguments. Passed to the logarithmic
-            plotting function.
-        log_mean_kws: ``dict``
-            Dictionaries of keyword arguments. Passed to the logarithmic mean
-            plotting function.
-
-        Return
-        ------
-        out: ``matplotlib.pyplot.Axis`` :
-            The axis where the method draws.
-        """
-        if not self.isfitted_:
-            raise RuntimeError("The model is not fitted.")
-
-        # axis orchestration
-        if ax is None:
-            _, ax = plt.subplots(4, 1, sharex=True, figsize=(8, 6))
-
-        ax_t, ax_alpha, ax_beta, ax_gamma = ax
-        fig = ax_t.get_figure()
-        fig.subplots_adjust(hspace=0)
-
-        chain = self.chain(discard=discard)
-
-        arr_t = chain[:, :, 0]
-        mean_t = arr_t.mean(axis=1)
-
-        arr_alpha = chain[:, :, 1]
-        mean_alpha = arr_alpha.mean(axis=1)
-
-        arr_beta = chain[:, :, 2]
-        mean_beta = arr_beta.mean(axis=1)
-
-        arr_gamma = chain[:, :, 3]
-        mean_gamma = arr_gamma.mean(axis=1)
-
-        # title
-        ax_t.set_title(
-            f"Sampled parameters\n Steps={self.steps} - Discarded={discard}"
-        )
-
-        temp_kws = {} if temp_kws is None else temp_kws
-        temp_kws.setdefault("alpha", 0.5)
-        ax_t.plot(arr_t, **temp_kws)
-
-        # temp mean
-        temp_mean_kws = {} if temp_mean_kws is None else temp_mean_kws
-        temp_mean_kws.setdefault("color", "k")
-        ax_t.plot(mean_t, label="Mean", **temp_mean_kws)
-        ax_t.legend()
-
-        # temp labels
-        ax_t.set_ylabel("T")
-
-        log_kws = {} if log_kws is None else log_kws
-        log_kws.setdefault("alpha", 0.5)
-        ax_alpha.plot(arr_alpha, **log_kws)
-        ax_beta.plot(arr_beta, **log_kws)
-        ax_gamma.plot(arr_gamma, **log_kws)
-
-        # alpha,beta mean
-        log_mean_kws = {} if log_mean_kws is None else log_mean_kws
-        log_mean_kws.setdefault("color", "k")
-        ax_alpha.plot(mean_alpha, label="Mean", **log_mean_kws)
-        ax_beta.plot(mean_beta, label="Mean", **log_mean_kws)
-        ax_gamma.plot(mean_gamma, label="Mean", **log_mean_kws)
-
-        # alpha,beta labels
-        ax_alpha.set_ylabel("alpha")
-        ax_alpha.legend()
-
-        ax_beta.set_ylabel("beta")
-        ax_beta.legend()
-
-        ax_gamma.set_ylabel("gamma")
-        ax_gamma.set_xlabel("Steps")
-        ax_gamma.legend()
-        return ax
-
-
-@attr.s
-class AstropyNirdustFitter(BaseFitter):
-    """Astropy fitter class.
-
-    Fit a BlackBody model to the data using Astropy modeling methods.
+    Fit a BlackBody model to the data using scipy modeling methods.
 
     Attributes
     ----------
@@ -910,18 +568,37 @@ class AstropyNirdustFitter(BaseFitter):
 # FITTER FUNCTION WRAPPER
 # ==============================================================================
 
-FITTER_BACKENDS = {
-    "astropy": AstropyNirdustFitter,
-    "emcee": EMCEENirdustFitter,
-}
+
+def _update_constraints(args):
+    constraints = (
+        {"type": "ineq", "fun": alpha_vs_beta, "args": args},
+        {"type": "ineq", "fun": gamma_vs_total_flux, "args": args},
+    )
+    return constraints
+
+
+def _update_minimizer_kwargs(args, bounds, constraints):
+    minimizer_kwargs = {
+        "method": "SLSQP",
+        "args": args,
+        "bounds": bounds,
+        "constraints": constraints,
+        "options": {"maxiter": 1000, "ftol": 1e-8},
+        "jac": "3-point",
+    }
+    return minimizer_kwargs
 
 
 def fit_blackbody(
     target_spectrum,
     external_spectrum,
     initial_state=None,
-    backend="emcee",
-    **kwargs,
+    bounds=None,
+    gamma_target_fraction=0.05,
+    seed=None,
+    niter=100,
+    basinhopping_kwargs=None,
+    minimizer_kwargs=None,
 ):
     """Fitter function.
 
@@ -952,31 +629,12 @@ def fit_blackbody(
     fitter: NirdustFitter object
         Instance of NirdustFitter after the fitting procedure.
     """
-    if backend.lower() not in FITTER_BACKENDS.keys():
-        raise InvalidBackendError(
-            f"Invalid backend '{backend}'. "
-            "Available backends: {list(FITTER_BACKENDS.keys())}"
-        )
 
-    fcls = FITTER_BACKENDS[backend.lower()]
-
-    # divide kwargs in two parts
-    instance_kws = {}  # attributes of the fitter class
-    extra_conf = {}  # extra configuration
-
-    attrs_fields = set(attr.fields_dict(fcls).keys())
-    for k, v in kwargs.items():
-        if k in attrs_fields:
-            instance_kws[k] = v
-        else:
-            extra_conf[k] = v
-
-    fitter = fcls(
+    fitter = BasinhoppingFitter(
         target_spectrum=target_spectrum,
         external_spectrum=external_spectrum,
-        extra_conf=extra_conf,
-        **instance_kws,
+        basinhopping_kwargs=basinhopping_kwargs,
     )
 
-    fitter.fit(initial_state=initial_state)
+    fitter.fit(initial_state=initial_state, minimizer_kwargs=minimizer_kwargs)
     return fitter

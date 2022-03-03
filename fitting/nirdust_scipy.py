@@ -120,13 +120,13 @@ minimizer_kwargs = {
 bh_res = basinhopping(
     nd.model4scipy,
     x0=x0,
-    minimizer_kwargs=minimizer_kwargs,
     niter=100,
     T=100,
     stepsize=1,
     seed=seed,
     callback=print_fun,
     niter_success=500,
+    minimizer_kwargs=minimizer_kwargs,
 )
 
 # =================================================================
