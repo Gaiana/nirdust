@@ -21,18 +21,16 @@
 import abc
 
 from astropy import units as u
-from astropy.modeling import Fittable1DModel, Parameter
-from astropy.modeling.fitting import LevMarLSQFitter
-from astropy.modeling.models import BlackBody, Gaussian1D
+from astropy.modeling.models import BlackBody
 
 import attr
 from attr import validators
 
-import emcee
-
 import matplotlib.pyplot as plt
 
 import numpy as np
+
+from scipy.optimize import basinhopping
 
 from .core import NirdustSpectrum
 
@@ -200,19 +198,19 @@ def alpha_vs_beta(theta, spectral_axis, target_flux, external_flux, noise):
     # Positive output is True
     return alpha_positivity
 
+def make_gamma_vs_target_flux(gamma_fraction):
+    def gamma_vs_target_flux(
+        theta, spectral_axis, target_flux, external_flux, noise
+    ):
+        # we assume that gamma can account for 5 percent or less of target flux
+        T, alpha, log_beta, log_gamma = theta
+        gamma = 10 ** log_gamma
 
-def gamma_vs_total_flux(
-    theta, spectral_axis, target_flux, external_flux, noise
-):
-    # we assume that gamma can account for 5 percent or less of target flux
-    T, alpha, log_beta, log_gamma = theta
-    gamma = 10 ** log_gamma
+        gamma_positivity = gamma_fraction * target_flux.min() - gamma
 
-    gamma_positivity = 0.05 * target_flux.min() - gamma
-
-    # Positive output is True
-    return gamma_positivity
-
+        # Positive output is True
+        return gamma_positivity
+    return gamma_vs_target_flux
 
 # ==============================================================================
 # RESULT CLASSES
@@ -354,10 +352,11 @@ class NirdustResults:
 # FITTER CLASSES
 # ==============================================================================
 
-
 @attr.s
-class BaseFitter(metaclass=abc.ABCMeta):
-    """Base class for Nirdust Fitters.
+class BasinhoppingFitter:
+    """Scipy Basinhopping fitter class.
+
+    Fit a BlackBody model to the data using scipy modeling methods.
 
     Attributes
     ----------
@@ -367,32 +366,19 @@ class BaseFitter(metaclass=abc.ABCMeta):
     external_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the external spectrum.
 
-    extra_conf: dict
-        Extra keyword parameters to be passed to emcee.EnsembleSampler.
-    """
 
+    """
     target_spectrum = attr.ib(
         validator=validators.instance_of(NirdustSpectrum)
     )
     external_spectrum = attr.ib(
         validator=validators.instance_of(NirdustSpectrum)
     )
-    extra_conf = attr.ib(converter=dict)
+    basinhopping_kwargs = attr.ib()
 
     total_noise_ = attr.ib(init=False)
 
-    _fitted = attr.ib(init=False, default=False)
-
-    # ABSTRACT
-    @abc.abstractmethod
-    def best_parameters(self):
-        """Return best parameter information after fitting."""
-        raise NotImplementedError()
-
-    @abc.abstractmethod
-    def run_model(self, initial_state):
-        """Run the specific fitting method given an initial_state."""
-        raise NotImplementedError()
+    _fitted_model = attr.ib(default=None, init=False)
 
     # DEFINED
     @total_noise_.default
@@ -406,92 +392,6 @@ class BaseFitter(metaclass=abc.ABCMeta):
     def ndim_(self):
         """Return number of fittable parameters."""
         return 4
-
-    @property
-    def isfitted_(self):
-        """Indicate if fit() was excecuted."""
-        return self._fitted
-
-    def fit(self, initial_state):
-        """Start fitting computation.
-
-        Parameters
-        ----------
-        initial_state: tuple
-            Vector indicating the initial guess values in order, i.e:
-            (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
-        """
-        if self.isfitted_:
-            raise RuntimeError("Model already fitted.")
-
-        if initial_state is None:
-            initial_state = (1000.0, 8.0, 9.0, -5.0)
-        elif len(initial_state) != self.ndim_:
-            raise ValueError("Invalid initial state.")
-
-        self.run_model(initial_state)
-        self._fitted = True
-        return self
-
-    def result(self, **kwargs):
-        """Get the chain array.
-
-        Parameters
-        ----------
-        kwargs:
-            Parameters for ``best_parameters()``.
-        Return
-        ------
-        result: NirdustResult
-            Results of the fitting procedure.
-        """
-        temp, alpha, beta, gamma = self.best_parameters(**kwargs)
-
-        result = NirdustResults(
-            temperature=temp,
-            alpha=alpha,
-            beta=beta,
-            gamma=gamma,
-            fitted_blackbody=BlackBody(temp.value),
-            target_spectrum=self.target_spectrum,
-            external_spectrum=self.external_spectrum,
-        )
-        return result
-
-
-@attr.s
-class BasinhoppingFitter(BaseFitter):
-    """Scipy Basinhopping fitter class.
-
-    Fit a BlackBody model to the data using scipy modeling methods.
-
-    Attributes
-    ----------
-    target_spectrum: NirdustSpectrum object
-        Instance of NirdustSpectrum containing the central spectrum.
-
-    external_spectrum: NirdustSpectrum object
-        Instance of NirdustSpectrum containing the external spectrum.
-
-    extra_conf: dict
-        Extra keyword parameters to be passed to the fitter instance of
-        LevMarLSQFitter.
-
-    calc_uncertainties: bool
-        Indicate if the fitter should compute the uncertainites. This
-        parameter is passed directly to LevMarLSQFitter. Default is True.
-    """
-
-    calc_uncertainties = attr.ib(default=True, converter=bool)
-
-    fitter_ = attr.ib(init=False)
-
-    _fitted_model = attr.ib(default=None, init=False)
-
-    @fitter_.default
-    def _fitter__default(self):
-        """Instance of Astropy fitter LevMarLSQFitter."""
-        return LevMarLSQFitter(self.calc_uncertainties)
 
     @property
     def fitted_model(self):
@@ -538,12 +438,33 @@ class BasinhoppingFitter(BaseFitter):
         gamma = NirdustParameter("Gamma", g.value, g.std)
         return temp, alpha, beta, gamma
 
-    def run_model(self, initial_state):
-        """Run fitter given an initial_state.
+    def fit(self, x0, minimizer_kwargs):
+        """Start fitting computation.
 
         Parameters
         ----------
-        initial_state: tuple
+        x0: tuple
+            Vector indicating the initial guess values in order, i.e:
+            (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
+        """
+        if self.isfitted_:
+            raise RuntimeError("Model already fitted.")
+
+        if x0 is None:
+            x0 = (1000.0, 8.0, 9.0, -5.0)
+        elif len(x0) != self.ndim_:
+            raise ValueError("Invalid initial guess.")
+
+        self.run_model(x0, minimizer_kwargs)
+        self._fitted = True
+        return self
+
+    def run_model(self, x0, minimizer_kwargs):
+        """Run fitter given an initial guess.
+
+        Parameters
+        ----------
+        x0: tuple
             Vector indicating the initial guess values in order, i.e:
             (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
         """
@@ -551,17 +472,37 @@ class BasinhoppingFitter(BaseFitter):
         frequency_axis = self.target_spectrum.frequency_axis.value
         target_flux = self.target_spectrum.flux.value
 
-        model = TargetModel(self.external_spectrum.flux.value, *initial_state)
-
-        fmodel = self.fitter_(
-            model,
-            frequency_axis,
-            target_flux,
-            weights=1 / self.total_noise_,
-            **self.extra_conf,
+        res = basinhopping(
+            negative_gaussian_log_likelihood,
+            x0,
+            minimizer_kwargs=minimizer_kwargs,
+            **self.basinhopping_kwargs,
         )
 
-        self._fitted_model = fmodel
+    def result(self, **kwargs):
+        """Get the chain array.
+
+        Parameters
+        ----------
+        kwargs:
+            Parameters for ``best_parameters()``.
+        Return
+        ------
+        result: NirdustResult
+            Results of the fitting procedure.
+        """
+        temp, alpha, beta, gamma = self.best_parameters(**kwargs)
+
+        result = NirdustResults(
+            temperature=temp,
+            alpha=alpha,
+            beta=beta,
+            gamma=gamma,
+            fitted_blackbody=BlackBody(temp.value),
+            target_spectrum=self.target_spectrum,
+            external_spectrum=self.external_spectrum,
+        )
+        return result
 
 
 # ==============================================================================
@@ -569,22 +510,23 @@ class BasinhoppingFitter(BaseFitter):
 # ==============================================================================
 
 
-def _update_constraints(args):
+
+def make_constraints(args, gamma_fraction):
+    gamma_vs_target_flux = make_gamma_vs_target_flux(gamma_fraction)
     constraints = (
         {"type": "ineq", "fun": alpha_vs_beta, "args": args},
-        {"type": "ineq", "fun": gamma_vs_total_flux, "args": args},
+        {"type": "ineq", "fun": gamma_vs_target_flux, "args": args},
     )
     return constraints
 
 
-def _update_minimizer_kwargs(args, bounds, constraints):
+def make_minimizer_kwargs(args, bounds, constraints):
     minimizer_kwargs = {
         "method": "SLSQP",
         "args": args,
         "bounds": bounds,
         "constraints": constraints,
-        "options": {"maxiter": 1000, "ftol": 1e-8},
-        "jac": "3-point",
+        "options": {"maxiter": 1000},
     }
     return minimizer_kwargs
 
@@ -592,13 +534,13 @@ def _update_minimizer_kwargs(args, bounds, constraints):
 def fit_blackbody(
     target_spectrum,
     external_spectrum,
-    initial_state=None,
+    x0=None,
     bounds=None,
     gamma_target_fraction=0.05,
     seed=None,
     niter=100,
-    basinhopping_kwargs=None,
-    minimizer_kwargs=None,
+    # basinhopping_kwargs=None,
+    # minimizer_kwargs=None,
 ):
     """Fitter function.
 
@@ -630,11 +572,25 @@ def fit_blackbody(
         Instance of NirdustFitter after the fitting procedure.
     """
 
+    basinhopping_kwargs = {
+        "niter":niter,
+        "T":100,
+        "stepsize":1,
+        "seed":seed,
+    }
     fitter = BasinhoppingFitter(
         target_spectrum=target_spectrum,
         external_spectrum=external_spectrum,
         basinhopping_kwargs=basinhopping_kwargs,
     )
+    args = (
+        target_spectrum.spectral_axis,
+        target_spectrum.flux.value,
+        external_spectrum.flux.value,
+        target_spectrum.noise,
+    )
+    constraints = make_constraints(args, gamma_target_fraction)
+    minimizer_kwargs = make_minimizer_kwargs(args, bounds, constraints)
 
-    fitter.fit(initial_state=initial_state, minimizer_kwargs=minimizer_kwargs)
+    fitter.fit(x0, minimizer_kwargs=minimizer_kwargs)
     return fitter
