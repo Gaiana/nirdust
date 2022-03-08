@@ -18,8 +18,6 @@
 # IMPORTS
 # ==============================================================================
 
-import abc
-
 from astropy import units as u
 from astropy.modeling.models import BlackBody
 
@@ -30,7 +28,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
-from scipy.optimize import basinhopping
+from scipy.optimize import basinhopping, OptimizeResult
 
 from .core import NirdustSpectrum
 
@@ -39,18 +37,12 @@ from .core import NirdustSpectrum
 # ==============================================================================
 
 
-class InvalidBackendError(KeyError):
-    """Raised when an invalid backend is requested."""
-
-    pass
-
-
 # ==============================================================================
 # TARGET SPECTRUM MODEL
 # ==============================================================================
 
 
-def target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
+def target_model(external_spectrum, T, alpha, beta, gamma):
     """Compute the expected spectrum given a blackbody prediction.
 
     Parameters
@@ -74,11 +66,14 @@ def target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
     prediction: `~numpy.ndarray`
         Expected flux given the input parameters.
     """
+    spectral_axis = external_spectrum.spectral_axis
+    external_flux = external_spectrum.flux.value
+
     # calculate the model
     blackbody = BlackBody(u.Quantity(T, u.K))
     bb_flux = blackbody(spectral_axis).value
 
-    prediction = alpha * external_flux + beta * bb_flux + gamma
+    prediction = alpha * external_flux + (10 ** beta) * bb_flux + (10 ** gamma)
     return prediction
 
 
@@ -87,57 +82,8 @@ def target_model(spectral_axis, external_flux, T, alpha, beta, gamma):
 # ==============================================================================
 
 
-def gaussian_log_likelihood(
-    theta, spectral_axis, target_flux, external_flux, noise
-):
-    """Gaussian logarithmic likelihood.
-
-    Compute the likelihood of the model represented by the parameter theta
-    given the data.
-
-    Parameters
-    ----------
-    theta: `~numpy.ndarray`
-        Parameter vector: (temperature, alpha, beta, gamma).
-    spectral_axis: `~astropy.units.Quantity`
-        Wavelength axis. Should be the same for target_flux and external_flux.
-    target_flux: `~numpy.ndarray`
-        Total spectrum intensity.
-    external_flux: `~numpy.ndarray`
-        External spectrum intensity.
-    noise: `~numpy.ndarray`
-        Combined noise of target_flux and external_flux.
-
-    Return
-    ------
-    loglike: scalar
-        Logarithmic likelihood for parameter theta.
-    """
-    T, alpha, log_beta, log_gamma = theta
-    beta = 10 ** log_beta
-    gamma = 10 ** log_gamma
-
-    prediction = target_model(
-        spectral_axis,
-        external_flux,
-        T,
-        alpha,
-        beta,
-        gamma,
-    )
-
-    diff = target_flux - prediction
-
-    loglike = np.sum(
-        -0.5 * np.log(2.0 * np.pi)
-        - np.log(noise)
-        - diff ** 2 / (2.0 * noise ** 2)
-    )
-    return loglike
-
-
 def negative_gaussian_log_likelihood(
-    theta, spectral_axis, target_flux, external_flux, noise
+    theta, target_spectrum, external_spectrum
 ):
     """Negative Gaussian logarithmic likelihood.
 
@@ -161,11 +107,25 @@ def negative_gaussian_log_likelihood(
 
     Return
     ------
-    neg_loglike: scalar
-        Negative logarithmic likelihood for parameter theta.
+    loglike: scalar
+        Logarithmic likelihood for parameter theta.
     """
-    loglike = gaussian_log_likelihood(
-        theta, spectral_axis, target_flux, external_flux, noise
+    T, alpha, beta, gamma = theta
+
+    prediction = target_model(
+        external_spectrum,
+        T,
+        alpha,
+        beta,
+        gamma,
+    )
+    noise = target_spectrum.noise
+    diff = target_spectrum.flux.value - prediction
+
+    loglike = np.sum(
+        -0.5 * np.log(2.0 * np.pi)
+        - np.log(noise)
+        - diff ** 2 / (2.0 * noise ** 2)
     )
     return -loglike
 
@@ -175,22 +135,13 @@ def negative_gaussian_log_likelihood(
 # ==============================================================================
 
 
-def alpha_vs_beta(theta, spectral_axis, target_flux, external_flux, noise):
+def alpha_vs_beta(theta, target_spectrum, external_spectrum):
     # we assume that alpha*ExternalSpectrum > beta*BlackBody, in mean values
-    T, alpha, log_beta, log_gamma = theta
-    beta = 10 ** log_beta
-    gamma = 10 ** log_gamma
+    T, alpha, beta, gamma = theta
 
-    prediction = target_model(
-        spectral_axis,
-        external_flux,
-        T,
-        alpha,
-        beta,
-        gamma,
-    )
+    prediction = target_model(external_spectrum, T, alpha, beta, gamma)
 
-    alpha_term = np.mean(alpha * external_flux)
+    alpha_term = np.mean(alpha * external_spectrum.flux.value)
     beta_term = np.mean(prediction - alpha_term - gamma)
 
     alpha_positivity = alpha_term - beta_term
@@ -198,19 +149,20 @@ def alpha_vs_beta(theta, spectral_axis, target_flux, external_flux, noise):
     # Positive output is True
     return alpha_positivity
 
-def make_gamma_vs_target_flux(gamma_fraction):
-    def gamma_vs_target_flux(
-        theta, spectral_axis, target_flux, external_flux, noise
-    ):
-        # we assume that gamma can account for 5 percent or less of target flux
-        T, alpha, log_beta, log_gamma = theta
-        gamma = 10 ** log_gamma
 
-        gamma_positivity = gamma_fraction * target_flux.min() - gamma
+def make_gamma_vs_target_flux(gamma_fraction):
+    def gamma_vs_target_flux(theta, target_spectrum, external_spectrum):
+        # we assume that gamma can account for 5 percent or less of target flux
+        T, alpha, beta, gamma = theta
+
+        min_flux = target_spectrum.flux.value.min()
+        gamma_positivity = gamma_fraction * min_flux - gamma
 
         # Positive output is True
         return gamma_positivity
+
     return gamma_vs_target_flux
+
 
 # ==============================================================================
 # RESULT CLASSES
@@ -220,7 +172,6 @@ def make_gamma_vs_target_flux(gamma_fraction):
 @attr.s(frozen=True)
 class NirdustParameter:
     """Doc.
-
     Attributes
     ----------
     name: str
@@ -282,10 +233,13 @@ class NirdustResults:
 
     fitted_blackbody = attr.ib(validator=validators.instance_of(BlackBody))
     target_spectrum = attr.ib(
-        validator=validators.instance_of(NirdustSpectrum)
+        validator=validators.instance_of(NirdustSpectrum),
     )
     external_spectrum = attr.ib(
-        validator=validators.instance_of(NirdustSpectrum)
+        validator=validators.instance_of(NirdustSpectrum),
+    )
+    minimizer_results = attr.ib(
+        validator=validators.instance_of(OptimizeResult)
     )
 
     def plot(self, ax=None, data_kws=None, model_kws=None):
@@ -311,8 +265,7 @@ class NirdustResults:
             The axis where the method draws.
         """
         prediction = target_model(
-            self.target_spectrum.spectral_axis,
-            self.external_spectrum.flux.value,
+            self.external_spectrum,
             self.temperature.value,
             self.alpha.value,
             self.beta.value,
@@ -326,8 +279,8 @@ class NirdustResults:
         data_kws = {} if data_kws is None else data_kws
         data_kws.setdefault("color", "firebrick")
         ax.plot(
-            self.target_spectrum.spectral_axis,
-            self.target_spectrum.flux,
+            self.target_spectrum.spectral_axis.value,
+            self.target_spectrum.flux.value,
             label="target",
             **data_kws,
         )
@@ -336,7 +289,7 @@ class NirdustResults:
         model_kws = {} if model_kws is None else model_kws
         model_kws.setdefault("color", "Navy")
         ax.plot(
-            self.target_spectrum.spectral_axis,
+            self.target_spectrum.spectral_axis.value,
             prediction,
             label="prediction",
             **model_kws,
@@ -351,6 +304,7 @@ class NirdustResults:
 # ==============================================================================
 # FITTER CLASSES
 # ==============================================================================
+
 
 @attr.s
 class BasinhoppingFitter:
@@ -368,6 +322,7 @@ class BasinhoppingFitter:
 
 
     """
+
     target_spectrum = attr.ib(
         validator=validators.instance_of(NirdustSpectrum)
     )
@@ -377,8 +332,6 @@ class BasinhoppingFitter:
     basinhopping_kwargs = attr.ib()
 
     total_noise_ = attr.ib(init=False)
-
-    _fitted_model = attr.ib(default=None, init=False)
 
     # DEFINED
     @total_noise_.default
@@ -393,51 +346,6 @@ class BasinhoppingFitter:
         """Return number of fittable parameters."""
         return 4
 
-    @property
-    def fitted_model(self):
-        """Target model with best values."""
-        return self._fitted_model
-
-    @property
-    def isfitted_(self):
-        """Indicate if fit() was excecuted."""
-        return self.fitted_model is not None
-
-    def best_parameters(self):
-        """Return best fitting values for the model.
-
-        Return
-        ------
-        temperature: NirdustParameter
-            Parameter object with the expected blackbody temperature and
-            its uncertainty.
-
-        alpha: NirdustParameter
-            Parameter object with the expected alpha value and
-            its uncertainty. Note: No unit is provided as the intensity is in
-            arbitrary units.
-
-        beta: NirdustParameter
-            Parameter object with the expected beta value and
-            its uncertainty. Note: No unit is provided as the intensity is in
-            arbitrary units.
-
-        gamma: NirdustParameter
-            Parameter object with the expected gamma value and
-            its uncertainty. Note: No unit is provided as the intensity is in
-            arbitrary units.
-        """
-        t = self.fitted_model.T
-        a = self.fitted_model.alpha
-        b = self.fitted_model.beta
-        g = self.fitted_model.gamma
-
-        temp = NirdustParameter("Temperature", t.value * u.K, t.std)
-        alpha = NirdustParameter("Alpha", a.value, a.std)
-        beta = NirdustParameter("Beta", b.value, b.std)
-        gamma = NirdustParameter("Gamma", g.value, g.std)
-        return temp, alpha, beta, gamma
-
     def fit(self, x0, minimizer_kwargs):
         """Start fitting computation.
 
@@ -447,17 +355,29 @@ class BasinhoppingFitter:
             Vector indicating the initial guess values in order, i.e:
             (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
         """
-        if self.isfitted_:
-            raise RuntimeError("Model already fitted.")
-
         if x0 is None:
             x0 = (1000.0, 8.0, 9.0, -5.0)
         elif len(x0) != self.ndim_:
-            raise ValueError("Invalid initial guess.")
+            raise ValueError("Invalid initial parameters.")
 
-        self.run_model(x0, minimizer_kwargs)
-        self._fitted = True
-        return self
+        res = self.run_model(x0, minimizer_kwargs)
+
+        # return result
+        temp, alpha, beta, gamma = res.x
+        temp = NirdustParameter("Temperature", temp * u.K, 0)
+        alpha = NirdustParameter("Alpha", alpha, 0)
+        beta = NirdustParameter("Beta", beta, 0)
+        gamma = NirdustParameter("Gamma", gamma, 0)
+        return NirdustResults(
+            temperature=temp,
+            alpha=alpha,
+            beta=beta,
+            gamma=gamma,
+            fitted_blackbody=BlackBody(temp.value),
+            target_spectrum=self.target_spectrum,
+            external_spectrum=self.external_spectrum,
+            minimizer_results=res,
+        )
 
     def run_model(self, x0, minimizer_kwargs):
         """Run fitter given an initial guess.
@@ -468,47 +388,19 @@ class BasinhoppingFitter:
             Vector indicating the initial guess values in order, i.e:
             (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
         """
-        # Compute model
-        frequency_axis = self.target_spectrum.frequency_axis.value
-        target_flux = self.target_spectrum.flux.value
-
         res = basinhopping(
             negative_gaussian_log_likelihood,
             x0,
             minimizer_kwargs=minimizer_kwargs,
             **self.basinhopping_kwargs,
         )
-
-    def result(self, **kwargs):
-        """Get the chain array.
-
-        Parameters
-        ----------
-        kwargs:
-            Parameters for ``best_parameters()``.
-        Return
-        ------
-        result: NirdustResult
-            Results of the fitting procedure.
-        """
-        temp, alpha, beta, gamma = self.best_parameters(**kwargs)
-
-        result = NirdustResults(
-            temperature=temp,
-            alpha=alpha,
-            beta=beta,
-            gamma=gamma,
-            fitted_blackbody=BlackBody(temp.value),
-            target_spectrum=self.target_spectrum,
-            external_spectrum=self.external_spectrum,
-        )
-        return result
+        # should rise warning if the fit failed
+        return res
 
 
 # ==============================================================================
 # FITTER FUNCTION WRAPPER
 # ==============================================================================
-
 
 
 def make_constraints(args, gamma_fraction):
@@ -531,6 +423,10 @@ def make_minimizer_kwargs(args, bounds, constraints):
     return minimizer_kwargs
 
 
+# bounds
+BOUNDS = ((100.0, 2000.0), (0, 20), (6, 10), (-10, 0))
+
+
 def fit_blackbody(
     target_spectrum,
     external_spectrum,
@@ -539,8 +435,6 @@ def fit_blackbody(
     gamma_target_fraction=0.05,
     seed=None,
     niter=100,
-    # basinhopping_kwargs=None,
-    # minimizer_kwargs=None,
 ):
     """Fitter function.
 
@@ -571,26 +465,25 @@ def fit_blackbody(
     fitter: NirdustFitter object
         Instance of NirdustFitter after the fitting procedure.
     """
+    # Check defaults
+    if bounds is None:
+        bounds = BOUNDS
 
     basinhopping_kwargs = {
-        "niter":niter,
-        "T":100,
-        "stepsize":1,
-        "seed":seed,
+        "niter": niter,
+        "T": 100,
+        "stepsize": 1,
+        "seed": seed,
     }
     fitter = BasinhoppingFitter(
         target_spectrum=target_spectrum,
         external_spectrum=external_spectrum,
         basinhopping_kwargs=basinhopping_kwargs,
     )
-    args = (
-        target_spectrum.spectral_axis,
-        target_spectrum.flux.value,
-        external_spectrum.flux.value,
-        target_spectrum.noise,
-    )
+
+    args = (target_spectrum, external_spectrum)
     constraints = make_constraints(args, gamma_target_fraction)
     minimizer_kwargs = make_minimizer_kwargs(args, bounds, constraints)
 
-    fitter.fit(x0, minimizer_kwargs=minimizer_kwargs)
-    return fitter
+    result = fitter.fit(x0, minimizer_kwargs=minimizer_kwargs)
+    return result

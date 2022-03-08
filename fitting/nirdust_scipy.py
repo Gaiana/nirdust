@@ -1,4 +1,3 @@
-from functools import partial
 import nirdust as nd
 
 import matplotlib.pyplot as plt
@@ -22,7 +21,7 @@ true_T = 900 * u.K
 true_alpha = 18.0
 true_beta = 1e7
 true_gamma = 1e-4
-snr = 100
+snr = 200
 true_theta = (true_T, true_alpha, np.log10(true_beta), np.log10(true_gamma))
 
 spectrumT, externalT = true_model(
@@ -32,9 +31,10 @@ spectrumT, externalT = true_model(
     np.log10(true_gamma),
     snr=snr,
     seed=seed,
-    validate=True
+    validate=True,
 )
 plt.plot(spectrumT.spectral_axis.value, spectrumT.flux.value, "-")
+
 # ================================================================
 # Physical Conditions
 
@@ -118,7 +118,7 @@ minimizer_kwargs = {
 }
 
 bh_res = basinhopping(
-    nd.model4scipy,
+    nd.target_model,
     x0=x0,
     niter=100,
     T=100,
@@ -186,8 +186,7 @@ snr = 100
 true_theta = (true_T, true_alpha, np.log10(true_beta), np.log10(true_gamma))
 
 
-
-noises = [100, 200, 300] # np.arange(50, 1050, 50)
+noises = [100, 200, 300]  # np.arange(50, 1050, 50)
 seeds = np.arange(0, 10)
 
 results = []
@@ -239,7 +238,7 @@ for noise in noises:
             partial_results.append(res.x)
         else:
             partial_results.append(np.zeros(4))
-    
+
     results.append(partial_results)
 
 
@@ -306,3 +305,33 @@ plt.plot(
 )
 plt.plot(target.spectral_axis.value, prediction_fit, "r--", label="Fit")
 plt.legend()
+
+
+# ==============================================
+
+
+# ================================================================
+seed = 42
+# True Parameters
+true_T = 900 * u.K
+true_alpha = 18.0
+true_beta = 1e7
+true_gamma = 1e-4
+#snr = 200
+true_theta = (true_T, true_alpha, np.log10(true_beta), np.log10(true_gamma))
+
+for snr in [50, 100, 200, 400, 600, 800, 1000]:
+    spectrumT, externalT = true_model(
+        true_T,
+        true_alpha,
+        np.log10(true_beta),
+        np.log10(true_gamma),
+        snr=snr,
+        seed=seed,
+        validate=True,
+    )
+    x = nd.fit_blackbody(spectrumT, externalT, seed=42)
+
+    print("=" * 20)
+    print(f"Noise {snr}")
+    print(x.temperature, x.alpha, x.beta, x.gamma)

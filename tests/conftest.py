@@ -126,7 +126,7 @@ def add_gnoise(signal, snr, seed):
 
 @pytest.fixture
 def true_params():
-    return {"T": 1000 * u.K, "alpha": 3.0, "beta": 1e8, "gamma": 1e-4}
+    return {"T": 1000 * u.K, "alpha": 3.0, "beta": 8, "gamma": -4}
 
 
 @pytest.fixture
@@ -200,8 +200,8 @@ def synth_external_noised(synth_external):
 @pytest.fixture
 def synth_total(synth_nuclear, synth_blackbody, true_params):
 
-    bb_flux = true_params["beta"] * synth_blackbody.flux.value
-    flux = synth_nuclear.flux.value + bb_flux + true_params["gamma"]
+    bb_flux = 10 ** true_params["beta"] * synth_blackbody.flux.value
+    flux = synth_nuclear.flux.value + bb_flux + 10 ** true_params["gamma"]
     flux *= u.adu
 
     return nd.NirdustSpectrum(
