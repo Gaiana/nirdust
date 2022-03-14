@@ -142,7 +142,7 @@ def alpha_vs_beta(theta, target_spectrum, external_spectrum):
     prediction = target_model(external_spectrum, T, alpha, beta, gamma)
 
     alpha_term = np.mean(alpha * external_spectrum.flux.value)
-    beta_term = np.mean(prediction - alpha_term - gamma)
+    beta_term = np.mean(prediction - alpha_term - 10 ** gamma)
 
     alpha_positivity = alpha_term - beta_term
 
@@ -151,12 +151,15 @@ def alpha_vs_beta(theta, target_spectrum, external_spectrum):
 
 
 def make_gamma_vs_target_flux(gamma_fraction):
+    if not (0 <= gamma_fraction <= 1):
+        raise ValueError("Gamma fraction must be in the (0, 1) range.")
+
     def gamma_vs_target_flux(theta, target_spectrum, external_spectrum):
         # we assume that gamma can account for 5 percent or less of target flux
         T, alpha, beta, gamma = theta
 
         min_flux = target_spectrum.flux.value.min()
-        gamma_positivity = gamma_fraction * min_flux - gamma
+        gamma_positivity = gamma_fraction * min_flux - 10 ** gamma
 
         # Positive output is True
         return gamma_positivity
@@ -329,7 +332,7 @@ class BasinhoppingFitter:
     external_spectrum = attr.ib(
         validator=validators.instance_of(NirdustSpectrum)
     )
-    basinhopping_kwargs = attr.ib()
+    basinhopping_kwargs = attr.ib(validator=validators.instance_of(dict))
 
     total_noise_ = attr.ib(init=False)
 
@@ -412,13 +415,16 @@ def make_constraints(args, gamma_fraction):
     return constraints
 
 
-def make_minimizer_kwargs(args, bounds, constraints):
+def make_minimizer_kwargs(args, bounds, constraints, options=None):
+    if options is None:
+        options = {"maxiter": 10000, "ftol": 1e-8}
     minimizer_kwargs = {
         "method": "SLSQP",
         "args": args,
         "bounds": bounds,
         "constraints": constraints,
-        "options": {"maxiter": 1000},
+        "options": options,
+        "jac": "3-point",
     }
     return minimizer_kwargs
 
@@ -434,7 +440,7 @@ def fit_blackbody(
     bounds=None,
     gamma_target_fraction=0.05,
     seed=None,
-    niter=100,
+    niter=200,
 ):
     """Fitter function.
 
@@ -474,6 +480,7 @@ def fit_blackbody(
         "T": 100,
         "stepsize": 1,
         "seed": seed,
+        "niter_success": 100,
     }
     fitter = BasinhoppingFitter(
         target_spectrum=target_spectrum,

@@ -116,17 +116,36 @@ def continuum01(mk_datapath):
 # =============================================================================
 
 
-def add_gnoise(signal, snr, seed):
+def gaussian_noise(signal, snr, seed):
     """Add gaussian noise to signal given a SNR value."""
     rng = np.random.default_rng(seed=seed)
     sigma = np.mean(signal) / snr
     noise = rng.normal(0, sigma, len(signal))
-    return signal * (1 + noise)
+    return signal + noise
+
+
+def add_noise(spectrum, snr, seed):
+    flux = gaussian_noise(spectrum.flux.value, snr, seed)
+    flux *= u.adu
+
+    return nd.NirdustSpectrum(
+        spectral_axis=spectrum.spectral_axis,
+        flux=flux,
+        z=spectrum.z,
+    )
+
+
+@pytest.fixture
+def with_noise():
+    def foo(spectrum, snr, seed):
+        return add_noise(spectrum, snr, seed)
+
+    return foo
 
 
 @pytest.fixture
 def true_params():
-    return {"T": 1000 * u.K, "alpha": 3.0, "beta": 8, "gamma": -4}
+    return {"T": 750 * u.K, "alpha": 15.0, "beta": 8.3, "gamma": -3.3}
 
 
 @pytest.fixture
@@ -159,7 +178,7 @@ def synth_nuclear(NGC4945_continuum_rest_frame, synth_blackbody):
 
     wave = real_spectrum.spectral_axis.value
     delta_bb = bb[-1] - bb[0]
-    y1_line, y2_line = bb[0] + 2 / 3 * delta_bb, bb[0] + 1 / 3 * delta_bb
+    y1_line, y2_line = bb[0] + 6 / 5 * delta_bb, bb[0] + 2 / 5 * delta_bb
 
     nuclear = tp_line(wave, wave[0], wave[-1], y1_line, y2_line)
     nuclear *= u.adu
@@ -186,15 +205,7 @@ def synth_external(synth_nuclear, true_params):
 
 @pytest.fixture
 def synth_external_noised(synth_external):
-
-    flux = add_gnoise(synth_external.flux.value, snr=1000, seed=35)
-    flux *= u.adu
-
-    return nd.NirdustSpectrum(
-        spectral_axis=synth_external.spectral_axis,
-        flux=flux,
-        z=0,
-    )
+    return add_noise(synth_external, snr=1000, seed=35)
 
 
 @pytest.fixture
@@ -213,12 +224,4 @@ def synth_total(synth_nuclear, synth_blackbody, true_params):
 
 @pytest.fixture
 def synth_total_noised(synth_total):
-
-    flux = add_gnoise(synth_total.flux.value, snr=1000, seed=234)
-    flux *= u.adu
-
-    return nd.NirdustSpectrum(
-        spectral_axis=synth_total.spectral_axis,
-        flux=flux,
-        z=0,
-    )
+    return add_noise(synth_total, snr=1000, seed=234)

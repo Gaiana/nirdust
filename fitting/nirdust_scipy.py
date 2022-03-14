@@ -21,14 +21,15 @@ true_T = 900 * u.K
 true_alpha = 18.0
 true_beta = 1e7
 true_gamma = 1e-4
-snr = 200
-true_theta = (true_T, true_alpha, np.log10(true_beta), np.log10(true_gamma))
+snr = 1000
+#true_theta = (true_T, true_alpha, np.log10(true_beta), np.log10(true_gamma))
+true_theta = (750 * u.K, 15., 8.3, -3.3)
 
 spectrumT, externalT = true_model(
-    true_T,
-    true_alpha,
-    np.log10(true_beta),
-    np.log10(true_gamma),
+    true_theta[0],
+    true_theta[1],
+    true_theta[2],
+    true_theta[3],
     snr=snr,
     seed=seed,
     validate=True,
@@ -45,22 +46,20 @@ bounds_log_beta = (6, 10)
 bounds_log_gamma = (-10, 0)
 
 # constraints
-def alpha_vs_beta(theta, spectral_axis, target_flux, external_flux, noise):
+def alpha_vs_beta(theta, target_spectrum, external_spectrum):
     # we assume that alpha*ExternalSpectrum > beta*BlackBody, in mean values
     T, alpha, log_beta, log_gamma = theta
-    beta = 10 ** log_beta
     gamma = 10 ** log_gamma
 
     prediction = nd.target_model(
-        spectral_axis,
-        external_flux,
+        external_spectrum,
         T,
         alpha,
-        beta,
-        gamma,
+        log_beta,
+        log_gamma,
     )
 
-    alpha_term = np.mean(alpha * external_flux)
+    alpha_term = np.mean(alpha * external_spectrum.flux.value)
     beta_term = np.mean(prediction - alpha_term - gamma)
 
     alpha_positivity = alpha_term - beta_term
@@ -71,14 +70,12 @@ def alpha_vs_beta(theta, spectral_axis, target_flux, external_flux, noise):
     return alpha_positivity
 
 
-def gamma_vs_total_flux(
-    theta, spectral_axis, target_flux, external_flux, noise
-):
+def gamma_vs_total_flux(theta, target_spectrum, external_spectrum):
     # we assume that gamma can account for 5 percent or less of target flux
     T, alpha, log_beta, log_gamma = theta
     gamma = 10 ** log_gamma
 
-    gamma_positivity = 0.05 * target_flux.min() - gamma
+    gamma_positivity = 0.05 * target_spectrum.flux.value.min() - gamma
     # if gamma_positivity > 0:
     #    print(f"gamma positivity {gamma_positivity>0} : {gamma}")
 
@@ -95,12 +92,7 @@ def print_fun(x, f, accepted):
 # Initial values
 x0 = [1000.0, 8.0, 9.0, -5]
 
-args = (
-    spectrumT.spectral_axis,
-    spectrumT.flux.value,
-    externalT.flux.value,
-    spectrumT.noise,
-)
+args = (spectrumT, externalT)
 
 bounds = (bounds_T, bounds_alpha, bounds_log_beta, bounds_log_gamma)
 constraints = (
@@ -118,7 +110,7 @@ minimizer_kwargs = {
 }
 
 bh_res = basinhopping(
-    nd.target_model,
+    nd.negative_gaussian_log_likelihood,
     x0=x0,
     niter=100,
     T=100,
@@ -317,7 +309,7 @@ true_T = 900 * u.K
 true_alpha = 18.0
 true_beta = 1e7
 true_gamma = 1e-4
-#snr = 200
+# snr = 200
 true_theta = (true_T, true_alpha, np.log10(true_beta), np.log10(true_gamma))
 
 for snr in [50, 100, 200, 400, 600, 800, 1000]:
