@@ -20,6 +20,7 @@ def gaussian_noise(signal, snr, seed):
 
     sigma = np.mean(signal) / snr
     noise = rng.normal(0, sigma, len(signal))
+    print("mean qq ", np.mean(signal), sigma)
     return noise
 
 

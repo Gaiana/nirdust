@@ -405,6 +405,9 @@ class BasinhoppingFitter:
 # FITTER FUNCTION WRAPPER
 # ==============================================================================
 
+def print_callback(x, f, accepted):
+    print(f"at minimum {f} : {x[0]:.1f}, {x[1]:.2f}, {x[2]:.2f}, {x[3]:.4f}")
+
 
 def make_constraints(args, gamma_fraction):
     gamma_vs_target_flux = make_gamma_vs_target_flux(gamma_fraction)
@@ -417,7 +420,7 @@ def make_constraints(args, gamma_fraction):
 
 def make_minimizer_kwargs(args, bounds, constraints, options=None):
     if options is None:
-        options = {"maxiter": 10000, "ftol": 1e-8}
+        options = {"maxiter": 1000, "ftol": 1e-8}
     minimizer_kwargs = {
         "method": "SLSQP",
         "args": args,
@@ -441,6 +444,8 @@ def fit_blackbody(
     gamma_target_fraction=0.05,
     seed=None,
     niter=200,
+    stepsize=1,
+    verbose=False
 ):
     """Fitter function.
 
@@ -474,13 +479,17 @@ def fit_blackbody(
     # Check defaults
     if bounds is None:
         bounds = BOUNDS
+    
+    callback = print_callback if verbose else None
 
     basinhopping_kwargs = {
         "niter": niter,
         "T": 100,
-        "stepsize": 1,
+        "stepsize": stepsize,
         "seed": seed,
-        "niter_success": 100,
+        "niter_success": None,
+        "callback": callback,
+        "interval": 50
     }
     fitter = BasinhoppingFitter(
         target_spectrum=target_spectrum,

@@ -15,13 +15,13 @@ from scipy.optimize import basinhopping, least_squares
 from true_model import true_model
 
 # ================================================================
-seed = 42
+seed = 56
 # True Parameters
-true_T = 900 * u.K
-true_alpha = 18.0
-true_beta = 1e7
-true_gamma = 1e-4
-snr = 1000
+# true_T = 900 * u.K
+# true_alpha = 18.0
+# true_beta = 1e7
+# true_gamma = 1e-4
+snr = 300
 #true_theta = (true_T, true_alpha, np.log10(true_beta), np.log10(true_gamma))
 true_theta = (750 * u.K, 15., 8.3, -3.3)
 
@@ -35,6 +35,18 @@ spectrumT, externalT = true_model(
     validate=True,
 )
 plt.plot(spectrumT.spectral_axis.value, spectrumT.flux.value, "-")
+
+spectrumT0, externalT0 = true_model(
+    true_theta[0],
+    true_theta[1],
+    true_theta[2],
+    true_theta[3],
+    snr=None,
+    seed=seed,
+    validate=True,
+)
+
+vv = spectrumT.flux.value - spectrumT0.flux.value
 
 # ================================================================
 # Physical Conditions
@@ -105,7 +117,7 @@ minimizer_kwargs = {
     "args": args,
     "bounds": bounds,
     "constraints": constraints,
-    "options": {"maxiter": 1000, "ftol": 1e-8},
+    "options": {"maxiter": 10000, "ftol": 1e-8},
     "jac": "3-point",
 }
 
@@ -115,7 +127,7 @@ bh_res = basinhopping(
     niter=100,
     T=100,
     stepsize=1,
-    seed=seed,
+    seed=15,
     callback=print_fun,
     niter_success=500,
     minimizer_kwargs=minimizer_kwargs,
