@@ -461,20 +461,36 @@ class Test_NirdustSanity:
         assert bounds[2][0] <= beta <= bounds[2][1]
         assert bounds[3][0] <= gamma <= bounds[3][1]
 
-    @pytest.mark.parametrize("snr", [300, 500, 1000])
+    @pytest.mark.parametrize("snr", [200, 300, 500])
     def test_aprox_fitted_values_high_snr(
         self, synth_total, synth_external, true_params, with_noise, snr
     ):
 
         total_noised = with_noise(synth_total, snr, seed=42)
-        external_noised = with_noise(synth_external, snr, seed=123)
+        external_noised = with_noise(synth_external, snr, seed=50)
 
-        result = bbody.fit_blackbody(total_noised, external_noised, seed=41)
+        loop = 1
+        niter = 1000
+        success = False
+        while not success:
+            result = bbody.fit_blackbody(
+                total_noised, external_noised, niter=niter * loop, seed=loop
+            )
+            success = result.minimizer_results.success
+            print("==== >>>>", loop, success)
+            loop += 1
 
         T = result.temperature.value.value
         alpha = result.alpha.value
         beta = result.beta.value
         gamma = result.gamma.value
+
+        print(f" NOISE {snr}")
+        print(T, true_params["T"])
+        print(alpha, true_params["alpha"])
+        print(beta, true_params["beta"])
+        print(gamma, true_params["gamma"])
+        print("==============================")
 
         assert np.abs(T - true_params["T"].value) < 100.0
         # assert np.abs(alpha - true_params["alpha"]) < 5.0
