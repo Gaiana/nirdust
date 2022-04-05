@@ -156,6 +156,7 @@ def match_spectral_axes(
 
 def _make_window(center, delta):
     """Create window array."""
+    print(center, delta)
     return np.array([center - delta, center + delta])
 
 
@@ -224,7 +225,7 @@ def line_spectrum(
         gauss_model = models.Gaussian1D(amplitude=amp, mean=center)
         gauss_fit = fit_lines(new_flux, gauss_model, window=window)
         intensity = gauss_fit(new_flux.spectral_axis)
-        interval = _make_window(center, 3 * gauss_fit.stddev)
+        interval = _make_window(center, 3 * gauss_fit.stddev.value)
 
         line_spectrum += intensity.value
         line_intervals.append(interval)

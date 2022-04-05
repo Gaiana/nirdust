@@ -11,14 +11,10 @@
 # IMPORTS
 # =============================================================================
 
-from cmath import exp
 from unittest.mock import patch
 
 from astropy import units as u
-from astropy.modeling.fitting import LevMarLSQFitter
 from astropy.modeling.models import BlackBody
-
-import emcee
 
 from matplotlib.testing.decorators import check_figures_equal
 
@@ -26,9 +22,9 @@ from nirdust import bbody, core
 
 import numpy as np
 
-from scipy.optimize import OptimizeResult
-
 import pytest
+
+from scipy.optimize import OptimizeResult
 
 
 # =============================================================================
@@ -52,7 +48,7 @@ def test_target_model(spectral_unit):
         spectral_axis.to(spectral_unit, equivalencies=u.spectral())
     ).value
 
-    expected = alpha * external_flux + 10 ** beta * bb_flux + 10 ** gamma
+    expected = alpha * external_flux + 10**beta * bb_flux + 10**gamma
 
     external_spectrum = core.NirdustSpectrum(spectral_axis, external_flux)
     result = bbody.target_model(external_spectrum, T, alpha, beta, gamma)
@@ -70,7 +66,7 @@ def test_target_model_from_fixture(synth_total, synth_external, true_params):
 
     prediction = bbody.target_model(synth_external, T, alpha, beta, gamma)
     diff = prediction - synth_total.flux.value
-    np.testing.assert_allclose(diff, 0.0, 1e-14)
+    np.testing.assert_allclose(diff, 0.0, atol=1e-14)
 
 
 # =============================================================================
@@ -286,7 +282,7 @@ def test_alpha_vs_beta(synth_total, synth_external, true_params):
     theta = T, alpha, beta, gamma
 
     alpha_term = np.mean(alpha * synth_external.flux.value)
-    beta_term = np.mean(synth_total.flux.value - alpha_term - gamma)
+    beta_term = np.mean(synth_total.flux.value - alpha_term - 10**gamma)
 
     expected = alpha_term - beta_term
     result = bbody.alpha_vs_beta(theta, synth_total, synth_external)
@@ -318,11 +314,11 @@ def test_make_gamma_vs_target_flux(synth_total, synth_external, true_params):
     theta = T, alpha, beta, gamma
     gamma_vs_target_flux = bbody.make_gamma_vs_target_flux(gamma_fraction=0.05)
     result = gamma_vs_target_flux(theta, synth_total, synth_external)
-    expected = 4.14693092
+    expected = 0.14237615
 
     assert np.ndim(result) == 0
     assert np.isfinite(result)
-    np.testing.assert_almost_equal(expected, result, 1e-6)
+    np.testing.assert_almost_equal(result, expected, 1e-6)
 
 
 def test_make_constraints(synth_total, synth_external):
@@ -357,6 +353,7 @@ def test_minimizer_kwargs(synth_total, synth_external, options):
         "bounds": bounds,
         "constraints": constraints,
         "options": opt,
+        "jac": "3-point",
     }
     assert result == expected
 
@@ -415,7 +412,7 @@ class Test_BasinhoppingFitter:
         noise_tar = params["target_spectrum"].noise
         noise_ext = params["external_spectrum"].noise
 
-        expected = np.sqrt(noise_ext ** 2 + noise_tar ** 2)
+        expected = np.sqrt(noise_ext**2 + noise_tar**2)
         result = fitter.total_noise_
 
         np.testing.assert_almost_equal(result, expected, decimal=14)
@@ -439,6 +436,7 @@ class Test_BasinhoppingFitter:
             fitter.fit(x0, minimizer_kwargs)
 
 
+@pytest.mark.slow
 class Test_NirdustSanity:
     @pytest.mark.parametrize("snr", [200, 500, 1000])
     def test_results_within_bounds(
@@ -475,7 +473,7 @@ class Test_NirdustSanity:
             niter=100,
             seed=0,
             stepsize=1,
-            verbose=False
+            verbose=False,
         )
 
         success = result.minimizer_results.success

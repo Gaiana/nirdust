@@ -10,20 +10,19 @@ import astropy.units as u
 from astropy.modeling import models
 import numpy as np
 
-from scipy.optimize import basinhopping, least_squares
+from scipy.optimize import basinhopping, least_squares, minimize
 
 from true_model import true_model
 
 # ================================================================
-seed = 56
 # True Parameters
-# true_T = 900 * u.K
-# true_alpha = 18.0
-# true_beta = 1e7
-# true_gamma = 1e-4
+seed = 56
+true_T = 750 # * u.K
+true_alpha = 15.0
+true_beta = 8.3
+true_gamma = -3.3
 snr = 300
-#true_theta = (true_T, true_alpha, np.log10(true_beta), np.log10(true_gamma))
-true_theta = (750 * u.K, 15., 8.3, -3.3)
+true_theta = (true_T, true_alpha, true_beta, true_gamma)
 
 spectrumT, externalT = true_model(
     true_theta[0],
@@ -35,18 +34,6 @@ spectrumT, externalT = true_model(
     validate=True,
 )
 plt.plot(spectrumT.spectral_axis.value, spectrumT.flux.value, "-")
-
-spectrumT0, externalT0 = true_model(
-    true_theta[0],
-    true_theta[1],
-    true_theta[2],
-    true_theta[3],
-    snr=None,
-    seed=seed,
-    validate=True,
-)
-
-vv = spectrumT.flux.value - spectrumT0.flux.value
 
 # ================================================================
 # Physical Conditions
@@ -117,7 +104,7 @@ minimizer_kwargs = {
     "args": args,
     "bounds": bounds,
     "constraints": constraints,
-    "options": {"maxiter": 10000, "ftol": 1e-8},
+    "options": {"maxiter": 1000, "ftol": 1e-8},
     "jac": "3-point",
 }
 
@@ -129,9 +116,33 @@ bh_res = basinhopping(
     stepsize=1,
     seed=15,
     callback=print_fun,
-    niter_success=500,
+    #niter_success=500,
     minimizer_kwargs=minimizer_kwargs,
 )
+# ERRORS
+vfit = bh_res.x
+fT, fa, fb, fg = vfit
+
+# res_err = least_squares(
+#     nd.negative_gaussian_log_likelihood,
+#     x0=list(vfit),
+#     bounds=((fT-200, fa-2, fb-2, fg-5), (fT+200, fa+2, fb+2, fg+5)),
+#     args=args,
+#     )
+
+res_err = minimize(
+    nd.negative_gaussian_log_likelihood,
+    x0=list(vfit*1.002),
+    #bounds=((fT-200, fT+200), (fa-2, fa+2), (fb-2, fb+2), (fg-5, fg+5)),
+    bounds=bounds,
+    args=args,
+    method="L-BFGS-B"
+    )
+print(res_err.success)
+print(res_err.x)
+print(vfit)
+print(true_theta)
+np.diag(res_err.hess_inv.todense()) ** 0.5
 
 # =================================================================
 # Reconstruct model

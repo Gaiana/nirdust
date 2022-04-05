@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
-from scipy.optimize import basinhopping, OptimizeResult
+from scipy.optimize import OptimizeResult, basinhopping
 
 from .core import NirdustSpectrum
 
@@ -73,7 +73,7 @@ def target_model(external_spectrum, T, alpha, beta, gamma):
     blackbody = BlackBody(u.Quantity(T, u.K))
     bb_flux = blackbody(spectral_axis).value
 
-    prediction = alpha * external_flux + (10 ** beta) * bb_flux + (10 ** gamma)
+    prediction = alpha * external_flux + (10**beta) * bb_flux + (10**gamma)
     return prediction
 
 
@@ -125,7 +125,7 @@ def negative_gaussian_log_likelihood(
     loglike = np.sum(
         -0.5 * np.log(2.0 * np.pi)
         - np.log(noise)
-        - diff ** 2 / (2.0 * noise ** 2)
+        - diff**2 / (2.0 * noise**2)
     )
     return -loglike
 
@@ -142,7 +142,7 @@ def alpha_vs_beta(theta, target_spectrum, external_spectrum):
     prediction = target_model(external_spectrum, T, alpha, beta, gamma)
 
     alpha_term = np.mean(alpha * external_spectrum.flux.value)
-    beta_term = np.mean(prediction - alpha_term - 10 ** gamma)
+    beta_term = np.mean(prediction - alpha_term - 10**gamma)
 
     alpha_positivity = alpha_term - beta_term
 
@@ -159,7 +159,7 @@ def make_gamma_vs_target_flux(gamma_fraction):
         T, alpha, beta, gamma = theta
 
         min_flux = target_spectrum.flux.value.min()
-        gamma_positivity = gamma_fraction * min_flux - 10 ** gamma
+        gamma_positivity = gamma_fraction * min_flux - 10**gamma
 
         # Positive output is True
         return gamma_positivity
@@ -341,7 +341,7 @@ class BasinhoppingFitter:
     def _total_noise__default(self):
         """Propagated noise."""
         return np.sqrt(
-            self.target_spectrum.noise ** 2 + self.external_spectrum.noise ** 2
+            self.target_spectrum.noise**2 + self.external_spectrum.noise**2
         )
 
     @property
@@ -364,6 +364,9 @@ class BasinhoppingFitter:
             raise ValueError("Invalid initial parameters.")
 
         res = self.run_model(x0, minimizer_kwargs)
+
+        # Now estimate parameters uncertainties
+        # res_with_errors = self.estimate_uncertainties(res)
 
         # return result
         temp, alpha, beta, gamma = res.x
@@ -405,6 +408,7 @@ class BasinhoppingFitter:
 # FITTER FUNCTION WRAPPER
 # ==============================================================================
 
+
 def print_callback(x, f, accepted):
     print(f"at minimum {f} : {x[0]:.1f}, {x[1]:.2f}, {x[2]:.2f}, {x[3]:.4f}")
 
@@ -420,7 +424,7 @@ def make_constraints(args, gamma_fraction):
 
 def make_minimizer_kwargs(args, bounds, constraints, options=None):
     if options is None:
-        options = {"maxiter": 1000, "ftol": 1e-8}
+        options = {"maxiter": 1000}
     minimizer_kwargs = {
         "method": "SLSQP",
         "args": args,
@@ -433,7 +437,7 @@ def make_minimizer_kwargs(args, bounds, constraints, options=None):
 
 
 # bounds
-BOUNDS = ((100.0, 2000.0), (0, 20), (6, 10), (-10, 0))
+BOUNDS = ((0.0, 2000.0), (0, 20), (6, 10), (-10, 0))
 
 
 def fit_blackbody(
@@ -445,7 +449,7 @@ def fit_blackbody(
     seed=None,
     niter=200,
     stepsize=1,
-    verbose=False
+    verbose=False,
 ):
     """Fitter function.
 
@@ -479,7 +483,7 @@ def fit_blackbody(
     # Check defaults
     if bounds is None:
         bounds = BOUNDS
-    
+
     callback = print_callback if verbose else None
 
     basinhopping_kwargs = {
@@ -489,7 +493,7 @@ def fit_blackbody(
         "seed": seed,
         "niter_success": None,
         "callback": callback,
-        "interval": 50
+        "interval": 50,
     }
     fitter = BasinhoppingFitter(
         target_spectrum=target_spectrum,

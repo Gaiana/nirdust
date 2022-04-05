@@ -146,6 +146,7 @@ def with_noise():
 def true_params():
     return {"T": 750 * u.K, "alpha": 15.0, "beta": 8.3, "gamma": -3.3}
 
+
 @pytest.fixture
 def synth_spectral_axis():
     return np.linspace(20000.0, 24000, 200) * u.AA
@@ -169,7 +170,7 @@ def synth_blackbody(synth_spectral_axis, true_params):
 def synth_nuclear(synth_blackbody, true_params):
 
     # BlackBody model
-    bb = (10**true_params["beta"]) * synth_blackbody.flux.value
+    bb = (10 ** true_params["beta"]) * synth_blackbody.flux.value
 
     # Linear model
     def tp_line(x, x1, x2, y1, y2):
