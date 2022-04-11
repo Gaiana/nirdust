@@ -47,11 +47,8 @@ def target_model(external_spectrum, T, alpha, beta, gamma):
 
     Parameters
     ----------
-    spectral_axis: `~astropy.units.Quantity`
-        Wavelength axis for BlackBody evaluation. Should be the same for
-        external_flux.
-    external_flux: `~numpy.ndarray`
-        External spectrum intensity.
+    external_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the external spectrum.
     T: float
         BlackBody temperature in Kelvin.
     alpha: float
@@ -73,7 +70,7 @@ def target_model(external_spectrum, T, alpha, beta, gamma):
     blackbody = BlackBody(u.Quantity(T, u.K))
     bb_flux = blackbody(spectral_axis).value
 
-    prediction = alpha * external_flux + (10**beta) * bb_flux + (10**gamma)
+    prediction = alpha * external_flux + (10 ** beta) * bb_flux + (10 ** gamma)
     return prediction
 
 
@@ -94,38 +91,27 @@ def negative_gaussian_log_likelihood(
 
     Parameters
     ----------
-    theta: `~numpy.ndarray`
+    theta: array-like
         Parameter vector: (temperature, alpha, beta, gamma).
-    spectral_axis: `~astropy.units.Quantity`
-        Wavelength axis. Should be the same for target_flux and external_flux.
-    target_flux: `~numpy.ndarray`
-        Total spectrum intensity.
-    external_flux: `~numpy.ndarray`
-        External spectrum intensity.
-    noise: `~numpy.ndarray`
-        Combined noise of target_flux and external_flux.
+    target_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the total central spectrum.
+    external_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the external spectrum.
 
     Return
     ------
     loglike: scalar
-        Logarithmic likelihood for parameter theta.
+        Negative logarithmic likelihood for parameter theta.
     """
-    T, alpha, beta, gamma = theta
+    prediction = target_model(external_spectrum, *theta)
 
-    prediction = target_model(
-        external_spectrum,
-        T,
-        alpha,
-        beta,
-        gamma,
-    )
     noise = target_spectrum.noise
     diff = target_spectrum.flux.value - prediction
 
     loglike = np.sum(
         -0.5 * np.log(2.0 * np.pi)
         - np.log(noise)
-        - diff**2 / (2.0 * noise**2)
+        - diff ** 2 / (2.0 * noise ** 2)
     )
     return -loglike
 
@@ -136,13 +122,35 @@ def negative_gaussian_log_likelihood(
 
 
 def alpha_vs_beta(theta, target_spectrum, external_spectrum):
+    """Alpha term positivity relative to beta term.
+
+    Here we assume that:
+        alpha * ExternalSpectrum > 10**beta * BlackBody
+    in mean values.
+
+    Parameters
+    ----------
+    theta: array-like
+        Parameter vector: (temperature, alpha, beta, gamma).
+    target_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the total central spectrum.
+    external_spectrum: NirdustSpectrum object
+        Instance of NirdustSpectrum containing the external spectrum.
+
+    Return
+    ------
+    alpha_positivity: scalar
+        The difference between alpha term and beta term mean values, given
+        the data; i.e.:
+            mean(alpha * ExternalSpectrum) - (10**beta * BlackBody)
+    """
     # we assume that alpha*ExternalSpectrum > beta*BlackBody, in mean values
     T, alpha, beta, gamma = theta
 
     prediction = target_model(external_spectrum, T, alpha, beta, gamma)
 
     alpha_term = np.mean(alpha * external_spectrum.flux.value)
-    beta_term = np.mean(prediction - alpha_term - 10**gamma)
+    beta_term = np.mean(prediction - alpha_term - 10 ** gamma)
 
     alpha_positivity = alpha_term - beta_term
 
@@ -151,6 +159,21 @@ def alpha_vs_beta(theta, target_spectrum, external_spectrum):
 
 
 def make_gamma_vs_target_flux(gamma_fraction):
+    """Encapsulate gamma_fraction for gamma constraint function.
+
+    Parameters
+    ----------
+    gamma_fraction: scalar
+        Value between [0, 1] representing the maximum fraction of Target
+        flux allowed for the gamma term.
+
+    Return
+    ------
+    gamma_vs_target_flux: function
+        Function that computes the gamma term positivity relative to the
+        total target flux. Call signature:
+            gamma_vs_target_flux(theta, target_spectrum, external_spectrum)
+    """
     if not (0 <= gamma_fraction <= 1):
         raise ValueError("Gamma fraction must be in the (0, 1) range.")
 
@@ -159,7 +182,7 @@ def make_gamma_vs_target_flux(gamma_fraction):
         T, alpha, beta, gamma = theta
 
         min_flux = target_spectrum.flux.value.min()
-        gamma_positivity = gamma_fraction * min_flux - 10**gamma
+        gamma_positivity = gamma_fraction * min_flux - 10 ** gamma
 
         # Positive output is True
         return gamma_positivity
@@ -174,29 +197,30 @@ def make_gamma_vs_target_flux(gamma_fraction):
 
 @attr.s(frozen=True)
 class NirdustParameter:
-    """Doc.
+    """Parameter representation.
+
     Attributes
     ----------
     name: str
         Parameter name.
     value: scalar, `~astropy.units.Quantity`
         Expected value for parameter after fitting procedure.
-    uncertainty: tuple, `~astropy.units.Quantity`
-        Assimetric uncertainties: (lower_uncertainty, higher_uncertainty)
+    uncertainty: scalar, `~astropy.units.Quantity`
+        Uncertainties associated to the fitted value.
     """
 
     name = attr.ib(validator=validators.instance_of(str))
     value = attr.ib()
-    uncertainty = attr.ib()
+    uncertainty = attr.ib(default=None)
 
 
 @attr.s(frozen=True)
 class NirdustResults:
     """Create the class NirdustResults.
 
-    Storages the results obtained with NirdustFitter plus the dust spectrum.
-    The method nplot() can be called to plot the spectrum and the blackbody
-    model obtained in the fitting.
+    Storages the results obtained with BasinhoppingFitter plus the dust
+    spectrum. The method plot() can be called to plot the spectrum and
+    the blackbody model obtained in the fitting.
 
     Attributes
     ----------
@@ -227,6 +251,9 @@ class NirdustResults:
 
     external_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the external spectrum.
+
+    minimizer_results: OptimizeResult object
+        Instance of OptimizeResult that generates in the fitting procedure.
     """
 
     temperature = attr.ib(validator=validators.instance_of(NirdustParameter))
@@ -311,7 +338,7 @@ class NirdustResults:
 
 @attr.s
 class BasinhoppingFitter:
-    """Scipy Basinhopping fitter class.
+    """Basinhopping fitter class.
 
     Fit a BlackBody model to the data using scipy modeling methods.
 
@@ -323,7 +350,10 @@ class BasinhoppingFitter:
     external_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the external spectrum.
 
-
+    basinhopping_kwargs: dict
+        Dictionary of keyword arguments to be passed to the scipy basinhopping
+        routine. Read the documentation for a detailed description:
+        docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html
     """
 
     target_spectrum = attr.ib(
@@ -341,7 +371,7 @@ class BasinhoppingFitter:
     def _total_noise__default(self):
         """Propagated noise."""
         return np.sqrt(
-            self.target_spectrum.noise**2 + self.external_spectrum.noise**2
+            self.target_spectrum.noise ** 2 + self.external_spectrum.noise ** 2
         )
 
     @property
@@ -356,7 +386,14 @@ class BasinhoppingFitter:
         ----------
         x0: tuple
             Vector indicating the initial guess values in order, i.e:
-            (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
+            (T, alpha, beta, gamma). Default: (1000.0, 8.0, 9.0, -5.0)
+        minimizer_kwargs: dict
+            Extra keyword arguments to be passed to the local minimizer.
+
+        Return
+        ------
+        results: NirdustResult object
+            Results of the fitting procedure.
         """
         if x0 is None:
             x0 = (1000.0, 8.0, 9.0, -5.0)
@@ -393,6 +430,13 @@ class BasinhoppingFitter:
         x0: tuple
             Vector indicating the initial guess values in order, i.e:
             (T, alpha, beta, gamma). Default: (1000.0, 1.0, 1.0, 1.0)
+        minimizer_kwargs: dict
+            Extra keyword arguments to be passed to the local minimizer.
+
+        Return
+        ------
+        results: OptimizeResult object
+            Results of the local minimizer.
         """
         res = basinhopping(
             negative_gaussian_log_likelihood,
@@ -400,7 +444,7 @@ class BasinhoppingFitter:
             minimizer_kwargs=minimizer_kwargs,
             **self.basinhopping_kwargs,
         )
-        # should rise warning if the fit failed
+        # should rise warning if the fit failed ?
         return res
 
 
@@ -414,6 +458,23 @@ def print_callback(x, f, accepted):
 
 
 def make_constraints(args, gamma_fraction):
+    """Make scipy minimizer constraints.
+
+    Parameters
+    ----------
+    args: tuple
+        Extra arguments to be passed to likelihood and model functions.
+        args = (target_spectrum, external_spectrum)
+    gamma_fraction: scalar
+        Maximum fraction allowed to constraint the gamma value in the fitting
+        procedure.
+
+    Return
+    ------
+    contraints: tuple
+        Constraints as required by the scipy SLSQP minimizer.
+
+    """
     gamma_vs_target_flux = make_gamma_vs_target_flux(gamma_fraction)
     constraints = (
         {"type": "ineq", "fun": alpha_vs_beta, "args": args},
@@ -423,6 +484,23 @@ def make_constraints(args, gamma_fraction):
 
 
 def make_minimizer_kwargs(args, bounds, constraints, options=None):
+    """Make scipy minimizer keyword arguments.
+
+    Parameters
+    ----------
+    args: tuple
+        Extra arguments to be passed to likelihood and model functions.
+        args = (target_spectrum, external_spectrum)
+    bounds: tuple
+        Tuple of 4 pairs of values indicating the minimum and maximum allowed
+        values of the fitted parameters. The order is: T, alpha, beta, gamma.
+        Example: bounds = ((0, 2000), (0, 20), (6, 10), (-10, 0))
+    contraints: tuple
+        Constraints as required by the scipy SLSQP minimizer.
+    options: dict
+        Extra options to be passed to the local minimizer through the
+        `options` keyword. Default: {"maxiter": 1000}
+    """
     if options is None:
         options = {"maxiter": 1000}
     minimizer_kwargs = {
