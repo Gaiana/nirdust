@@ -454,6 +454,21 @@ class BasinhoppingFitter:
 
 
 def print_callback(x, f, accepted):
+    """Print current status of the basinhopping algorithm.
+
+    The function signature parameters are exactly what the scipy basinhopping
+    algorithm expects.
+
+    Parameters
+    ----------
+    x: tuple
+        Current parameter vector that is being evaluated. The order is, as
+        always, (T, alpha, beta, gamma).
+    f: float
+        Result of evaluating `negative_gaussian_log_likelihood` with `x`.
+    accepted: float
+        Float value to determine if `x` should be accepted.
+    """
     print(f"at minimum {f} : {x[0]:.1f}, {x[1]:.2f}, {x[2]:.2f}, {x[3]:.4f}")
 
 
@@ -465,7 +480,7 @@ def make_constraints(args, gamma_fraction):
     args: tuple
         Extra arguments to be passed to likelihood and model functions.
         args = (target_spectrum, external_spectrum)
-    gamma_fraction: scalar
+    gamma_fraction: float
         Maximum fraction allowed to constraint the gamma value in the fitting
         procedure.
 
@@ -503,6 +518,7 @@ def make_minimizer_kwargs(args, bounds, constraints, options=None):
     """
     if options is None:
         options = {"maxiter": 1000}
+
     minimizer_kwargs = {
         "method": "SLSQP",
         "args": args,
@@ -543,20 +559,38 @@ def fit_blackbody(
     external_spectrum: NirdustSpectrum object
         Instance of NirdustSpectrum containing the external spectrum.
 
-    initial_state: tuple, optional
-        Vector indicating the initial guess values of temperature and
-        log10(scale). Default: (1000.0 K, 8.0)
+    x0: tuple, optional
+        Vector indicating the initial guess values of temperature, alpha, beta
+        and gamma.
 
-    steps: int, optional
-        Number of times the parameter space is be sampled. Default: 1000.
+    bounds: tuple
+        Tuple of 4 pairs of values indicating the minimum and maximum allowed
+        values of the fitted parameters. The order is: T, alpha, beta, gamma.
+        Example: bounds = ((0, 2000), (0, 20), (6, 10), (-10, 0))
 
-    kwargs: dict
-        Parameters to be passed to the emcee.EnsembleSampler class.
+    gamma_target_fraction: float
+        Maximum fraction of gamma vs target flux allowed to constraint the
+        gamma value in the fitting procedure. Default: 0.05.
+
+    seed: int
+        Random number generation seed for the basinhopping algorithm.
+
+    niter: int
+        Number of basinhopping iterations. This numbers represents how many
+        times the local minimizer will be excecuted. Default: 200.
+
+    stepsize: float
+        Maximum step size for use in the random displacement of x0 for each
+        basinhopping iteration. Default: 1.0.
+
+    verbose: bool
+        Flag to indicate if a status message should be printed after every
+        basinhopping iteration. Default: False.
 
     Return
     ------
-    fitter: NirdustFitter object
-        Instance of NirdustFitter after the fitting procedure.
+    result: NirdustResults object
+        Instance of NirdustResults after the fitting procedure.
     """
     # Check defaults
     if bounds is None:
