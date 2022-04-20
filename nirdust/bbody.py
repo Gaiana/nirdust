@@ -70,7 +70,7 @@ def target_model(external_spectrum, T, alpha, beta, gamma):
     blackbody = BlackBody(u.Quantity(T, u.K))
     bb_flux = blackbody(spectral_axis).value
 
-    prediction = alpha * external_flux + (10 ** beta) * bb_flux + (10 ** gamma)
+    prediction = alpha * external_flux + 10 ** beta * bb_flux + 10 ** gamma
     return prediction
 
 
@@ -272,14 +272,17 @@ class NirdustResults:
         validator=validators.instance_of(OptimizeResult)
     )
 
-    def plot(self, ax=None, data_kws=None, model_kws=None):
+    def plot(
+        self, axes=None, data_kws=None, model_kws=None, show_components=False
+    ):
         """Build a plot of the fitted spectrum and the fitted model.
 
         Parameters
         ----------
-        ax: ``matplotlib.pyplot.Axis`` object
-            Object of type Axes containing complete information of the
-            properties to generate the image, by default it is None.
+        axes: tuple of ``matplotlib.pyplot.Axis`` objects
+            Tuple with two objects of type Axes containing complete
+            information of the properties to generate the image, by default
+            it is None.
 
         data_kws: ``dict``
             Dictionaries of keyword arguments. Passed to the data plotting
@@ -288,6 +291,10 @@ class NirdustResults:
         model_kws: ``dict``
             Dictionaries of keyword arguments. Passed to the model plotting
             function.
+
+        show_components: ``bool``
+            Flag to indicate if the three components of the model should be
+            plotted.
 
         Return
         ------
@@ -301,15 +308,20 @@ class NirdustResults:
             self.beta.value,
             self.gamma.value,
         )
+        wave_axis = self.target_spectrum.spectral_axis.value
 
-        if ax is None:
-            ax = plt.gca()
+        if axes is None:
+            gkw = {"height_ratios": [4, 1], "hspace": 0}
+            fig = plt.figure(figsize=(8, 6), tight_layout=True)
+            axes = fig.subplots(2, 1, sharex=True, gridspec_kw=gkw)
+
+        ax, axr = axes
 
         # Target
         data_kws = {} if data_kws is None else data_kws
         data_kws.setdefault("color", "firebrick")
         ax.plot(
-            self.target_spectrum.spectral_axis.value,
+            wave_axis,
             self.target_spectrum.flux.value,
             label="target",
             **data_kws,
@@ -319,16 +331,55 @@ class NirdustResults:
         model_kws = {} if model_kws is None else model_kws
         model_kws.setdefault("color", "Navy")
         ax.plot(
-            self.target_spectrum.spectral_axis.value,
+            wave_axis,
             prediction,
             label="prediction",
             **model_kws,
         )
-        ax.set_xlabel("Angstrom [A]")
+
+        if show_components:
+            alpha_term = self.alpha.value * self.external_spectrum.flux.value
+            beta_term = (10 ** self.beta.value) * self.fitted_blackbody(
+                self.target_spectrum.spectral_axis
+            ).value
+            gamma_term = (10 ** self.gamma.value) * np.ones_like(wave_axis)
+
+            ax.plot(
+                wave_axis,
+                alpha_term,
+                label=r"$\alpha$-term",
+                linestyle="--",
+                color="sandybrown",
+            )
+            ax.plot(
+                wave_axis,
+                beta_term,
+                label=r"$\beta$-term",
+                linestyle="--",
+                color="darkorchid",
+            )
+            ax.plot(
+                wave_axis,
+                gamma_term,
+                label=r"$\gamma$-term",
+                linestyle="--",
+                color="darkgreen",
+            )
+        residuals = (
+            self.target_spectrum.flux.value - prediction
+        ) / self.target_spectrum.noise
+        axr.plot(
+            wave_axis,
+            residuals,
+            linestyle="solid",
+            color="gray",
+        )
+
+        axr.set_xlabel("Angstroms [A]")
         ax.set_ylabel("Intensity [arbitrary units]")
         ax.legend()
 
-        return ax
+        return ax, axr
 
 
 # ==============================================================================
@@ -397,6 +448,7 @@ class BasinhoppingFitter:
         """
         if x0 is None:
             x0 = (1000.0, 8.0, 9.0, -5.0)
+            # x0 = make_initial_guess()
         elif len(x0) != self.ndim_:
             raise ValueError("Invalid initial parameters.")
 
@@ -451,25 +503,6 @@ class BasinhoppingFitter:
 # ==============================================================================
 # FITTER FUNCTION WRAPPER
 # ==============================================================================
-
-
-def print_callback(x, f, accepted):
-    """Print current status of the basinhopping algorithm.
-
-    The function signature parameters are exactly what the scipy basinhopping
-    algorithm expects.
-
-    Parameters
-    ----------
-    x: tuple
-        Current parameter vector that is being evaluated. The order is, as
-        always, (T, alpha, beta, gamma).
-    f: float
-        Result of evaluating `negative_gaussian_log_likelihood` with `x`.
-    accepted: float
-        Float value to determine if `x` should be accepted.
-    """
-    print(f"at minimum {f} : {x[0]:.1f}, {x[1]:.2f}, {x[2]:.2f}, {x[3]:.4f}")
 
 
 def make_constraints(args, gamma_fraction):
@@ -543,7 +576,6 @@ def fit_blackbody(
     seed=None,
     niter=200,
     stepsize=1,
-    verbose=False,
 ):
     """Fitter function.
 
@@ -583,10 +615,6 @@ def fit_blackbody(
         Maximum step size for use in the random displacement of x0 for each
         basinhopping iteration. Default: 1.0.
 
-    verbose: bool
-        Flag to indicate if a status message should be printed after every
-        basinhopping iteration. Default: False.
-
     Return
     ------
     result: NirdustResults object
@@ -596,15 +624,12 @@ def fit_blackbody(
     if bounds is None:
         bounds = BOUNDS
 
-    callback = print_callback if verbose else None
-
     basinhopping_kwargs = {
         "niter": niter,
         "T": 100,
         "stepsize": stepsize,
         "seed": seed,
         "niter_success": None,
-        "callback": callback,
         "interval": 50,
     }
     fitter = BasinhoppingFitter(
