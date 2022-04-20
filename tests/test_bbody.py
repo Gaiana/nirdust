@@ -48,7 +48,7 @@ def test_target_model(spectral_unit):
         spectral_axis.to(spectral_unit, equivalencies=u.spectral())
     ).value
 
-    expected = alpha * external_flux + 10**beta * bb_flux + 10**gamma
+    expected = alpha * external_flux + 10 ** beta * bb_flux + 10 ** gamma
 
     external_spectrum = core.NirdustSpectrum(spectral_axis, external_flux)
     result = bbody.target_model(external_spectrum, T, alpha, beta, gamma)
@@ -171,10 +171,15 @@ def test_NirdustResults_invalid_parameters():
 # =============================================================================
 
 
-@pytest.mark.xfail
 @check_figures_equal()
-def test_plot_results(
-    fig_test, fig_ref, true_params, synth_total_noised, synth_external_noised
+@pytest.mark.parametrize("show_components", [True, False])
+def test_plot_results_show_components(
+    fig_test,
+    fig_ref,
+    true_params,
+    synth_total_noised,
+    synth_external_noised,
+    show_components,
 ):
 
     fit_results = bbody.NirdustResults(
@@ -189,11 +194,11 @@ def test_plot_results(
     )
 
     # Nirdust plot
-    ax_test = fig_test.subplots()
-    fit_results.plot(ax=ax_test)
+    axes_test = fig_test.subplots(2, 1)
+    fit_results.plot(axes=axes_test, show_components=show_components)
 
     # Expected plot
-    ax_ref = fig_ref.subplots()
+    axes_ref = fig_ref.subplots(2, 1)
 
     prediction = bbody.target_model(
         synth_external_noised,
@@ -202,27 +207,89 @@ def test_plot_results(
         true_params["beta"],
         true_params["gamma"],
     )
-    ax_ref.plot(
-        synth_total_noised.spectral_axis.value,
-        synth_total_noised.flux.value,
+    wave_axis = fit_results.target_spectrum.spectral_axis.value
+
+    ax, axr = axes_ref
+
+    # Target
+    data_kws = {}
+    data_kws.setdefault("color", "firebrick")
+    ax.plot(
+        wave_axis,
+        fit_results.target_spectrum.flux.value,
         label="target",
-        color="firebrick",
+        **data_kws,
     )
-    ax_ref.plot(
-        synth_total_noised.spectral_axis.value,
+
+    # Prediction
+    model_kws = {}
+    model_kws.setdefault("color", "Navy")
+    ax.plot(
+        wave_axis,
         prediction,
         label="prediction",
-        color="Navy",
+        **model_kws,
     )
-    ax_ref.set_xlabel("Angstrom [A]")
-    ax_ref.set_ylabel("Intensity [arbitrary units]")
-    ax_ref.legend()
+
+    # Show components
+    if show_components:
+        alpha_term = (
+            fit_results.alpha.value * fit_results.external_spectrum.flux.value
+        )
+        beta_term = (
+            10 ** fit_results.beta.value
+        ) * fit_results.fitted_blackbody(
+            fit_results.target_spectrum.spectral_axis
+        ).value
+        gamma_term = (10 ** fit_results.gamma.value) * np.ones_like(wave_axis)
+
+        ax.plot(
+            wave_axis,
+            alpha_term,
+            label=r"$\alpha$-term",
+            linestyle="--",
+            color="sandybrown",
+        )
+        ax.plot(
+            wave_axis,
+            beta_term,
+            label=r"$\beta$-term",
+            linestyle="--",
+            color="darkorchid",
+        )
+        ax.plot(
+            wave_axis,
+            gamma_term,
+            label=r"$\gamma$-term",
+            linestyle="--",
+            color="darkgreen",
+        )
+
+    # Residuals
+    residuals = (
+        fit_results.target_spectrum.flux.value - prediction
+    ) / fit_results.target_spectrum.noise
+    axr.plot(
+        wave_axis,
+        residuals,
+        linestyle="solid",
+        color="gray",
+    )
+
+    axr.set_xlabel("Angstroms [A]")
+    ax.set_ylabel("Intensity [arbitrary units]")
+    ax.legend()
 
 
-@pytest.mark.xfail
 @check_figures_equal()
-def test_plot_results_default_axis(
-    fig_test, fig_ref, true_params, synth_total_noised, synth_external_noised
+@pytest.mark.parametrize("show_components", [True, False])
+def test_plot_results_default_axis_show_components(
+    fig_test,
+    fig_ref,
+    true_params,
+    synth_total_noised,
+    synth_external_noised,
+    show_components,
 ):
 
     fit_results = bbody.NirdustResults(
@@ -236,12 +303,20 @@ def test_plot_results_default_axis(
         minimizer_results=OptimizeResult({}),
     )
 
-    ax_test = fig_test.subplots()
-    with patch("matplotlib.pyplot.gca", return_value=ax_test):
-        fit_results.plot()
+    # Nirdust plot
+    gkw = {"height_ratios": [4, 1], "hspace": 0}
+    fig_test.update({"size_inches": (8, 6)})
+    fig_test.tight_layout()
+    with patch("matplotlib.pyplot.figure", return_value=fig_test):
+        fit_results.plot(show_components=show_components)
 
     # Expected plot
-    ax_ref = fig_ref.subplots()
+    gkw = {"height_ratios": [4, 1], "hspace": 0}
+    fig_ref.update({"size_inches": (8, 6)})
+    fig_ref.tight_layout()
+    axes_ref = fig_ref.subplots(2, 1, sharex=True, gridspec_kw=gkw)
+
+    ax, axr = axes_ref
 
     prediction = bbody.target_model(
         synth_external_noised,
@@ -250,21 +325,78 @@ def test_plot_results_default_axis(
         true_params["beta"],
         true_params["gamma"],
     )
-    ax_ref.plot(
-        synth_total_noised.spectral_axis,
-        synth_total_noised.flux,
+    wave_axis = fit_results.target_spectrum.spectral_axis.value
+
+    ax, axr = axes_ref
+
+    # Target
+    data_kws = {}
+    data_kws.setdefault("color", "firebrick")
+    ax.plot(
+        wave_axis,
+        fit_results.target_spectrum.flux.value,
         label="target",
-        color="firebrick",
+        **data_kws,
     )
-    ax_ref.plot(
-        synth_total_noised.spectral_axis,
+
+    # Prediction
+    model_kws = {}
+    model_kws.setdefault("color", "Navy")
+    ax.plot(
+        wave_axis,
         prediction,
         label="prediction",
-        color="Navy",
+        **model_kws,
     )
-    ax_ref.set_xlabel("Angstrom [A]")
-    ax_ref.set_ylabel("Intensity [arbitrary units]")
-    ax_ref.legend()
+
+    # Show components
+    if show_components:
+        alpha_term = (
+            fit_results.alpha.value * fit_results.external_spectrum.flux.value
+        )
+        beta_term = (
+            10 ** fit_results.beta.value
+        ) * fit_results.fitted_blackbody(
+            fit_results.target_spectrum.spectral_axis
+        ).value
+        gamma_term = (10 ** fit_results.gamma.value) * np.ones_like(wave_axis)
+
+        ax.plot(
+            wave_axis,
+            alpha_term,
+            label=r"$\alpha$-term",
+            linestyle="--",
+            color="sandybrown",
+        )
+        ax.plot(
+            wave_axis,
+            beta_term,
+            label=r"$\beta$-term",
+            linestyle="--",
+            color="darkorchid",
+        )
+        ax.plot(
+            wave_axis,
+            gamma_term,
+            label=r"$\gamma$-term",
+            linestyle="--",
+            color="darkgreen",
+        )
+
+    # Residuals
+    residuals = (
+        fit_results.target_spectrum.flux.value - prediction
+    ) / fit_results.target_spectrum.noise
+    axr.plot(
+        wave_axis,
+        residuals,
+        linestyle="solid",
+        color="gray",
+    )
+
+    axr.set_xlabel("Angstroms [A]")
+    ax.set_ylabel("Intensity [arbitrary units]")
+    ax.legend()
 
 
 # =============================================================================
@@ -282,7 +414,7 @@ def test_alpha_vs_beta(synth_total, synth_external, true_params):
     theta = T, alpha, beta, gamma
 
     alpha_term = np.mean(alpha * synth_external.flux.value)
-    beta_term = np.mean(synth_total.flux.value - alpha_term - 10**gamma)
+    beta_term = np.mean(synth_total.flux.value - alpha_term - 10 ** gamma)
 
     expected = alpha_term - beta_term
     result = bbody.alpha_vs_beta(theta, synth_total, synth_external)
@@ -412,7 +544,7 @@ class Test_BasinhoppingFitter:
         noise_tar = params["target_spectrum"].noise
         noise_ext = params["external_spectrum"].noise
 
-        expected = np.sqrt(noise_ext**2 + noise_tar**2)
+        expected = np.sqrt(noise_ext ** 2 + noise_tar ** 2)
         result = fitter.total_noise_
 
         np.testing.assert_almost_equal(result, expected, decimal=14)
@@ -473,7 +605,6 @@ class Test_NirdustSanity:
             niter=100,
             seed=0,
             stepsize=1,
-            verbose=False,
         )
 
         success = result.minimizer_results.success

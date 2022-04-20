@@ -113,6 +113,11 @@ def test_metadata_dir_fits_header(header_of):
 # =============================================================================
 
 
+def test_property_freq_axis(NGC4945_continuum):
+    x = NGC4945_continuum.spectral_axis.to(u.Hz, equivalencies=u.spectral())
+    np.testing.assert_allclose(x.value, NGC4945_continuum.frequency_axis.value)
+
+
 def test_spectrum_repr(NGC4945_external_continuum_200pc):
     result = repr(NGC4945_external_continuum_200pc)
     expected = "NirdustSpectrum(z=0.00188, spectral_length=1751, spectral_range=[18905.11-25048.53] Angstrom)"  # noqa
