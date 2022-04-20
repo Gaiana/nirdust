@@ -124,8 +124,7 @@ def negative_gaussian_log_likelihood(
 def alpha_vs_beta(theta, target_spectrum, external_spectrum):
     """Alpha term positivity relative to beta term.
 
-    Here we assume that:
-        alpha * ExternalSpectrum > 10**beta * BlackBody
+    Here we assume that: alpha * ExternalSpectrum > 10**beta * BlackBody
     in mean values.
 
     Parameters
@@ -140,9 +139,8 @@ def alpha_vs_beta(theta, target_spectrum, external_spectrum):
     Return
     ------
     alpha_positivity: scalar
-        The difference between alpha term and beta term mean values, given
-        the data; i.e.:
-            mean(alpha * ExternalSpectrum) - (10**beta * BlackBody)
+        The difference between alpha term and beta term mean values, given the
+        data; i.e.: mean(alpha * ExternalSpectrum) - (10**beta * BlackBody)
     """
     # we assume that alpha*ExternalSpectrum > beta*BlackBody, in mean values
     T, alpha, beta, gamma = theta
@@ -172,7 +170,7 @@ def make_gamma_vs_target_flux(gamma_fraction):
     gamma_vs_target_flux: function
         Function that computes the gamma term positivity relative to the
         total target flux. Call signature:
-            gamma_vs_target_flux(theta, target_spectrum, external_spectrum)
+        gamma_vs_target_flux(theta, target_spectrum, external_spectrum)
     """
     if not (0 <= gamma_fraction <= 1):
         raise ValueError("Gamma fraction must be in the (0, 1) range.")
