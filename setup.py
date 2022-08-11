@@ -36,7 +36,6 @@ REQUIREMENTS = [
     "specutils",
     "matplotlib",
     "attrs",
-    "emcee",
 ]
 
 PATH = pathlib.Path(os.path.abspath(os.path.dirname(__file__)))
