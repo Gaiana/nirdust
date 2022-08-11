@@ -9,4 +9,4 @@ recursive-exclude examples *
 
 exclude tox.ini
 exclude pyproject.toml
-
+exclude .readthedocs.yml
