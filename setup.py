@@ -32,7 +32,7 @@ from setuptools import setup
 REQUIREMENTS = [
     "numpy",
     "scipy",
-    "astropy>=4.2",
+    "astropy",
     "specutils",
     "matplotlib",
     "attrs",
