@@ -210,11 +210,12 @@ def test_cut_edges(NGC4945_continuum):
     np.testing.assert_array_equal(result.spec1d_.flux, expected.flux)
 
 
-def test_nomrmalize(NGC4945_continuum):
+def test_normalize(NGC4945_continuum):
     spectrum = NGC4945_continuum
     normalized_spectrum = spectrum.normalize()
     mean = np.mean(normalized_spectrum.spec1d_.flux)
-    assert mean == 1.0
+
+    assert mean == u.Quantity(1.0)
 
 
 def test_compute_noise(NGC4945_continuum):
