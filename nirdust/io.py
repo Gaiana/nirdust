@@ -129,7 +129,7 @@ def spectrum(flux, header, z=0):
 
 
 def read_fits(file_name, extension=None, z=0):
-    """Read a spectrum in FITS format and store it in a `NirdustSpectrum` object.
+    """Read a spectrum in FITS format and store as a `NirdustSpectrum` object.
 
     Parameters
     ----------
