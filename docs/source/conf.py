@@ -27,9 +27,9 @@ import nirdust
 
 # -- Project information -----------------------------------------------------
 
-project = 'Nirdust'
-copyright = '2021, Gaia Gaspar & Jose Alacoria'
-author = 'Gaia Gaspar & Jose Alacoria'
+project = "Nirdust"
+copyright = "2021, Gaia Gaspar & Jose Alacoria"
+author = "Gaia Gaspar & Jose Alacoria"
 
 # The full version, including alpha/beta/rc tags
 release = nirdust.__version__
@@ -41,32 +41,31 @@ release = nirdust.__version__
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.coverage',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.napoleon',
-
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.autosummary',
-
-    'nbsphinx'
+    "sphinx.ext.autodoc",
+    "sphinx.ext.coverage",
+    "sphinx.ext.mathjax",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.autosummary",
+    "nbsphinx",
+    "jupyter_sphinx.execute",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
-source_suffix = ['.rst', '.md']
+source_suffix = [".rst", ".md"]
 
 # The master toctree document.
-master_doc = 'index'
+master_doc = "index"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['**.ipynb_checkpoints']
+exclude_patterns = ["**.ipynb_checkpoints"]
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -74,25 +73,24 @@ exclude_patterns = ['**.ipynb_checkpoints']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'bootstrap-astropy'
+html_theme = "bootstrap-astropy"
 
 html_logo = "_static/logo.png"
 
 
 html_theme_options = {
-    'logotext1': 'Nirdust',  # white,  semi-bold
-    'logotext2': '',  # orange, light
-    'logotext3': ':docs',   # white,  light
-    'astropy_project_menubar': False
-    }
-
+    "logotext1": "Nirdust",  # white,  semi-bold
+    "logotext2": "",  # orange, light
+    "logotext3": ":docs",  # white,  light
+    "astropy_project_menubar": False,
+}
 
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 
 # not execute notebooks before conversion
-nbsphinx_execute  = "never"
+# nbsphinx_execute  = "never"

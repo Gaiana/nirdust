@@ -2,11 +2,14 @@ include LICENSE
 include README.md
 recursive-include nirdust *.py
 
+exclude tox.ini
+exclude pyproject.toml
+exclude .readthedocs.yml
+
 recursive-exclude tests *
 recursive-exclude result_images *
 recursive-exclude docs *
 recursive-exclude examples *
 
-exclude tox.ini
-exclude pyproject.toml
-exclude .readthedocs.yml
+recursive-include docs *.fits
+
