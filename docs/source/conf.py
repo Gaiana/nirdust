@@ -49,7 +49,6 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.autosummary",
     "nbsphinx",
-    "jupyter_sphinx.execute",
 ]
 
 # Add any paths that contain templates here, relative to this directory.

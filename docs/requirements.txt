@@ -3,3 +3,4 @@ ipython
 Sphinx
 astropy-sphinx-theme
 nbsphinx
+jupyter-sphinx
