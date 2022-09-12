@@ -273,7 +273,7 @@ class NirdustSpectrum:
 
         upper_lim: float
             A float containing the lower limit for the region where the noise
-            will be computed. Must be in Å. Default is 20650.
+            will be computed. Must be in Å. Default is 21000.
 
         Return
         ------
