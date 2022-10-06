@@ -73,7 +73,7 @@ nuclei, do not get disappointed if Nirdust finds nothing.
 Requeriments
 ------------
 
-You will need Python 3.8 or 3.9 to run Nirdust.
+You will need Python 3.8+ to run Nirdust.
 
 Installation
 ------------
@@ -106,7 +106,7 @@ https://github.com/Gaiana/nirdust
    api
    licence
    installation
-   tutorial.ipynb
+   NGC5128.ipynb
 
 Indices and tables
 ==================
