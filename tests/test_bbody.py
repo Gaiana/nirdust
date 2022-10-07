@@ -48,7 +48,7 @@ def test_target_model(spectral_unit):
         spectral_axis.to(spectral_unit, equivalencies=u.spectral())
     ).value
 
-    expected = alpha * external_flux + 10**beta * bb_flux + 10**gamma
+    expected = alpha * external_flux + 10 ** beta * bb_flux + 10 ** gamma
 
     external_spectrum = core.NirdustSpectrum(spectral_axis, external_flux)
     result = bbody.target_model(external_spectrum, T, alpha, beta, gamma)
@@ -237,11 +237,11 @@ def test_plot_results_show_components(
             fit_results.alpha.value * fit_results.external_spectrum.flux.value
         )
         beta_term = (
-            10**fit_results.beta.value
+            10 ** fit_results.beta.value
         ) * fit_results.fitted_blackbody(
             fit_results.target_spectrum.spectral_axis
         ).value
-        gamma_term = (10**fit_results.gamma.value) * np.ones_like(wave_axis)
+        gamma_term = (10 ** fit_results.gamma.value) * np.ones_like(wave_axis)
 
         ax.plot(
             wave_axis,
@@ -276,9 +276,14 @@ def test_plot_results_show_components(
         color="gray",
     )
 
-    axr.set_xlabel("Angstroms [A]")
-    ax.set_ylabel("Intensity [arbitrary units]")
-    ax.legend()
+    # Ticks and Labels
+    ax.tick_params(axis="y", labelsize=12)
+    axr.tick_params(axis="both", labelsize=12)
+
+    axr.set_xlabel(r"Wavelength [$\AA$]", fontsize=12)
+    axr.set_ylabel("Residual", fontsize=12)
+    ax.set_ylabel("Intensity [arbitrary units]", fontsize=12)
+    ax.legend(fontsize=12)
 
 
 @check_figures_equal(extensions=("png", "pdf"))
@@ -355,11 +360,11 @@ def test_plot_results_default_axis_show_components(
             fit_results.alpha.value * fit_results.external_spectrum.flux.value
         )
         beta_term = (
-            10**fit_results.beta.value
+            10 ** fit_results.beta.value
         ) * fit_results.fitted_blackbody(
             fit_results.target_spectrum.spectral_axis
         ).value
-        gamma_term = (10**fit_results.gamma.value) * np.ones_like(wave_axis)
+        gamma_term = (10 ** fit_results.gamma.value) * np.ones_like(wave_axis)
 
         ax.plot(
             wave_axis,
@@ -394,9 +399,14 @@ def test_plot_results_default_axis_show_components(
         color="gray",
     )
 
-    axr.set_xlabel("Angstroms [A]")
-    ax.set_ylabel("Intensity [arbitrary units]")
-    ax.legend()
+    # Ticks and Labels
+    ax.tick_params(axis="y", labelsize=12)
+    axr.tick_params(axis="both", labelsize=12)
+
+    axr.set_xlabel(r"Wavelength [$\AA$]", fontsize=12)
+    axr.set_ylabel("Residual", fontsize=12)
+    ax.set_ylabel("Intensity [arbitrary units]", fontsize=12)
+    ax.legend(fontsize=12)
 
 
 # =============================================================================
@@ -414,7 +424,7 @@ def test_alpha_vs_beta(synth_total, synth_external, true_params):
     theta = T, alpha, beta, gamma
 
     alpha_term = np.mean(alpha * synth_external.flux.value)
-    beta_term = np.mean(synth_total.flux.value - alpha_term - 10**gamma)
+    beta_term = np.mean(synth_total.flux.value - alpha_term - 10 ** gamma)
 
     expected = alpha_term - beta_term
     result = bbody.alpha_vs_beta(theta, synth_total, synth_external)
@@ -544,7 +554,7 @@ class Test_BasinhoppingFitter:
         noise_tar = params["target_spectrum"].noise
         noise_ext = params["external_spectrum"].noise
 
-        expected = np.sqrt(noise_ext**2 + noise_tar**2)
+        expected = np.sqrt(noise_ext ** 2 + noise_tar ** 2)
         result = fitter.total_noise_
 
         np.testing.assert_almost_equal(result, expected, decimal=14)

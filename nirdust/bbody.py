@@ -78,7 +78,7 @@ def target_model(external_spectrum, T, alpha, beta, gamma):
     blackbody = BlackBody(u.Quantity(T, u.K))
     bb_flux = blackbody(spectral_axis).value
 
-    prediction = alpha * external_flux + 10**beta * bb_flux + 10**gamma
+    prediction = alpha * external_flux + 10 ** beta * bb_flux + 10 ** gamma
     return prediction
 
 
@@ -119,7 +119,7 @@ def negative_gaussian_log_likelihood(
     loglike = np.sum(
         -0.5 * np.log(2.0 * np.pi)
         - np.log(noise)
-        - diff**2 / (2.0 * noise**2)
+        - diff ** 2 / (2.0 * noise ** 2)
     )
     return -loglike
 
@@ -156,7 +156,7 @@ def alpha_vs_beta(theta, target_spectrum, external_spectrum):
     prediction = target_model(external_spectrum, T, alpha, beta, gamma)
 
     alpha_term = np.mean(alpha * external_spectrum.flux.value)
-    beta_term = np.mean(prediction - alpha_term - 10**gamma)
+    beta_term = np.mean(prediction - alpha_term - 10 ** gamma)
 
     alpha_positivity = alpha_term - beta_term
 
@@ -188,7 +188,7 @@ def make_gamma_vs_target_flux(gamma_fraction):
         T, alpha, beta, gamma = theta
 
         min_flux = target_spectrum.flux.value.min()
-        gamma_positivity = gamma_fraction * min_flux - 10**gamma
+        gamma_positivity = gamma_fraction * min_flux - 10 ** gamma
 
         # Positive output is True
         return gamma_positivity
@@ -345,10 +345,10 @@ class NirdustResults:
 
         if show_components:
             alpha_term = self.alpha.value * self.external_spectrum.flux.value
-            beta_term = (10**self.beta.value) * self.fitted_blackbody(
+            beta_term = (10 ** self.beta.value) * self.fitted_blackbody(
                 self.target_spectrum.spectral_axis
             ).value
-            gamma_term = (10**self.gamma.value) * np.ones_like(wave_axis)
+            gamma_term = (10 ** self.gamma.value) * np.ones_like(wave_axis)
 
             ax.plot(
                 wave_axis,
@@ -381,9 +381,14 @@ class NirdustResults:
             color="gray",
         )
 
-        axr.set_xlabel("Angstroms [A]")
-        ax.set_ylabel("Intensity [arbitrary units]")
-        ax.legend()
+        # Ticks and Labels
+        ax.tick_params(axis="y", labelsize=12)
+        axr.tick_params(axis="both", labelsize=12)
+
+        axr.set_xlabel(r"Wavelength [$\AA$]", fontsize=12)
+        axr.set_ylabel("Residual", fontsize=12)
+        ax.set_ylabel("Intensity [arbitrary units]", fontsize=12)
+        ax.legend(fontsize=12)
 
         return ax, axr
 
@@ -428,7 +433,7 @@ class BasinhoppingFitter:
     def _total_noise__default(self):
         """Propagated noise."""
         return np.sqrt(
-            self.target_spectrum.noise**2 + self.external_spectrum.noise**2
+            self.target_spectrum.noise ** 2 + self.external_spectrum.noise ** 2
         )
 
     @property
