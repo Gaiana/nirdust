@@ -236,5 +236,4 @@ def line_spectrum(
     )
     line_intervals = u.Quantity(line_intervals, u.AA)
 
-    line_fitting_quality = 0.0
-    return line_nd_spectrum, line_intervals, line_fitting_quality
+    return line_nd_spectrum, line_intervals
