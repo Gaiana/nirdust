@@ -66,6 +66,7 @@ master_doc = "index"
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = ["**.ipynb_checkpoints"]
 
+toc_object_entries_show_parents = "hide"
 
 # -- Options for HTML output -------------------------------------------------
 
