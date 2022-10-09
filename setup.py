@@ -12,8 +12,7 @@
 # DOCS
 # =============================================================================
 
-"""This file is for distribute and install NIRDust
-"""
+"""This file distributes and installs NIRDust."""
 
 
 # =============================================================================
