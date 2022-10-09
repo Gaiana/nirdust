@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # This file is part of the
-#   NirDust Project (https://github.com/Gaiana/nirdust)
+#   NIRDust Project (https://github.com/Gaiana/nirdust)
 # Copyright (c) 2020, 2021 Gaia Gaspar, Jose Alacoria
 # License: MIT
 #   Full Text: https://github.com/Gaiana/nirdust/LICENSE
@@ -11,7 +11,7 @@
 # DOCS
 # ==============================================================================
 
-"""Core functionalities for Nirdust."""
+"""Core functionalities for NIRDust."""
 
 
 # ==============================================================================
