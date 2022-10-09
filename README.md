@@ -1,4 +1,4 @@
-# Nirdust: Near Infrared Dust Finder
+# NIRDust: Near Infrared Dust Finder
 
 <p align="center">
 <img src="https://github.com/Gaiana/nirdust/blob/main/docs/source/_static/logo.png?raw=true" alt="logo" height="200"/>
@@ -13,7 +13,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 
-Nirdust is a python package that uses K-band (2.2 micrometers) spectra to 
+NIRDust is a python package that uses K-band (2.2 micrometers) spectra to 
 measure the temperature of the dust heated by an Active Galactic Nuclei (AGN) 
 accretion disk. 
 
@@ -31,23 +31,23 @@ can be fitted by a blackbody function in order to obtain its temperature.
 The package provides several functionalities to pre-process spectra and fit the
 hot dust component of a AGN K-band spectrum with black body functions. 
 
-Nirdust needs a minimum of two spectra to run: a target one, where the dust 
+NIRDust needs a minimum of two spectra to run: a target one, where the dust 
 temperature will be determined, and a reference spectrum, where the emission 
 is considered to be purely stellar. The reference spectrum spectrum will be used by
-Nirdust to model the stellar emission from the target spectrum. 
+NIRDust to model the stellar emission from the target spectrum. 
 
 
 Footnote: the hot dust component may or may not be present in your type 2 
-nuclei, do not get disappointed if Nirdust finds nothing.
+nuclei, do not get disappointed if NIRDust finds nothing.
 
 
 ## Requeriments
 
-You will need Python 3.8 or 3.9 to run Nirdust.
+You will need Python 3.8 or higher to run NIRDust.
 
 ## Installation
 
-You can install the least stable version of Nirdust from pip:
+You can install the least stable version of NIRDust from pip:
 
 
 ``` python
