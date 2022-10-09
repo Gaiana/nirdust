@@ -142,6 +142,7 @@ def test_NirdustResults_parameters(NGC4945_continuum):
         external_spectrum=NGC4945_continuum,
         minimizer_results=OptimizeResult({}),
     )
+
     assert nr_inst.temperature.value == 11
     assert nr_inst.alpha.value == 22
     assert nr_inst.beta.value == 33
@@ -150,6 +151,27 @@ def test_NirdustResults_parameters(NGC4945_continuum):
     assert isinstance(nr_inst.target_spectrum, core.NirdustSpectrum)
     assert isinstance(nr_inst.external_spectrum, core.NirdustSpectrum)
     assert isinstance(nr_inst.minimizer_results, OptimizeResult)
+
+
+def test_NirdustResults_repr(NGC4945_continuum):
+    nr_inst = bbody.NirdustResults(
+        bbody.NirdustParameter("AAA", 11.123456, (5, 6)),
+        bbody.NirdustParameter("BBB", 22.123456, (5, 6)),
+        bbody.NirdustParameter("CCC", 33.123456, (5, 6)),
+        bbody.NirdustParameter("DDD", 44.123456, (5, 6)),
+        fitted_blackbody=BlackBody(0.0 * u.K),
+        target_spectrum=NGC4945_continuum,
+        external_spectrum=NGC4945_continuum,
+        minimizer_results=OptimizeResult({}),
+    )
+
+    expected = (
+        "NirdustResults(temperature=11 K, alpha=22.12, "
+        "beta=33.12, gamma=44.12,\n"
+        "minimizer_results=OptimizeResult())"
+    )
+
+    assert repr(nr_inst) == expected
 
 
 def test_NirdustResults_invalid_parameters():

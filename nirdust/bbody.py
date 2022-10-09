@@ -220,7 +220,7 @@ class NirdustParameter:
     uncertainty = attr.ib(default=None)
 
 
-@attr.s(frozen=True)
+@attr.s(frozen=True, repr=False)
 class NirdustResults:
     """Create the class NirdustResults.
 
@@ -275,8 +275,19 @@ class NirdustResults:
         validator=validators.instance_of(NirdustSpectrum),
     )
     minimizer_results = attr.ib(
-        validator=validators.instance_of(OptimizeResult)
+        validator=validators.instance_of(OptimizeResult),
     )
+
+    def __repr__(self):
+        """repr(x) <=> x.__repr__()."""
+        return (
+            f"NirdustResults("
+            f"temperature={self.temperature.value:.0f} K, "
+            f"alpha={self.alpha.value:.2f}, "
+            f"beta={self.beta.value:.2f}, "
+            f"gamma={self.gamma.value:.2f},\n"
+            f"minimizer_results={self.minimizer_results})"
+        )
 
     def plot(
         self, axes=None, data_kws=None, model_kws=None, show_components=False
