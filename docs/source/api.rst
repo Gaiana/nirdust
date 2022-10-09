@@ -1,4 +1,4 @@
-nirdust package
+NIRDust package
 ===============
 
 .. automodule:: nirdust

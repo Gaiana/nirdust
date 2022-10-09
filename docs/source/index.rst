@@ -1,9 +1,9 @@
-.. Nirduts documentation master file, created by
+.. Nirdust documentation master file, created by
    sphinx-quickstart on Wed Feb 17 15:19:30 2021.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Nirdust
+NIRDust
 ========================
 
 .. only:: html
@@ -42,7 +42,7 @@ Nirdust
    :target: https://tldrlegal.com/license/mit-license
    :alt: License
 
-**Nirdust** is a python package that uses K-band (2.2 micrometers) spectra to measure the temperature of the dust heated by an Active Galactic Nuclei (AGN) accretion disk.
+**NIRDust** is a python package that uses K-band (2.2 micrometers) spectra to measure the temperature of the dust heated by an Active Galactic Nuclei (AGN) accretion disk.
 
 Motivation
 ----------
@@ -58,59 +58,46 @@ Features
 The package uses the modeling features of astropy to fit the hot dust component
 of a AGN K-band spectrum with black body functions. And provide a class with
 methods for spectrum manipulation and normalized-blackbody-fitting. Because
-Nirdust normalizes the spectra before fitting, is not necessary to
+NIRDust normalizes the spectra before fitting, is not necessary to
 flux-calibrate spectra to use it.
 
-Nirdust needs a minimum of two spectra to run: a nuclear one, where the dust
+NIRDust needs a minimum of two spectra to run: a nuclear one, where the dust
 temperature will be determined, and an off-nuclear spectrum, where the emission
 is considered to be purely stellar. The off-nuclear spectrum will be used by
-Nirdust to subtract the stellar emission from the nuclear spectrum.
+NIRDust to subtract the stellar emission from the nuclear spectrum.
 
 Footnote: the hot dust component may or may not be present in your type 2
-nuclei, do not get disappointed if Nirdust finds nothing.
+nuclei, do not get disappointed if NIRDust finds nothing.
+
+
+User Documentation
+------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   installation
+   api
+   NGC5128.ipynb
+   licence
 
 
 Requeriments
 ------------
 
-You will need Python 3.8+ to run Nirdust.
-
-Installation
-------------
-
-Clone this repo and then inside the local directory execute
-
-``` python
-$ pip install -e .
-```
-
-
-
-| **Authors**
-| Gaia Gaspar (E-mail: gaiagaspar@gmail.com)
-| Jose Alacoria (E-mail: josealacoria@gmail.com)
+You will need Python 3.8 or higher to run NIRDust.
 
 
 Repository and Issues
 ---------------------
 
-https://github.com/Gaiana/nirdust
+| To view NIRDust source code visit the repository: https://github.com/Gaiana/nirdust
+| If you find any issues or bugs please let us know here: https://github.com/Gaiana/nirdust/issues
 
---------------------------------------------------------
 
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Contents:
-
-   api
-   licence
-   installation
-   NGC5128.ipynb
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+Authors
+-------
+| Gaia Gaspar (gaiagaspar@gmail.com)
+| Jose Alacoria (josealacoria@gmail.com)
+| Juan B. Cabral (jbc.develop@gmail.com)
+| Martin Chalela (tinchochalela@gmail.com) 
