@@ -1,5 +1,5 @@
-NIRDust package
-===============
+NIRDust API Reference
+=====================
 
 .. automodule:: nirdust
     :members:

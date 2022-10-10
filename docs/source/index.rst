@@ -78,7 +78,7 @@ User Documentation
 
    installation
    api
-   NGC5128.ipynb
+   tutorials/NGC5128.ipynb
    licence
 
 

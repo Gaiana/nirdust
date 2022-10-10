@@ -155,7 +155,7 @@ def test_NirdustResults_parameters(NGC4945_continuum):
 
 def test_NirdustResults_repr(NGC4945_continuum):
     nr_inst = bbody.NirdustResults(
-        bbody.NirdustParameter("AAA", 11.123456, (5, 6)),
+        bbody.NirdustParameter("AAA", 11.123456 * u.K, (5, 6)),
         bbody.NirdustParameter("BBB", 22.123456, (5, 6)),
         bbody.NirdustParameter("CCC", 33.123456, (5, 6)),
         bbody.NirdustParameter("DDD", 44.123456, (5, 6)),

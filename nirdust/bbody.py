@@ -282,7 +282,7 @@ class NirdustResults:
         """repr(x) <=> x.__repr__()."""
         return (
             f"NirdustResults("
-            f"temperature={self.temperature.value:.0f} K, "
+            f"temperature={self.temperature.value:.0f}, "
             f"alpha={self.alpha.value:.2f}, "
             f"beta={self.beta.value:.2f}, "
             f"gamma={self.gamma.value:.2f},\n"

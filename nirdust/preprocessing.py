@@ -18,6 +18,8 @@
 # IMPORTS
 # ==============================================================================
 
+import warnings
+
 from astropy import units as u
 from astropy.modeling import fitting, models
 from astropy.nddata import StdDevUncertainty
@@ -156,7 +158,6 @@ def match_spectral_axes(
 
 def _make_window(center, delta):
     """Create window array."""
-    print(center, delta)
     return np.array([center - delta, center + delta])
 
 
@@ -201,9 +202,11 @@ def line_spectrum(
     window = u.Quantity(window, u.AA)
 
     # By defaults this fits a Chebyshev of order 3 to the flux
-    model = fit_generic_continuum(
-        spectrum.spec1d_, fitter=fitting.LinearLSQFitter()
-    )
+    with warnings.catch_warnings():  # Ignore warnings
+        warnings.simplefilter("ignore")
+        model = fit_generic_continuum(
+            spectrum.spec1d_, fitter=fitting.LinearLSQFitter()
+        )
     continuum = model(spectrum.spectral_axis)
     new_flux = spectrum.spec1d_ - continuum
 
