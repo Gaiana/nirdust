@@ -140,10 +140,10 @@ def match_spectral_axes(
         else:
             second_sp = _rescale(second_sp, reference_sp=first_sp)
 
-    else:
-        # they have the same dispersion, is that equivalent
-        # to equal spectral_axis?
-        pass
+    # else:
+    #     # they have the same dispersion, is that equivalent
+    #     # to equal spectral_axis?
+    #     pass
 
     if clean:
         first_sp, second_sp = _clean_and_match(first_sp, second_sp)
