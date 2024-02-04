@@ -117,9 +117,7 @@ def negative_gaussian_log_likelihood(
     diff = target_spectrum.flux.value - prediction
 
     loglike = np.sum(
-        -0.5 * np.log(2.0 * np.pi)
-        - np.log(noise)
-        - diff**2 / (2.0 * noise**2)
+        -0.5 * np.log(2.0 * np.pi) - np.log(noise) - diff**2 / (2.0 * noise**2)
     )
     return -loglike
 

@@ -118,13 +118,14 @@ def test_line_spectrum(NGC4945_continuum_rest_frame):
         z=0,
     ).compute_noise(23000, 24000)
 
-    lines = preprocessing.line_spectrum(snth_line_spectrum, 5, window=80)[
-        0
-    ].flux
+    line_nd_spectrum, line_intervals = preprocessing.line_spectrum(
+        snth_line_spectrum,
+        noise_factor=5,
+        window=80,
+    )
 
-    all_zeros = any(lines)
-
-    assert all_zeros is True
+    assert isinstance(line_nd_spectrum, core.NirdustSpectrum)
+    assert isinstance(line_intervals, u.Quantity)
 
 
 def test_spectral_dispersion(NGC4945_continuum_rest_frame):
