@@ -140,10 +140,10 @@ def match_spectral_axes(
         else:
             second_sp = _rescale(second_sp, reference_sp=first_sp)
 
-    else:
-        # they have the same dispersion, is that equivalent
-        # to equal spectral_axis?
-        pass
+    # else:
+    #     # they have the same dispersion, is that equivalent
+    #     # to equal spectral_axis?
+    #     pass
 
     if clean:
         first_sp, second_sp = _clean_and_match(first_sp, second_sp)
@@ -190,13 +190,11 @@ def line_spectrum(
 
     Return
     ------
-    out: flux axis, list, list
-        Returns in the first element a flux axis of the same lenght as the
-        original spectrum containing the fitted lines. In the second position,
-        returns the intervals where those lines were finded determined by
-        3-sigma values around the center of the line. In the third position
-        returns an array with the quality of the fitting for each line (not yet
-        implemented).
+    out: NirdustSpectrum, Quantity
+        Returns in the first element a NirdustSpectrum of the same lenght as
+        the original spectrum containing the fitted lines. In the 2nd position,
+        returns the intervals where those lines were found determined by
+        3-sigma values around the center of the line.
     """
     # values in correct units
     window = u.Quantity(window, u.AA)

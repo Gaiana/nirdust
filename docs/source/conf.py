@@ -79,7 +79,7 @@ html_logo = "_static/logo.png"
 
 
 html_theme_options = {
-    "logotext1": "Nirdust",  # white,  semi-bold
+    "logotext1": "NIRDust",  # white,  semi-bold
     "logotext2": "",  # orange, light
     "logotext3": ":docs",  # white,  light
     "astropy_project_menubar": False,

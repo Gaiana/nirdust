@@ -1,4 +1,4 @@
-NIRDust API Reference
+API Reference
 =====================
 
 .. automodule:: nirdust
